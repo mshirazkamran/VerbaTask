@@ -1,3 +1,13 @@
+node_modules/
+.env
+.env.local
+.next/
+dist/
+build/
+*.log
+.DS_Store
+
+# Qoder / Claude local config
 .claude
 .env
 .env.prod
