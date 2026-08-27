@@ -1,1 +1,11 @@
 .claude
+.env
+.env.prod
+.env.development
+.env.production
+.env.local
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
