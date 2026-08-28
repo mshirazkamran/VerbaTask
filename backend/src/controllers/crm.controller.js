@@ -2,6 +2,9 @@ import InventoryItem from '../models/InventoryItem.js';
 import Order from '../models/Order.js';
 import { createOrder as processOrderCommand } from '../crm/order.service.js';
 
+// Escape regex metacharacters in item names — same reason as order.service.js.
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // --- INVENTORY CRUD ---
 
 export const getInventory = async (req, res) => {
@@ -20,7 +23,7 @@ export const createInventoryItem = async (req, res) => {
         // 1. Check if this merchant already has an item with this exact name (case-insensitive)
         let item = await InventoryItem.findOne({
             merchantId: req.merchantId,
-            name: new RegExp(`^${name}$`, 'i') // "Daal channa" will match "daal channa"
+            name: new RegExp(`^${escapeRegex(name)}$`, 'i') // "Daal channa" will match "daal channa"
         });
 
         if (item) {
