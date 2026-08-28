@@ -1,10 +1,19 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import 'dotenv/config';
+import authRoutes from './src/routes/auth.routes.js';
+import crmRoutes from './src/routes/crm.routes.js';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// Middleware to parse JSON request bodies (Required for POST requests)
+app.use(express.json());
+app.set('json spaces', 2);
+
+// Mount the authentication routes
+app.use('/api/auth', authRoutes);
+app.use('/api', crmRoutes); // Handles both /api/inventory and /api/orders
 // Health check route (Step 3 in your Design Guide)
 app.get('/health', (req, res) => {
   res.json({ success: true, data: { status: 'healthy' } });
