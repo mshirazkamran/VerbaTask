@@ -1,4 +1,5 @@
 import 'dotenv/config';
+<<<<<<< HEAD
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -13,6 +14,10 @@ import authRoutes from './src/routes/auth.route.js';
 // import workflowRoutes from './src/routes/workflow.route.js';
 // import ocrRoutes from './src/routes/ocr.route.js';
 // import dashboardRoutes from './src/routes/dashboard.route.js';
+=======
+import authRoutes from './src/routes/auth.routes.js';
+import crmRoutes from './src/routes/crm.routes.js';
+>>>>>>> origin/main
 
 const app = express();
 
@@ -44,10 +49,24 @@ app.use('/api/auth', authRoutes);
 
 const PORT = process.env.PORT || 8080;
 
+<<<<<<< HEAD
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log('MongoDB connected'))
   .catch((err) => console.error('MongoDB connection failed:', err.message));
+=======
+// Middleware to parse JSON request bodies (Required for POST requests)
+app.use(express.json());
+app.set('json spaces', 2);
+
+// Mount the authentication routes
+app.use('/api/auth', authRoutes);
+app.use('/api', crmRoutes); // Handles both /api/inventory and /api/orders
+// Health check route (Step 3 in your Design Guide)
+app.get('/health', (req, res) => {
+  res.json({ success: true, data: { status: 'healthy' } });
+});
+>>>>>>> origin/main
 
 app.listen(PORT, () => console.log(`VerbaTask backend listening on :${PORT}`));
 
