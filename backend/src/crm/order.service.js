@@ -1,6 +1,10 @@
 import InventoryItem from '../models/InventoryItem.js';
 import Order from '../models/Order.js';
 
+// Item names arrive from free-form WhatsApp text (Qwen NLP) — escape regex
+// metacharacters so "Milk (1L)" matches literally instead of failing silently.
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
  * The single source of truth for order creation and stock deduction.
  * @param {Object} command - Matches the JSON command contract exactly.
@@ -9,9 +13,9 @@ export const createOrder = async (command) => {
     const { item, paymentMethod, amount, source, merchantId } = command;
 
     // 1. Find the exact inventory item to deduct from
-    const inventoryItem = await InventoryItem.findOne({ 
-        merchantId, 
-        name: new RegExp(`^${item.name}$`, 'i') // Case-insensitive match
+    const inventoryItem = await InventoryItem.findOne({
+        merchantId,
+        name: new RegExp(`^${escapeRegex(item.name)}$`, 'i') // Case-insensitive match
     });
 
     if (!inventoryItem) {

@@ -1,5 +1,5 @@
-import Merchant from "../models/merchant.model.js";
-import LinkCode from "../models/linkCode.model.js";
+import Merchant from "../models/Merchant.js";
+import LinkCode from "../models/LinkCode.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 

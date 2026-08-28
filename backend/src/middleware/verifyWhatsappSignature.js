@@ -12,6 +12,13 @@ import crypto from 'crypto';
 export function verifyWhatsappSignature(req, res, next) {
   const signature = req.get('x-hub-signature-256');
 
+  if (!process.env.WHATSAPP_APP_SECRET) {
+    // Without the secret, createHmac below throws a raw TypeError — fail
+    // loudly and clearly instead so misconfiguration is obvious in logs.
+    console.error('WhatsApp webhook: WHATSAPP_APP_SECRET is not set — cannot verify signatures');
+    return res.sendStatus(500);
+  }
+
   if (!signature || !req.rawBody) {
     console.warn('WhatsApp webhook: missing signature or raw body — rejecting');
     return res.sendStatus(401);

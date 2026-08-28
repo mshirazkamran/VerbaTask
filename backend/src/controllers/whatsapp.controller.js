@@ -1,10 +1,11 @@
 import crypto from 'crypto';
 
-import Merchant from '../models/merchant.model.js';
-import LinkCode from '../models/linkCode.model.js';
-import InventoryItem from '../models/inventoryItem.model.js';
-import ConversationState from '../models/conversationState.model.js';
+import Merchant from '../models/Merchant.js';
+import LinkCode from '../models/LinkCode.js';
+import InventoryItem from '../models/InventoryItem.js';
+import ConversationState from '../models/ConversationState.js';
 
+import { createOrder } from '../crm/order.service.js';
 import { parseIntent } from '../services/qwen.service.js';
 import { downloadMedia } from '../services/media.service.js';
 import {
@@ -261,6 +262,7 @@ async function handleVoiceNote(merchant, mediaId) {
 async function routeParsedCommand(merchant, intent, source) {
   if (intent.type === 'log_sale') {
     return createOrderViaCrm(merchant, {
+      type: 'log_sale',
       merchantId: merchant._id,
       item: intent.item,
       paymentMethod: intent.paymentMethod,
@@ -326,7 +328,12 @@ async function continueGuidedOrder(merchant, message, state) {
       const item = await InventoryItem.findById(listId.replace('item_', ''));
       if (!item) return sendTextMessage(merchant.whatsappNumber, "Couldn't find that item — try again.");
 
-      state.data = { ...state.data, itemId: item._id.toString(), itemName: item.name };
+      state.data = {
+        ...state.data,
+        itemId: item._id.toString(),
+        itemName: item.name,
+        price: item.price, // stashed so finalize can compute the total without a re-fetch
+      };
       state.step = 'awaiting_quantity';
       await state.save();
       return sendTextMessage(merchant.whatsappNumber, `How many ${item.name} did you sell?`);
@@ -375,13 +382,16 @@ async function continueGuidedOrder(merchant, message, state) {
 
 /** Logs the completed guided order via crm/ and clears the flow state. */
 async function finalizeGuidedOrder(merchant, state) {
-  const { itemId, itemName, quantity, paymentMethod } = state.data;
+  const { itemId, itemName, quantity, paymentMethod, price } = state.data;
 
   await createOrderViaCrm(merchant, {
+    type: 'log_sale',
     merchantId: merchant._id,
     item: { name: itemName, quantity, inventoryItemId: itemId },
     paymentMethod,
-    amount: null, // guided flow doesn't collect price explicitly — crm looks it up from stock
+    // Guided flow never asks for a price — derive it from the stock list's
+    // unit price; null if the merchant never set one.
+    amount: price != null ? price * quantity : null,
     source: 'guided',
   });
 
@@ -389,25 +399,47 @@ async function finalizeGuidedOrder(merchant, state) {
 }
 
 // ---------------------------------------------------------------------------
-// crm / workflows integration — dynamic import so the WhatsApp layer works
-// standalone even before those modules land. Ali: this is the exact call
-// shape createOrder() and createWorkflow() need to support per the command
-// contract in the design guide — align the export names to match.
+// crm / workflows integration — call these as direct module imports, never
+// via the HTTP routes (per the backend contract). createOrder's contract is
+// confirmed (see createOrderViaCrm); workflows/createWorkflow.js has no
+// confirmed contract yet, so it keeps its dynamic import + graceful fallback.
 // ---------------------------------------------------------------------------
-/** Creates an order through crm/createOrder; tells the merchant if the module isn't wired yet. */
+/**
+ * Runs one log_sale command through crm/order.service.js and replies to the
+ * merchant. Business failures arrive as Error messages prefixed
+ * ITEM_NOT_FOUND: / INSUFFICIENT_STOCK: and get a helpful reply; anything
+ * unexpected gets a generic apology.
+ */
 async function createOrderViaCrm(merchant, command) {
   try {
-    const { createOrder } = await import('../crm/createOrder.js');
     const order = await createOrder(command);
+    const orderNo = order?._id ? order._id.toString().slice(-6) : '';
     return sendTextMessage(
       merchant.whatsappNumber,
-      `✅ Logged: ${command.item.quantity} x ${command.item.name} (${command.paymentMethod}). Order #${order._id.toString().slice(-6)}.`
+      `✅ Logged: ${command.item.quantity} x ${command.item.name} (${command.paymentMethod})${orderNo ? ` — Order #${orderNo}` : ''}.`
     );
   } catch (err) {
-    console.error('createOrder unavailable or failed:', err.message);
+    const message = err?.message ?? '';
+
+    if (message.startsWith('ITEM_NOT_FOUND:')) {
+      return sendTextMessage(
+        merchant.whatsappNumber,
+        `I couldn't find "${command.item.name}" in your stock — add it from the dashboard first, or check the spelling.`
+      );
+    }
+
+    if (message.startsWith('INSUFFICIENT_STOCK:')) {
+      const detail = message.slice('INSUFFICIENT_STOCK:'.length).trim();
+      return sendTextMessage(
+        merchant.whatsappNumber,
+        `Not enough stock for that sale${detail ? ` — ${detail}` : ''}.`
+      );
+    }
+
+    console.error('createOrder failed:', message);
     return sendTextMessage(
       merchant.whatsappNumber,
-      `Got it: ${command.item.quantity} x ${command.item.name} via ${command.paymentMethod}. (Saving to your records is still being wired up — this isn't in your stock yet.)`
+      "Sorry — I couldn't log that sale. Please try again in a moment."
     );
   }
 }
