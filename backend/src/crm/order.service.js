@@ -1,5 +1,7 @@
 import InventoryItem from '../models/InventoryItem.js';
 import Order from '../models/Order.js';
+import { evaluateThresholdWorkflows } from '../workflows/workflow.service.js';
+import { createApproval, HIGH_VALUE_THRESHOLD } from '../approvals/approval.service.js';
 
 // Item names arrive from free-form WhatsApp text (Qwen NLP) — escape regex
 // metacharacters so "Milk (1L)" matches literally instead of failing silently.
@@ -31,7 +33,18 @@ export const createOrder = async (command) => {
     inventoryItem.quantity -= item.quantity;
     await inventoryItem.save();
 
-    // 4. Construct and save the order (bypassing approvals for now)
+    // 4. Evaluate threshold workflows after stock deduction (non-blocking —
+    //    a failed notification must never prevent the order from being saved).
+    try {
+        await evaluateThresholdWorkflows(merchantId, inventoryItem);
+    } catch (err) {
+        console.error('Threshold workflow evaluation failed:', err.message);
+    }
+
+    // 5. Determine order status — high-value orders require approval before completion
+    const status = amount >= HIGH_VALUE_THRESHOLD ? 'pending_approval' : 'completed';
+
+    // 6. Construct and save the order
     const order = await Order.create({
         merchantId,
         items: [{
@@ -43,8 +56,18 @@ export const createOrder = async (command) => {
         total: amount,
         paymentMethod,
         source,
-        status: 'completed' // Approvals logic is paused until Day 5
+        status,
     });
+
+    // 7. If pending approval, create the approval record and notify the merchant
+    if (status === 'pending_approval') {
+        try {
+            const summary = `${item.quantity}x ${inventoryItem.name}`;
+            await createApproval({ merchantId, orderId: order._id, summary, amount });
+        } catch (err) {
+            console.error('Failed to create approval:', err.message);
+        }
+    }
 
     return order;
 };
