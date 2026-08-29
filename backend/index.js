@@ -7,6 +7,7 @@ import mongoose from 'mongoose';
 import whatsappRoutes from './src/routes/whatsapp.route.js';
 import authRoutes from './src/routes/auth.routes.js';
 import crmRoutes from './src/routes/crm.routes.js';
+import approvalRoutes from './src/routes/approval.routes.js';
 
 const app = express();
 
@@ -34,6 +35,7 @@ app.get('/health', (req, res) => {
 app.use('/webhook/whatsapp', whatsappRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api', crmRoutes); // Handles both /api/inventory and /api/orders
+app.use('/api/approvals', approvalRoutes);
 
 const PORT = process.env.PORT || 8080;
 

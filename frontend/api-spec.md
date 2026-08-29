@@ -81,13 +81,32 @@ Every endpoint returns this exact shape. The frontend only needs to check the `s
 | **POST** | `/` | `{ "type": "log_sale", "item": { "name": "rice bag", "quantity": 2 }, "paymentMethod": "easypaisa", "amount": 1500, "source": "dashboard" }` | Created `Order` object |
 
 **Notes:**
-- `GET /` returns all orders for the authenticated merchant.
+- `GET /` returns all orders for the authenticated merchant, sorted newest-first.
 - `GET /:id` returns a single order; returns `404` if no order matches the given id.
 - `POST /` creates a new order. The `type` field distinguishes order kinds (e.g., `log_sale`), `paymentMethod` describes how the payment was made, and `source` indicates where the order was initiated (e.g., `dashboard`).
+- **High-value threshold:** If `amount` is Rs. 10,000 or above, the order is created with `status: "pending_approval"` instead of `"completed"`. A pending `Approval` record is created automatically and the merchant is notified via WhatsApp with Approve/Reject buttons. Orders below the threshold are completed immediately as before.
+- After stock is deducted, **threshold workflows** are evaluated automatically — if any active threshold workflow's condition is met (e.g. stock dropped below a configured level), its action fires (e.g. a low-stock WhatsApp alert). This is transparent to the caller; the order response shape is unchanged.
 
 ---
 
-### 4. System
+### 4. Approvals (HITL)
+
+**Base URL:** `http://localhost:8080/api/approvals`
+**Auth Required:** Yes (`Authorization: Bearer <token>`) for all routes.
+
+| Method | Path | Request Body | Response `data` |
+|---|---|---|---|
+| **GET** | `/` | — | Array of pending `Approval` objects |
+| **PATCH** | `/:id/respond` | `{ "decision": "approved" \| "rejected" }` | Updated `Approval` object |
+
+**Notes:**
+- `GET /` returns all **pending** approvals for the authenticated merchant, sorted newest-first. Only approvals with `status: "pending"` are returned.
+- `PATCH /:id/respond` records the merchant's decision and propagates it to the referenced order (the order's `status` is updated to match the decision). Returns `404` if the approval does not exist or has already been responded to. Returns `400` if `decision` is not `"approved"` or `"rejected"`.
+- Approvals are created automatically by the backend when an order meets the high-value threshold (Rs. 10,000+). The merchant can also respond via WhatsApp reply buttons — both paths update the same record.
+
+---
+
+### 5. System
 
 | Method | Path | Auth Required | Request Body | Response `data` |
 |---|---|---|---|---|
@@ -145,7 +164,7 @@ The single record produced by both the guided-button flow and the voice flow —
   status:        { type: String, enum: ['pending_approval', 'approved', 'completed', 'rejected'], default: 'completed' },
   createdAt, updatedAt
 }
-status starts as pending_approval only when the approvals module flags it as high-value; otherwise it's completed immediately — most sales never touch the approvals module at all.
+status starts as pending_approval when `amount >= 10,000` (the high-value threshold). The approvals module creates a pending Approval record and sends the merchant WhatsApp buttons. Orders below the threshold are completed immediately — most routine sales never touch the approvals module at all.
 
 Payment (optional — only used if a screenshot gets forwarded)
 {
@@ -159,6 +178,7 @@ Payment (optional — only used if a screenshot gets forwarded)
   createdAt, updatedAt
 }
 Workflow
+Workflows are created via WhatsApp commands (typed or voice) through the Qwen NLP agent — not directly via REST from the dashboard. Threshold workflows are evaluated automatically by order.service.js after every stock deduction: if the updated item's quantity drops below the workflow's `condition.quantityThreshold`, the configured action fires (e.g. a low-stock WhatsApp notification).
 {
   merchantId:     { type: ObjectId, ref: 'Merchant', required: true },
   rawInstruction: String, // what the merchant actually typed/said
@@ -171,6 +191,7 @@ Workflow
 }
 Approval (HITL)
 Generic so it can cover both a large order and a risky workflow action without two separate systems.
+Approvals are created automatically by order.service.js when an order's amount >= Rs. 10,000. The merchant can respond via the dashboard API (PATCH /api/approvals/:id/respond) or via WhatsApp reply buttons — both paths update the same record and propagate the decision to the referenced Order.
 
 {
   merchantId: { type: ObjectId, ref: 'Merchant', required: true },
