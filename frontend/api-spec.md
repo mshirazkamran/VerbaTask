@@ -95,3 +95,89 @@ Every endpoint returns this exact shape. The frontend only needs to check the `s
 
 **Notes:**
 - `GET /health` is a lightweight health check used to confirm the backend is up and running. It requires no authentication.
+
+
+# Appendix
+## A. Schemas (Mongoose)
+Merchant
+{
+  whatsappNumber: { type: String, required: true, unique: true },
+  email:          { type: String, required: true, unique: true },
+  passwordHash:   { type: String, required: true },
+  businessName:   String,
+  location:       String,
+  sells:          String,
+  language:       { type: String, enum: ['ur', 'en'], default: 'ur' },
+  onboardingComplete: { type: Boolean, default: false },
+  createdAt, updatedAt // timestamps: true
+}
+LinkCode
+{
+  whatsappNumber: { type: String, required: true },
+  code:           { type: String, required: true },
+  expiresAt:      { type: Date, required: true },
+  usedAt:         Date,
+  createdAt, updatedAt
+}
+InventoryItem
+{
+  merchantId: { type: ObjectId, ref: 'Merchant', required: true },
+  name:       { type: String, required: true },
+  quantity:   { type: Number, default: 0 },
+  price:      Number,
+  unit:       String, // e.g. "bag", "kg", "piece"
+  createdAt, updatedAt
+}
+Order
+The single record produced by both the guided-button flow and the voice flow — see the command contract in section 6.
+
+{
+  merchantId:   { type: ObjectId, ref: 'Merchant', required: true },
+  items: [{
+    inventoryItemId: ObjectId,
+    name: String,
+    quantity: Number,
+    price: Number,
+  }],
+  total:         Number,
+  paymentMethod: { type: String, enum: ['easypaisa', 'jazzcash', 'bank', 'cash'], required: true },
+  source:        { type: String, enum: ['guided', 'voice', 'dashboard'], required: true },
+  status:        { type: String, enum: ['pending_approval', 'approved', 'completed', 'rejected'], default: 'completed' },
+  createdAt, updatedAt
+}
+status starts as pending_approval only when the approvals module flags it as high-value; otherwise it's completed immediately — most sales never touch the approvals module at all.
+
+Payment (optional — only used if a screenshot gets forwarded)
+{
+  merchantId:    { type: ObjectId, ref: 'Merchant', required: true },
+  orderId:       { type: ObjectId, ref: 'Order' }, // null until matched
+  transactionId: String,
+  amount:        Number,
+  provider:      { type: String, enum: ['easypaisa', 'jazzcash', 'bank'] },
+  screenshotUrl: String,
+  matchStatus:   { type: String, enum: ['matched', 'unmatched'], default: 'unmatched' },
+  createdAt, updatedAt
+}
+Workflow
+{
+  merchantId:     { type: ObjectId, ref: 'Merchant', required: true },
+  rawInstruction: String, // what the merchant actually typed/said
+  trigger:        { type: String, enum: ['message', 'schedule', 'threshold'], required: true },
+  condition:      Schema.Types.Mixed, // e.g. { item: 'rice bag', operator: '<', value: 5 }
+  action:         Schema.Types.Mixed, // e.g. { type: 'notify_merchant' }
+  active:         { type: Boolean, default: true },
+  nextRunAt:      Date, // only relevant for schedule triggers
+  createdAt, updatedAt
+}
+Approval (HITL)
+Generic so it can cover both a large order and a risky workflow action without two separate systems.
+
+{
+  merchantId: { type: ObjectId, ref: 'Merchant', required: true },
+  type:       { type: String, enum: ['order', 'workflow_action'], required: true },
+  refId:      { type: ObjectId, required: true }, // points at the Order or the Workflow
+  summary:    String, // plain-language text sent to the merchant, e.g. "Approve Rs. 15,000 order for 40 units of Item X?"
+  status:     { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  respondedAt: Date,
+  createdAt, updatedAt
+}
