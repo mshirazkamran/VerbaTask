@@ -447,7 +447,7 @@ async function createOrderViaCrm(merchant, command) {
 /** Creates an automation through workflows/createWorkflow; acknowledges if not wired yet. */
 async function createWorkflowViaModule(merchant, command) {
   try {
-    const { createWorkflow } = await import('../workflows/createWorkflow.js');
+    const { createWorkflow } = await import('../workflows/workflow.service.js');
     const workflow = await createWorkflow(command);
     return sendTextMessage(
       merchant.whatsappNumber,
