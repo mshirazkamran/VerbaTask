@@ -54,6 +54,10 @@ async function transcribeWithRetry(buffer, mimeType, attempt = 1) {
 }
 
 async function transcribe(buffer, mimeType) {
+  if (!process.env.GROQ_API_KEY) {
+    throw new Error('GROQ_API_KEY not set');
+  }
+
   const form = new FormData();
   form.append('file', buffer, { filename: filenameFor(mimeType), contentType: mimeType });
   form.append('model', 'whisper-large-v3-turbo'); // fast + free-tier; swap to whisper-large-v3 if accuracy matters more than speed
