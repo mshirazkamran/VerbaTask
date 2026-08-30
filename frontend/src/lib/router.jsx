@@ -5,13 +5,11 @@ import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { LoginPage } from '../pages/LoginPage';
 import { SignupPage } from '../pages/SignupPage';
 import { LinkCodePage } from '../pages/LinkCodePage';
-import {
-  OverviewPlaceholder,
-  InventoryPlaceholder,
-  OrdersPlaceholder,
-  WorkflowsPlaceholder,
-  ApprovalsPlaceholder,
-} from '../pages/Placeholders';
+import { OverviewPage } from '../pages/OverviewPage';
+import { InventoryPage } from '../pages/InventoryPage';
+import { OrdersPage } from '../pages/OrdersPage';
+import { ApprovalsPage } from '../pages/ApprovalsPage';
+import { WorkflowsPage } from '../pages/WorkflowsPage';
 
 export const router = createBrowserRouter([
   // Public Auth routes
@@ -38,23 +36,23 @@ export const router = createBrowserRouter([
         children: [
           {
             index: true,
-            element: <OverviewPlaceholder />,
+            element: <OverviewPage />,
           },
           {
             path: 'inventory',
-            element: <InventoryPlaceholder />,
+            element: <InventoryPage />,
           },
           {
             path: 'orders',
-            element: <OrdersPlaceholder />,
+            element: <OrdersPage />,
           },
           {
             path: 'workflows',
-            element: <WorkflowsPlaceholder />,
+            element: <WorkflowsPage />,
           },
           {
             path: 'approvals',
-            element: <ApprovalsPlaceholder />,
+            element: <ApprovalsPage />,
           },
         ],
       },

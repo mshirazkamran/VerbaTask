@@ -8,6 +8,8 @@ import whatsappRoutes from './src/routes/whatsapp.route.js';
 import authRoutes from './src/routes/auth.routes.js';
 import crmRoutes from './src/routes/crm.routes.js';
 import approvalRoutes from './src/routes/approval.routes.js';
+import dashboardRoutes from './src/routes/dashboard.routes.js';
+import workflowRoutes from './src/routes/workflow.routes.js';
 
 const app = express();
 
@@ -36,6 +38,8 @@ app.use('/webhook/whatsapp', whatsappRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api', crmRoutes); // Handles both /api/inventory and /api/orders
 app.use('/api/approvals', approvalRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/workflows', workflowRoutes);
 
 const PORT = process.env.PORT || 8080;
 

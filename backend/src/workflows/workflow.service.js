@@ -39,6 +39,15 @@ export const updateWorkflow = async (id, merchantId, patch) => {
 };
 
 /**
+ * Delete a workflow by id and merchant.
+ */
+export const deleteWorkflow = async (id, merchantId) => {
+    const workflow = await Workflow.findOneAndDelete({ _id: id, merchantId });
+    if (!workflow) throw new Error('WORKFLOW_NOT_FOUND');
+    return workflow;
+};
+
+/**
  * Evaluate threshold workflows after stock deduction.
  * Called from order.service.js right after inventory is saved.
  *
