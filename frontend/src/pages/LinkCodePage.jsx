@@ -87,7 +87,7 @@ export function LinkCodePage() {
           <div className="p-3 rounded-lg bg-primary-subdued/20 border border-primary/20 flex items-start gap-2.5 text-xs text-ink-secondary">
             <IconBrandWhatsapp className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <span>
-              When you send a message to the bot, you receive a 15-minute temporary code. Enter it below to link your store.
+              Send a message to the bot to receive a 15-minute code. If you already messaged the bot before signing up, reply <strong>link</strong> to get a fresh code.
             </span>
           </div>
 

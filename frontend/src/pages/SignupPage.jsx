@@ -49,8 +49,8 @@ export function SignupPage() {
         password: values.password,
       });
       setAuth(data.token, data.merchantId);
-      toast.success('Account created successfully');
-      navigate('/', { replace: true });
+      toast.success('Account created — now link your WhatsApp number');
+      navigate('/link-code', { replace: true });
     } catch (err) {
       toast.error(err.message || 'Registration failed. Please try again.');
     } finally {
