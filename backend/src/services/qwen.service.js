@@ -30,6 +30,11 @@ item names that weren't actually said.`;
  * both inputs converge on identical downstream handling.
  */
 export async function parseIntent(text) {
+  if (!process.env.DASHSCOPE_API_KEY) {
+    console.warn('DASHSCOPE_API_KEY not set — falling back to unknown intent');
+    return { type: 'unknown', rawText: text };
+  }
+
   const { data } = await axios.post(
     DASHSCOPE_URL,
     {

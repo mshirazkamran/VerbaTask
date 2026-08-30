@@ -1,6 +1,7 @@
 import Approval from '../models/Approval.js';
 import Order from '../models/Order.js';
 import Merchant from '../models/Merchant.js';
+import InventoryItem from '../models/InventoryItem.js';
 import { sendInteractiveButtons } from '../services/whatsapp.service.js';
 
 /** High-value threshold — orders at or above this amount require approval. */
@@ -70,6 +71,21 @@ export const respond = async (id, decision, merchantId) => {
     // Propagate the decision to the referenced order
     if (approval.type === 'order') {
         await Order.findByIdAndUpdate(approval.refId, { status: decision });
+
+        // Revert stock when rejected — stock was deducted at order creation time.
+        if (decision === 'rejected') {
+            const order = await Order.findById(approval.refId).lean();
+            if (order?.items?.length) {
+                await InventoryItem.bulkWrite(
+                    order.items.map((i) => ({
+                        updateOne: {
+                            filter: { _id: i.inventoryItemId },
+                            update: { $inc: { quantity: i.quantity } },
+                        },
+                    }))
+                );
+            }
+        }
     }
 
     return approval;

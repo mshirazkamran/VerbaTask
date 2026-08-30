@@ -193,6 +193,15 @@ async function handleOnboarding(merchant, message) {
  * (voice-note pipeline), image (OCR placeholder).
  */
 async function handleOnboardedMerchant(merchant, message) {
+  // Check approval button taps first — before the guided-order state check so
+  // an approve/reject tap mid-guided-order isn't swallowed by that flow.
+  if (message.type === 'interactive') {
+    const buttonId = message.interactive?.button_reply?.id;
+    if (buttonId?.startsWith('approve_') || buttonId?.startsWith('reject_')) {
+      return handleApprovalReply(merchant, buttonId);
+    }
+  }
+
   const existingState = await ConversationState.findOne({
     whatsappNumber: merchant.whatsappNumber,
     flow: 'guided_order',
@@ -459,5 +468,41 @@ async function createWorkflowViaModule(merchant, command) {
       merchant.whatsappNumber,
       `Got it — automation noted: "${command.rawInstruction}". (Activating it is still being wired up.)`
     );
+  }
+}
+
+/**
+ * Handles approve_<orderId> / reject_<orderId> button replies.
+ * Looks up the pending Approval by orderId (Ali's button ID convention), calls
+ * respond(), and confirms back to the merchant. respond() owns the order status
+ * update — nothing else needed here.
+ */
+async function handleApprovalReply(merchant, buttonId) {
+  const isApprove = buttonId.startsWith('approve_');
+  const orderId = buttonId.replace(/^(approve|reject)_/, '');
+  const decision = isApprove ? 'approved' : 'rejected';
+
+  try {
+    const { respond, findPendingByOrderId } = await import('../approvals/approval.service.js');
+    const approval = await findPendingByOrderId(orderId);
+
+    if (!approval) {
+      return sendTextMessage(merchant.whatsappNumber, "That order has already been handled.");
+    }
+
+    await respond(approval._id, decision);
+
+    return sendTextMessage(
+      merchant.whatsappNumber,
+      isApprove
+        ? `✅ Order approved and marked as completed.`
+        : `❌ Order rejected. Stock has been restored.`
+    );
+  } catch (err) {
+    if (err.message?.startsWith('APPROVAL_NOT_FOUND')) {
+      return sendTextMessage(merchant.whatsappNumber, "That order has already been handled.");
+    }
+    console.error('handleApprovalReply failed:', err.message);
+    return sendTextMessage(merchant.whatsappNumber, "Couldn't process that — please try from the dashboard.");
   }
 }
