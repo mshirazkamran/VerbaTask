@@ -1,5 +1,9 @@
 import Merchant from "../models/Merchant.js";
 import LinkCode from "../models/LinkCode.js";
+import InventoryItem from "../models/InventoryItem.js";
+import Order from "../models/Order.js";
+import Approval from "../models/Approval.js";
+import Workflow from "../models/Workflow.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -103,14 +107,42 @@ export const confirmLinkCode = async (req, res) => {
             return res.status(400).json({ success: false, error: { message: "Invalid or expired code" } });
         }
 
-        const merchant = await Merchant.findOne({ email });
-        if (!merchant) {
+        const emailMerchant = await Merchant.findOne({ email });
+        if (!emailMerchant) {
             return res.status(404).json({ success: false, error: { message: "Merchant not found" } });
         }
 
-        // Link the actual WhatsApp number to the merchant account
-        merchant.whatsappNumber = linkCode.whatsappNumber;
-        await merchant.save();
+        // If this WhatsApp number already belongs to another merchant (e.g. an
+        // earlier WhatsApp-only onboarding record), merge the email account's
+        // credentials and data into that existing merchant record so the
+        // WhatsApp identity stays canonical.
+        const existingWhatsAppMerchant = await Merchant.findOne({
+            whatsappNumber: linkCode.whatsappNumber,
+            _id: { $ne: emailMerchant._id },
+        });
+
+        if (existingWhatsAppMerchant) {
+            const oldId = emailMerchant._id;
+            const newId = existingWhatsAppMerchant._id;
+
+            existingWhatsAppMerchant.email = emailMerchant.email;
+            existingWhatsAppMerchant.passwordHash = emailMerchant.passwordHash;
+            await existingWhatsAppMerchant.save();
+
+            // Reassign any data the user created with the temp email merchant
+            await Promise.all([
+                InventoryItem.updateMany({ merchantId: oldId }, { merchantId: newId }),
+                Order.updateMany({ merchantId: oldId }, { merchantId: newId }),
+                Approval.updateMany({ merchantId: oldId }, { merchantId: newId }),
+                Workflow.updateMany({ merchantId: oldId }, { merchantId: newId }),
+            ]);
+
+            await Merchant.deleteOne({ _id: oldId });
+        } else {
+            // Link the actual WhatsApp number to the email merchant account
+            emailMerchant.whatsappNumber = linkCode.whatsappNumber;
+            await emailMerchant.save();
+        }
 
         // Mark code as used
         linkCode.usedAt = new Date();

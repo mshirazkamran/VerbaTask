@@ -9,9 +9,9 @@ import { createOrder } from '../crm/order.service.js';
 import { parseIntent } from '../services/qwen.service.js';
 import { downloadMedia } from '../services/media.service.js';
 import {
-  sendTextMessage,
-  sendInteractiveButtons,
-  sendInteractiveList,
+  sendTextMessage as sendTextMessageRaw,
+  sendInteractiveButtons as sendInteractiveButtonsRaw,
+  sendInteractiveList as sendInteractiveListRaw,
   paginateRows,
 } from '../services/whatsapp.service.js';
 
@@ -22,6 +22,38 @@ import {
  * all real work after, so slow AI calls never trigger Meta's retry storm.
  */
 const SIGNUP_BASE_URL = process.env.SIGNUP_BASE_URL || 'http://localhost:3000/signup';
+
+/**
+ * Safe WhatsApp reply helper — never lets a failed outbound send crash the
+ * webhook handler. Logs the failure so we still know something went wrong.
+ */
+async function sendTextMessage(to, text) {
+  try {
+    return await sendTextMessageRaw(to, text);
+  } catch (err) {
+    console.error('sendTextMessage failed:', err.message);
+  }
+}
+
+async function sendInteractiveButtons(to, body, buttons) {
+  try {
+    return await sendInteractiveButtonsRaw(to, body, buttons);
+  } catch (err) {
+    console.error('sendInteractiveButtons failed:', err.message);
+  }
+}
+
+async function sendInteractiveList(to, body, buttonText, sections) {
+  try {
+    return await sendInteractiveListRaw(to, body, buttonText, sections);
+  } catch (err) {
+    console.error('sendInteractiveList failed:', err.message);
+  }
+}
+
+function friendlyFallback() {
+  return "Sorry, something went wrong on my end. Please try again in a moment, or use the dashboard.";
+}
 
 /** Meta's one-time webhook verification handshake (GET /webhook/whatsapp). */
 export function verifyWebhook(req, res) {
@@ -90,7 +122,7 @@ export async function handleIncomingMessage(req, res) {
  * signup flow will ask for. Reuses an unexpired, unused code if one exists
  * rather than issuing a new one on every message.
  */
-async function handleUnregisteredNumber(whatsappNumber) {
+async function createOrReuseLinkCode(whatsappNumber) {
   let linkCode = await LinkCode.findOne({
     whatsappNumber,
     usedAt: null,
@@ -106,9 +138,24 @@ async function handleUnregisteredNumber(whatsappNumber) {
     });
   }
 
+  return linkCode;
+}
+
+async function handleUnregisteredNumber(whatsappNumber) {
+  const linkCode = await createOrReuseLinkCode(whatsappNumber);
+
   await sendTextMessage(
     whatsappNumber,
     `Welcome to VerbaTask! 👋\n\nTo get started, create your account here:\n${SIGNUP_BASE_URL}\n\nYour linking code: *${linkCode.code}*\n(valid for 15 minutes)`
+  );
+}
+
+async function sendLinkCodeToMerchant(merchant) {
+  const linkCode = await createOrReuseLinkCode(merchant.whatsappNumber);
+
+  await sendTextMessage(
+    merchant.whatsappNumber,
+    `Your VerbaTask linking code: *${linkCode.code}*\n(valid for 15 minutes)\n\nEnter it on the Link Code page to connect this number to your dashboard account.`
   );
 }
 
@@ -134,6 +181,11 @@ async function handleOnboarding(merchant, message) {
 
   const replyId = message.interactive?.button_reply?.id;
   const text = message.text?.body?.trim();
+
+  // Allow users to request a dashboard link code at any point during onboarding.
+  if (text && (text.toLowerCase() === 'link' || text.toLowerCase() === 'code')) {
+    return sendLinkCodeToMerchant(merchant);
+  }
 
   switch (state.step) {
     case 'awaiting_language': {
@@ -193,52 +245,68 @@ async function handleOnboarding(merchant, message) {
  * (voice-note pipeline), image (OCR placeholder).
  */
 async function handleOnboardedMerchant(merchant, message) {
-  // Check approval button taps first — before the guided-order state check so
-  // an approve/reject tap mid-guided-order isn't swallowed by that flow.
-  if (message.type === 'interactive') {
-    const buttonId = message.interactive?.button_reply?.id;
-    if (buttonId?.startsWith('approve_') || buttonId?.startsWith('reject_')) {
-      return handleApprovalReply(merchant, buttonId);
+  try {
+    // Check approval button taps first — before the guided-order state check so
+    // an approve/reject tap mid-guided-order isn't swallowed by that flow.
+    if (message.type === 'interactive') {
+      const buttonId = message.interactive?.button_reply?.id;
+      if (buttonId?.startsWith('approve_') || buttonId?.startsWith('reject_')) {
+        return await handleApprovalReply(merchant, buttonId);
+      }
     }
+
+    const existingState = await ConversationState.findOne({
+      whatsappNumber: merchant.whatsappNumber,
+      flow: 'guided_order',
+    });
+    if (existingState) return await continueGuidedOrder(merchant, message, existingState);
+
+    if (message.type === 'text') {
+      return await handleTextMessage(merchant, message.text.body);
+    }
+
+    if (message.type === 'interactive') {
+      const listId = message.interactive?.list_reply?.id;
+      if (listId === 'start_guided_order') return await startGuidedOrder(merchant);
+      return sendTextMessage(merchant.whatsappNumber, "Sorry, I didn't expect that reply — try again?");
+    }
+
+    if (message.type === 'audio') {
+      return await handleVoiceNote(merchant, message.audio.id);
+    }
+
+    if (message.type === 'image') {
+      // Optional OCR path — not the primary flow. Ack for now.
+      return sendTextMessage(
+        merchant.whatsappNumber,
+        "Got your image — screenshot reconciliation isn't wired up yet, log this sale manually for now."
+      );
+    }
+
+    return sendTextMessage(merchant.whatsappNumber, "I can't handle that message type yet.");
+  } catch (err) {
+    console.error('handleOnboardedMerchant error:', err);
+    return sendTextMessage(merchant.whatsappNumber, friendlyFallback(err));
   }
-
-  const existingState = await ConversationState.findOne({
-    whatsappNumber: merchant.whatsappNumber,
-    flow: 'guided_order',
-  });
-  if (existingState) return continueGuidedOrder(merchant, message, existingState);
-
-  if (message.type === 'text') {
-    return handleTextMessage(merchant, message.text.body);
-  }
-
-  if (message.type === 'interactive') {
-    const listId = message.interactive?.list_reply?.id;
-    if (listId === 'start_guided_order') return startGuidedOrder(merchant);
-    return sendTextMessage(merchant.whatsappNumber, "Sorry, I didn't expect that reply — try again?");
-  }
-
-  if (message.type === 'audio') {
-    return handleVoiceNote(merchant, message.audio.id);
-  }
-
-  if (message.type === 'image') {
-    // Optional OCR path — not the primary flow. Ack for now.
-    return sendTextMessage(
-      merchant.whatsappNumber,
-      "Got your image — screenshot reconciliation isn't wired up yet, log this sale manually for now."
-    );
-  }
-
-  return sendTextMessage(merchant.whatsappNumber, "I can't handle that message type yet.");
 }
 
-/** Typed text: "order" starts the guided flow, anything else goes through Qwen NLP. */
+/** Typed text: "order" starts the guided flow, "link"/"code" resends the dashboard linking code, anything else goes through Qwen NLP. */
 async function handleTextMessage(merchant, text) {
-  if (/^(order|sale|log)$/i.test(text.trim())) return startGuidedOrder(merchant);
+  const normalized = text.trim().toLowerCase();
 
-  const intent = await parseIntent(text);
-  return routeParsedCommand(merchant, intent, 'voice' /* typed text uses the same NLP path */);
+  if (/^(order|sale|log)$/i.test(normalized)) return startGuidedOrder(merchant);
+  if (normalized === 'link' || normalized === 'code') return sendLinkCodeToMerchant(merchant);
+
+  try {
+    const intent = await parseIntent(text);
+    return await routeParsedCommand(merchant, intent, 'voice' /* typed text uses the same NLP path */);
+  } catch (err) {
+    console.error('parseIntent failed:', err.message);
+    return sendTextMessage(
+      merchant.whatsappNumber,
+      "I didn't quite catch that — try 'order' to log a sale, or describe an automation you'd like."
+    );
+  }
 }
 
 /** Voice note: download audio, transcribe + parse via agent/, then run the command. */

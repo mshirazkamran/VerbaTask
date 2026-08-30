@@ -13,8 +13,10 @@ router.post('/', verifyWhatsappSignature, handleIncomingMessage);
 // DEBUG: mirrors the main webhook but bypasses signature verification.
 // Useful while toggling Meta callback URLs during development. Keep pointed to
 // /webhook/whatsapp in production.
-router.get('/debug', verifyWebhook);
-router.post('/debug', handleIncomingMessage);
+if (process.env.NODE_ENV === 'development' || process.env.ENABLE_DEBUG_WEBHOOK === 'true') {
+  router.get('/debug', verifyWebhook);
+  router.post('/debug', handleIncomingMessage);
+}
 
 // THIS IS THE MISSING LINE:
 export default router;
