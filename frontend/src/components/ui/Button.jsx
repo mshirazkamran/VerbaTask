@@ -21,7 +21,7 @@ export const Button = forwardRef(function Button(
   ref
 ) {
   const baseStyles =
-    'inline-flex items-center justify-center font-medium rounded-pill transition-all duration-150 select-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]';
+    'inline-flex items-center justify-center font-normal rounded-pill transition-all duration-150 select-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]';
 
   const variantStyles = {
     primary:

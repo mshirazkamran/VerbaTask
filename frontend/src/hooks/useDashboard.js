@@ -7,5 +7,6 @@ export function useDashboard() {
     queryKey: queryKeys.dashboard(),
     queryFn: () => api.get('/api/dashboard/overview'),
     staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
   });
 }

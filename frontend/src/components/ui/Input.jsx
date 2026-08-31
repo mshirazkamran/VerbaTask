@@ -45,7 +45,7 @@ export const Input = forwardRef(function Input(
           id={inputId}
           type={type}
           required={required}
-          className={`w-full bg-canvas text-ink text-sm rounded-sm border transition-all duration-150 placeholder:text-ink-mute/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50 disabled:bg-canvas-soft h-10 ${
+          className={`w-full bg-canvas text-ink text-[15px] rounded-sm border transition-all duration-150 placeholder:text-ink-mute/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50 disabled:bg-canvas-soft h-10 ${
             leftIcon ? 'pl-9' : 'pl-3'
           } ${rightIcon ? 'pr-9' : 'pr-3'} ${
             error ? 'border-ruby focus:border-ruby focus:ring-ruby/20' : 'border-hairline-input'

@@ -10,6 +10,7 @@ import {
   IconAlertCircle,
   IconBell,
   IconBolt,
+  IconInfoCircle,
 } from '@tabler/icons-react';
 import { toast } from 'sonner';
 
@@ -20,6 +21,7 @@ import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
 import {
   useWorkflows,
   useCreateWorkflow,
@@ -32,7 +34,6 @@ const emptyWorkflow = {
   trigger: 'threshold',
   quantityThreshold: '',
   actionType: 'notify',
-  message: '',
 };
 
 function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel, loading }) {
@@ -48,11 +49,10 @@ function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.message.trim()) return;
     onSubmit({
       trigger: form.trigger,
       condition: { quantityThreshold: Number(form.quantityThreshold) || 0 },
-      action: { type: form.actionType, message: form.message.trim() },
+      action: { type: form.actionType },
       active: true,
     });
   };
@@ -66,7 +66,7 @@ function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel
             name="trigger"
             value={form.trigger}
             onChange={handleChange}
-            className="h-10 px-3 text-sm bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            className="h-10 px-3 text-[15px] bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
           >
             <option value="threshold">Stock threshold</option>
           </select>
@@ -89,26 +89,17 @@ function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel
           name="actionType"
           value={form.actionType}
           onChange={handleChange}
-          className="h-10 px-3 text-sm bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+          className="h-10 px-3 text-[15px] bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
         >
           <option value="notify">Send WhatsApp notification</option>
         </select>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-ink-secondary" htmlFor="workflow-message">
-          Message
-        </label>
-        <textarea
-          id="workflow-message"
-          name="message"
-          value={form.message}
-          onChange={handleChange}
-          rows={3}
-          placeholder="Alert message sent when stock drops below threshold"
-          className="w-full px-3 py-2 text-sm bg-canvas text-ink border border-hairline-input rounded-sm placeholder:text-ink-mute/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
-          required
-        />
+      <div className="p-3 bg-canvas-soft border border-hairline rounded-sm flex items-start gap-2 text-xs text-ink-mute">
+        <IconInfoCircle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+        <span>
+          WhatsApp alert messages are automatically composed with the item name and remaining stock when triggered.
+        </span>
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
@@ -182,11 +173,13 @@ export function WorkflowsPage() {
         header: 'Condition',
         cell: ({ getValue }) => {
           const condition = getValue() || {};
-          return (
-            <span className="text-sm text-ink-secondary">
-              Stock below {condition.quantityThreshold ?? '-'}
-            </span>
-          );
+          const text =
+            condition.quantityThreshold != null
+              ? `Stock below ${condition.quantityThreshold}`
+              : typeof condition === 'object'
+              ? JSON.stringify(condition)
+              : String(condition || '-');
+          return <span className="text-sm text-ink-secondary">{text}</span>;
         },
       },
       {
@@ -194,11 +187,17 @@ export function WorkflowsPage() {
         header: 'Action',
         cell: ({ getValue }) => {
           const action = getValue() || {};
+          const label =
+            action.type === 'notify'
+              ? 'WhatsApp alert'
+              : action.type === 'auto_reorder'
+              ? 'Auto-reorder'
+              : action.type || '-';
           return (
-            <div className="flex items-start gap-2 max-w-[260px]">
-              <IconBell className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-              <span className="text-sm text-ink-secondary truncate" title={action.message}>
-                {action.message || '-'}
+            <div className="flex items-center gap-2 max-w-[260px]">
+              <IconBell className="w-4 h-4 text-primary shrink-0" />
+              <span className="text-sm text-ink-secondary truncate" title={label}>
+                {label}
               </span>
             </div>
           );
@@ -292,8 +291,19 @@ export function WorkflowsPage() {
           <Skeleton variant="tableRow" />
           <Skeleton variant="tableRow" />
         </div>
+      ) : workflows?.length === 0 ? (
+        <Card padding="lg">
+          <EmptyState
+            icon={<IconBolt className="w-6 h-6" />}
+            title="No workflows configured"
+            description="Create an automation rule to receive WhatsApp notifications whenever stock falls below threshold."
+            actionLabel="New workflow"
+            actionIcon={<IconPlus className="w-4 h-4" />}
+            onAction={() => setModalOpen(true)}
+          />
+        </Card>
       ) : (
-        <Table table={table} emptyText="No workflows yet. Create one to get notified when stock runs low." />
+        <Table table={table} emptyText="No workflows yet." />
       )}
 
       <Modal
