@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useCallback } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -36,12 +36,58 @@ const emptyItem = { name: '', quantity: '', price: '', unit: '' };
 function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, loading }) {
   const [form, setForm] = useState(initial);
 
+  const nameRef = useRef(null);
+  const quantityRef = useRef(null);
+  const priceRef = useRef(null);
+  const unitRef = useRef(null);
+
+  const fieldOrder = ['name', 'quantity', 'price', 'unit'];
+  const fieldRefs = { name: nameRef, quantity: quantityRef, price: priceRef, unit: unitRef };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({
       ...prev,
       [name]: name === 'name' || name === 'unit' ? value : value === '' ? '' : Number(value),
     }));
+  };
+
+  const isFieldEmpty = useCallback((fieldName) => {
+    const val = form[fieldName];
+    return val === '' || val === null || val === undefined;
+  }, [form]);
+
+  const handleKeyDown = (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+
+    const currentField = e.target.name;
+    const currentIndex = fieldOrder.indexOf(currentField);
+
+    // Find the next empty field after the current one
+    for (let i = currentIndex + 1; i < fieldOrder.length; i++) {
+      if (isFieldEmpty(fieldOrder[i])) {
+        fieldRefs[fieldOrder[i]].current?.focus();
+        return;
+      }
+    }
+
+    // Also check fields before the current one (wrap around)
+    for (let i = 0; i < currentIndex; i++) {
+      if (isFieldEmpty(fieldOrder[i])) {
+        fieldRefs[fieldOrder[i]].current?.focus();
+        return;
+      }
+    }
+
+    // All fields filled — submit
+    if (!form.name.trim()) return;
+    onSubmit({
+      name: form.name.trim(),
+      quantity: Number(form.quantity) || 0,
+      price: Number(form.price) || 0,
+      unit: form.unit.trim() || undefined,
+    });
   };
 
   const handleSubmit = (e) => {
@@ -55,43 +101,49 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
     });
   };
 
+  const fieldKeyDown = (fieldName) => ({
+    name: fieldName,
+    ref: fieldRefs[fieldName],
+    onKeyDown: handleKeyDown,
+  });
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <Input
         label="Item name"
-        name="name"
         value={form.name}
         onChange={handleChange}
         placeholder="e.g. Daal channa"
         required
+        {...fieldKeyDown('name')}
       />
       <div className="grid grid-cols-3 gap-3">
         <Input
           label="Quantity"
-          name="quantity"
           type="number"
           min="0"
           value={form.quantity}
           onChange={handleChange}
           placeholder="0"
           required
+          {...fieldKeyDown('quantity')}
         />
         <Input
           label="Price (Rs.)"
-          name="price"
           type="number"
           min="0"
           step="0.01"
           value={form.price}
           onChange={handleChange}
           placeholder="0"
+          {...fieldKeyDown('price')}
         />
         <Input
           label="Unit"
-          name="unit"
           value={form.unit}
           onChange={handleChange}
           placeholder="kg"
+          {...fieldKeyDown('unit')}
         />
       </div>
       <div className="flex justify-end gap-2 pt-2">

@@ -47,14 +47,16 @@ export const getDashboardOverview = async (req, res) => {
     ]);
 
     const todaySales = todayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-    // Profit data isn't tracked yet; mirror sales as a placeholder for the demo.
-    const todayProfit = todaySales;
+    const itemsSoldToday = todayOrders.reduce(
+      (sum, o) => sum + (o.items || []).reduce((s, i) => s + (i.quantity || 0), 0),
+      0,
+    );
 
     res.json({
       success: true,
       data: {
         todaySales,
-        todayProfit,
+        itemsSoldToday,
         todayOrdersCount: todayOrders.length,
         lowStockItems,
         pendingApprovals,
