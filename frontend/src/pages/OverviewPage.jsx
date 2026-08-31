@@ -7,8 +7,22 @@ import {
   IconBolt,
   IconShoppingCart,
   IconAlertCircle,
+  IconChartBar,
+  IconCreditCard,
 } from '@tabler/icons-react';
 import { useReactTable, getCoreRowModel, getSortedRowModel } from '@tanstack/react-table';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from 'recharts';
 
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -16,6 +30,13 @@ import { Table } from '../components/ui/Table';
 import { Skeleton } from '../components/ui/Skeleton';
 import { useDashboard } from '../hooks/useDashboard';
 import { formatPKR, formatDate, formatQuantity } from '../lib/format';
+
+const PAYMENT_COLORS = {
+  cash: '#533afd',
+  easypaisa: '#ea2261',
+  jazzcash: '#9b6829',
+  bank: '#f96bee',
+};
 
 function StatCard({ label, value, sub, icon: Icon, loading, variant = 'primary' }) {
   const variantIconStyles = {
@@ -43,6 +64,20 @@ function StatCard({ label, value, sub, icon: Icon, loading, variant = 'primary' 
   );
 }
 
+function CustomChartTooltip({ active, payload, label }) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-canvas border border-hairline p-2.5 rounded-md shadow-card text-xs">
+        <p className="text-ink-mute mb-1 font-medium">{label}</p>
+        <p className="text-primary font-tabular font-medium">
+          {formatPKR(payload[0].value)}
+        </p>
+      </div>
+    );
+  }
+  return null;
+}
+
 export function OverviewPage() {
   const { data, isLoading, error } = useDashboard();
 
@@ -55,6 +90,54 @@ export function OverviewPage() {
       pendingApprovals: data.pendingApprovals || 0,
       activeWorkflows: data.activeWorkflows || 0,
     };
+  }, [data]);
+
+  // Aggregate recent orders into trend chart data
+  const revenueChartData = useMemo(() => {
+    const orders = data?.recentOrders || [];
+    if (!orders.length) {
+      // Default placeholder 7-day trend
+      return [
+        { date: 'Mon', revenue: 0 },
+        { date: 'Tue', revenue: 0 },
+        { date: 'Wed', revenue: 0 },
+        { date: 'Thu', revenue: 0 },
+        { date: 'Fri', revenue: 0 },
+        { date: 'Sat', revenue: 0 },
+        { date: 'Sun', revenue: data?.todaySales || 0 },
+      ];
+    }
+
+    // Group orders by formatted date
+    const dateMap = {};
+    [...orders].reverse().forEach((order) => {
+      const d = new Date(order.createdAt);
+      const key = isNaN(d.getTime()) ? 'Recent' : d.toLocaleDateString('en-PK', { weekday: 'short' });
+      dateMap[key] = (dateMap[key] || 0) + (order.total || 0);
+    });
+
+    return Object.entries(dateMap).map(([date, revenue]) => ({ date, revenue }));
+  }, [data]);
+
+  // Aggregate payment methods breakdown
+  const paymentBreakdownData = useMemo(() => {
+    const orders = data?.recentOrders || [];
+    const counts = {};
+    orders.forEach((o) => {
+      const method = o.paymentMethod || 'cash';
+      counts[method] = (counts[method] || 0) + 1;
+    });
+
+    const entries = Object.entries(counts);
+    if (!entries.length) {
+      return [{ name: 'Cash', value: 1, method: 'cash' }];
+    }
+
+    return entries.map(([method, value]) => ({
+      name: method.charAt(0).toUpperCase() + method.slice(1),
+      value,
+      method,
+    }));
   }, [data]);
 
   const recentOrdersColumns = useMemo(
@@ -76,7 +159,7 @@ export function OverviewPage() {
       {
         accessorKey: 'total',
         header: 'Total',
-        cell: ({ getValue }) => formatPKR(getValue()),
+        cell: ({ getValue }) => <span className="font-tabular">{formatPKR(getValue())}</span>,
       },
       {
         accessorKey: 'status',
@@ -123,11 +206,16 @@ export function OverviewPage() {
           <h2 className="text-xl font-light text-ink tracking-tight">Overview</h2>
           <p className="text-xs text-ink-mute">Store activity summary and KPI metrics</p>
         </div>
-        <Badge variant="primary" dot>
-          Live
-        </Badge>
+        <div className="flex items-center gap-2 px-3 py-1 rounded-pill bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span>Live Updates (30s)</span>
+        </div>
       </div>
 
+      {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Today's Sales"
@@ -140,7 +228,7 @@ export function OverviewPage() {
         <StatCard
           label="Today's Profit"
           value={formatPKR(stats?.todayProfit ?? 0)}
-          sub={isLoading ? '' : 'Gross profit estimate'}
+          sub={isLoading ? '' : "Same as today's sales (profit tracking coming soon)"}
           icon={IconLayoutDashboard}
           loading={isLoading}
           variant="primary"
@@ -163,6 +251,108 @@ export function OverviewPage() {
         />
       </div>
 
+      {/* Visualizations Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Revenue Trend AreaChart */}
+        <Card padding="none" className="lg:col-span-2 overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-hairline flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <IconChartBar className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-medium text-ink">Revenue Activity</h3>
+            </div>
+            <span className="text-xs text-ink-mute">Recent transaction volume</span>
+          </div>
+          <div className="p-4 flex-1 min-h-[220px]">
+            {isLoading ? (
+              <Skeleton variant="card" className="h-[200px]" />
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={revenueChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="indigoGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-primary, #533afd)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="var(--color-primary, #533afd)" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 11, fill: 'var(--color-ink-mute, #64748d)' }}
+                    axisLine={{ stroke: 'var(--color-hairline, #e3e8ee)' }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: 'var(--color-ink-mute, #64748d)' }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(val) => `Rs. ${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`}
+                  />
+                  <Tooltip content={<CustomChartTooltip />} />
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="var(--color-primary, #533afd)"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#indigoGradient)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </Card>
+
+        {/* Payment Methods Breakdown */}
+        <Card padding="none" className="overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-hairline flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <IconCreditCard className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-medium text-ink">Payment Methods</h3>
+            </div>
+          </div>
+          <div className="p-4 flex-1 min-h-[220px] flex items-center justify-center">
+            {isLoading ? (
+              <Skeleton variant="circle" className="w-32 h-32" />
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={paymentBreakdownData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={70}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {paymentBreakdownData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={PAYMENT_COLORS[entry.method] || '#533afd'}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value, name) => [`${value} orders`, name]}
+                    contentStyle={{
+                      backgroundColor: 'var(--color-canvas, #fff)',
+                      borderColor: 'var(--color-hairline, #e3e8ee)',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                    }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    iconType="circle"
+                    formatter={(value) => <span className="text-xs text-ink-secondary">{value}</span>}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* Orders & Low Stock Tables */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <Card padding="none" className="xl:col-span-2 overflow-hidden">
           <div className="px-5 py-4 border-b border-hairline flex items-center justify-between">
@@ -208,7 +398,7 @@ export function OverviewPage() {
                   <li key={item._id} className="px-4 py-3 flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="text-sm text-ink truncate">{item.name}</p>
-                      <p className="text-[11px] text-ink-mute">
+                      <p className="text-[11px] text-ink-mute font-tabular">
                         {item.price ? formatPKR(item.price) : 'No price'} / {item.unit || 'unit'}
                       </p>
                     </div>

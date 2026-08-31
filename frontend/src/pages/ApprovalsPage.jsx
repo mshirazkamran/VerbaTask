@@ -8,6 +8,7 @@ import {
   IconCheck,
   IconX,
   IconAlertCircle,
+  IconClipboardCheck,
 } from '@tabler/icons-react';
 import { toast } from 'sonner';
 
@@ -16,11 +17,12 @@ import { Table } from '../components/ui/Table';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
 import { useApprovals, useRespondApproval } from '../hooks/useApprovals';
 import { formatDate } from '../lib/format';
 
 export function ApprovalsPage() {
-  const { data: approvals, isLoading, error } = useApprovals('pending');
+  const { data: approvals, isLoading, error } = useApprovals();
   const respond = useRespondApproval();
   const [acting, setActing] = useState({ id: null, decision: null });
 
@@ -29,7 +31,7 @@ export function ApprovalsPage() {
       setActing({ id, decision });
       try {
         await respond.mutateAsync({ id, decision });
-        toast.success(`Approval ${decision}`);
+        toast.success(decision === 'approved' ? 'Order approved' : 'Order rejected');
       } catch (err) {
         toast.error(err.message || 'Failed to respond');
       } finally {
@@ -78,7 +80,7 @@ export function ApprovalsPage() {
           return (
             <div className="flex items-center justify-end gap-2">
               <Button
-                variant="secondary"
+                variant="primary"
                 size="sm"
                 disabled={disabled}
                 loading={isActing && acting.decision === 'approved'}
@@ -152,8 +154,16 @@ export function ApprovalsPage() {
           <Skeleton variant="tableRow" />
           <Skeleton variant="tableRow" />
         </div>
+      ) : approvals?.length === 0 ? (
+        <Card padding="lg">
+          <EmptyState
+            icon={<IconClipboardCheck className="w-6 h-6" />}
+            title="No approvals pending"
+            description="You're all caught up! Orders and automated actions requiring merchant review will appear here."
+          />
+        </Card>
       ) : (
-        <Table table={table} emptyText="No approvals pending. You're all caught up!" />
+        <Table table={table} emptyText="No approvals pending." />
       )}
     </div>
   );

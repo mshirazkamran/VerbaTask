@@ -57,7 +57,7 @@ export function Modal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 8 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className={`relative w-full ${maxWidth} bg-canvas text-ink border border-hairline rounded-xl shadow-float p-6 z-10 overflow-hidden`}
+            className={`relative w-full ${maxWidth} bg-canvas text-ink border border-hairline rounded-lg shadow-float p-6 z-10 overflow-hidden`}
           >
             {(title || showCloseButton) && (
               <div className="flex items-start justify-between gap-4 mb-4">

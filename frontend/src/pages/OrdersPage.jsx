@@ -11,6 +11,7 @@ import {
   IconX,
   IconPlus,
   IconTrash,
+  IconReceipt,
 } from '@tabler/icons-react';
 import { toast } from 'sonner';
 
@@ -21,11 +22,19 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
 import { useOrders, useCreateOrder } from '../hooks/useOrders';
 import { useInventory } from '../hooks/useInventory';
 import { formatPKR, formatDate, formatQuantity } from '../lib/format';
 
 const PAYMENT_METHODS = ['easypaisa', 'jazzcash', 'bank', 'cash'];
+
+const STATUS_TABS = [
+  { id: 'all', label: 'All' },
+  { id: 'completed', label: 'Completed' },
+  { id: 'pending_approval', label: 'Pending Approval' },
+  { id: 'rejected', label: 'Rejected' },
+];
 
 function NewOrderModal({ isOpen, onClose }) {
   const { data: inventory } = useInventory();
@@ -114,7 +123,7 @@ function NewOrderModal({ isOpen, onClose }) {
                 <select
                   value={item.inventoryItemId}
                   onChange={(e) => handleSelectItem(idx, e.target.value)}
-                  className="w-full h-10 px-3 text-sm bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="w-full h-10 px-3 text-[15px] bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   required
                 >
                   <option value="" disabled>
@@ -169,7 +178,7 @@ function NewOrderModal({ isOpen, onClose }) {
             <select
               value={paymentMethod}
               onChange={(e) => setPaymentMethod(e.target.value)}
-              className="h-10 px-3 text-sm bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              className="h-10 px-3 text-[15px] bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
             >
               {PAYMENT_METHODS.map((m) => (
                 <option key={m} value={m}>
@@ -200,8 +209,28 @@ function NewOrderModal({ isOpen, onClose }) {
 export function OrdersPage() {
   const { data: orders, isLoading, error } = useOrders();
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [newOrderOpen, setNewOrderOpen] = useState(false);
+
+  const counts = useMemo(() => {
+    const list = orders || [];
+    return {
+      all: list.length,
+      completed: list.filter((o) => o.status === 'completed' || o.status === 'approved').length,
+      pending_approval: list.filter((o) => o.status === 'pending_approval').length,
+      rejected: list.filter((o) => o.status === 'rejected').length,
+    };
+  }, [orders]);
+
+  const filteredOrders = useMemo(() => {
+    if (!orders) return [];
+    if (statusFilter === 'all') return orders;
+    if (statusFilter === 'completed') {
+      return orders.filter((o) => o.status === 'completed' || o.status === 'approved');
+    }
+    return orders.filter((o) => o.status === statusFilter);
+  }, [orders, statusFilter]);
 
   const columns = useMemo(
     () => [
@@ -250,7 +279,7 @@ export function OrdersPage() {
   );
 
   const table = useReactTable({
-    data: orders || [],
+    data: filteredOrders,
     columns,
     state: { globalFilter: search },
     onGlobalFilterChange: setSearch,
@@ -288,15 +317,47 @@ export function OrdersPage() {
         </Button>
       </div>
 
-      <Card padding="sm" className="flex items-center gap-3">
-        <IconSearch className="w-4 h-4 text-ink-mute ml-2" />
-        <Input
-          placeholder="Search orders..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="border-0 shadow-none focus:ring-0 h-9"
-        />
-      </Card>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* Status Filter Tabs */}
+        <div className="flex items-center gap-1 p-1 bg-canvas border border-hairline rounded-lg overflow-x-auto">
+          {STATUS_TABS.map((tab) => {
+            const active = statusFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setStatusFilter(tab.id)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  active
+                    ? 'bg-primary text-on-primary shadow-xs'
+                    : 'text-ink-secondary hover:text-ink hover:bg-canvas-soft'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-tabular ${
+                    active ? 'bg-white/20 text-white' : 'bg-canvas-soft text-ink-mute'
+                  }`}
+                >
+                  {counts[tab.id] ?? 0}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search */}
+        <Card padding="sm" className="flex items-center gap-3 sm:w-72">
+          <IconSearch className="w-4 h-4 text-ink-mute ml-2 shrink-0" />
+          <input
+            type="text"
+            placeholder="Search orders..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-transparent text-[15px] text-ink placeholder:text-ink-mute/50 focus:outline-none h-8"
+          />
+        </Card>
+      </div>
 
       {isLoading ? (
         <div className="space-y-2">
@@ -304,11 +365,26 @@ export function OrdersPage() {
           <Skeleton variant="tableRow" />
           <Skeleton variant="tableRow" />
         </div>
+      ) : filteredOrders.length === 0 && !search ? (
+        <Card padding="lg">
+          <EmptyState
+            icon={<IconReceipt className="w-6 h-6" />}
+            title={statusFilter === 'all' ? 'No orders recorded yet' : `No ${statusFilter.replace('_', ' ')} orders`}
+            description={
+              statusFilter === 'all'
+                ? 'Orders placed via WhatsApp voice, guided chat, or dashboard will appear here.'
+                : `There are currently no orders in ${statusFilter.replace('_', ' ')} status.`
+            }
+            actionLabel={statusFilter === 'all' ? 'New order' : undefined}
+            actionIcon={statusFilter === 'all' ? <IconPlus className="w-4 h-4" /> : undefined}
+            onAction={statusFilter === 'all' ? () => setNewOrderOpen(true) : undefined}
+          />
+        </Card>
       ) : (
         <Table
           table={table}
           onRowClick={(order) => setSelectedOrder(order)}
-          emptyText="No orders found"
+          emptyText="No matching orders found"
         />
       )}
 
