@@ -9,6 +9,7 @@ import {
   IconAlertCircle,
   IconChartBar,
   IconCreditCard,
+  IconBox,
 } from '@tabler/icons-react';
 import { useReactTable, getCoreRowModel, getSortedRowModel } from '@tanstack/react-table';
 import {
@@ -31,12 +32,36 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { useDashboard } from '../hooks/useDashboard';
 import { formatPKR, formatDate, formatQuantity } from '../lib/format';
 
+import cashLogo from '../assets/cash-logo.jpeg';
+import epLogo from '../assets/ep-logo.png';
+import jcLogo from '../assets/jc-logo.png';
+import bankLogo from '../assets/bank-logo.png';
+
 const PAYMENT_COLORS = {
   cash: '#533afd',
   easypaisa: '#ea2261',
   jazzcash: '#9b6829',
   bank: '#f96bee',
 };
+
+const PAYMENT_LOGOS = {
+  cash: cashLogo,
+  easypaisa: epLogo,
+  jazzcash: jcLogo,
+  bank: bankLogo,
+};
+
+function PaymentMethod({ method }) {
+  const key = (method || 'cash').toLowerCase();
+  const logo = PAYMENT_LOGOS[key];
+  const label = key.charAt(0).toUpperCase() + key.slice(1);
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {logo && <img src={logo} alt={label} className="w-5 h-5 rounded object-cover shrink-0" />}
+      <span className="text-sm">{label}</span>
+    </span>
+  );
+}
 
 function StatCard({ label, value, sub, icon: Icon, loading, variant = 'primary' }) {
   const variantIconStyles = {
@@ -85,7 +110,7 @@ export function OverviewPage() {
     if (!data) return null;
     return {
       todaySales: data.todaySales || 0,
-      todayProfit: data.todayProfit || 0,
+      itemsSoldToday: data.itemsSoldToday || 0,
       lowStockCount: data.lowStockItems?.length || 0,
       pendingApprovals: data.pendingApprovals || 0,
       activeWorkflows: data.activeWorkflows || 0,
@@ -167,9 +192,9 @@ export function OverviewPage() {
         cell: ({ getValue }) => <Badge variant={getValue()}>{getValue()}</Badge>,
       },
       {
-        accessorKey: 'source',
-        header: 'Source',
-        cell: ({ getValue }) => <Badge variant={getValue()}>{getValue()}</Badge>,
+        accessorKey: 'paymentMethod',
+        header: 'Payment',
+        cell: ({ getValue }) => <PaymentMethod method={getValue()} />,
       },
     ],
     []
@@ -226,10 +251,10 @@ export function OverviewPage() {
           variant="success"
         />
         <StatCard
-          label="Today's Profit"
-          value={formatPKR(stats?.todayProfit ?? 0)}
-          sub={isLoading ? '' : "Same as today's sales (profit tracking coming soon)"}
-          icon={IconLayoutDashboard}
+          label="Items Sold Today"
+          value={stats?.itemsSoldToday ?? 0}
+          sub={isLoading ? '' : `Across ${data?.todayOrdersCount ?? 0} orders`}
+          icon={IconBox}
           loading={isLoading}
           variant="primary"
         />
@@ -343,7 +368,17 @@ export function OverviewPage() {
                   <Legend
                     verticalAlign="bottom"
                     iconType="circle"
-                    formatter={(value) => <span className="text-xs text-ink-secondary">{value}</span>}
+                    formatter={(value, entry) => {
+                      const method = (entry?.payload?.method || value).toLowerCase();
+                      const logo = PAYMENT_LOGOS[method];
+                      const label = method.charAt(0).toUpperCase() + method.slice(1);
+                      return (
+                        <span className="inline-flex items-center gap-1 text-xs text-ink-secondary">
+                          {logo && <img src={logo} alt={label} className="w-4 h-4 rounded object-cover" />}
+                          {label}
+                        </span>
+                      );
+                    }}
                   />
                 </PieChart>
               </ResponsiveContainer>
