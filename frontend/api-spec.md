@@ -162,17 +162,62 @@ Every endpoint returns this exact shape:
 **`POST /` request body:**
 ```json
 {
+  "trigger": "threshold | schedule | message",
+  "condition": { ... },
+  "action": { ... },
+  "rawInstruction": "Plain-language instruction the merchant typed or said"
+}
+```
+
+**Trigger types and their condition/action shapes:**
+
+**Threshold** -- fires automatically after every stock deduction when the updated item matches the condition.
+```json
+{
   "trigger": "threshold",
-  "condition": { "quantityThreshold": 5 },
+  "condition": { "item": "rice bag", "quantityThreshold": 5 },
   "action": { "type": "notify" },
   "rawInstruction": "Alert me when rice bag drops below 5 units"
 }
 ```
+- `condition.quantityThreshold` (or `condition.value`) -- the stock level that triggers the workflow. **Required.**
+- `condition.item` -- optional item name filter (case-insensitive). If omitted, the workflow triggers for **any** item that drops below the threshold.
+- `condition.operator` -- optional, one of `"<"`, `"<="`, `">"`, `">="`, `"=="`. Defaults to `"<"`.
+- `action.type` -- `"notify"` sends a WhatsApp text alert, `"auto_reorder"` is logged only (not yet implemented).
 
-**Field rules:**
+**Schedule** -- fires on a recurring timer managed by a background runner (checks every 60 seconds).
+```json
+{
+  "trigger": "schedule",
+  "condition": { "intervalMinutes": 1440 },
+  "action": { "type": "notify", "message": "Daily reminder: check your sales summary on the dashboard." },
+  "rawInstruction": "Send me a daily reminder at 9 AM",
+  "nextRunAt": "2026-09-01T09:00:00.000Z"
+}
+```
+- `condition.intervalMinutes` -- how often to repeat, in minutes. Defaults to `1440` (24 hours).
+- `action.message` -- the exact WhatsApp text to send on each fire. Falls back to `rawInstruction` if omitted.
+- `nextRunAt` -- when the workflow should fire next. If omitted at creation, it defaults to now (fires on the runner's next tick). After each fire, the backend automatically advances it by `intervalMinutes`.
+- The schedule runner starts when the server boots and checks every 60 seconds for due workflows.
+
+**Message** -- fires when an incoming WhatsApp text matches a keyword.
+```json
+{
+  "trigger": "message",
+  "condition": { "keywords": ["promo", "discount", "sale"] },
+  "action": { "type": "notify", "message": "🎉 Your weekend promo is live! Don't forget to update stock." },
+  "rawInstruction": "When I say promo, remind me about the weekend sale"
+}
+```
+- `condition.keywords` -- array of strings. If **any** keyword appears in the incoming message (case-insensitive substring match), the workflow fires.
+- `condition.keyword` -- single string alternative (also supported).
+- If neither `keywords` nor `keyword` is set, `rawInstruction` is used as the match phrase.
+- Message workflows are evaluated **before** NLP parsing. If a workflow fires, the merchant gets the workflow's reply and the message is not sent to Qwen.
+
+**Field rules (all triggers):**
 - `trigger` -- enum: `"message"` | `"schedule"` | `"threshold"`. **Required.**
-- `condition` -- `Mixed`. For `threshold` triggers: `{ "quantityThreshold": <number> }`.
-- `action` -- `Mixed`. Known action types: `"notify"` (sends WhatsApp text alert), `"auto_reorder"` (logged only, full implementation pending).
+- `condition` -- `Mixed`. Shape depends on trigger type (see above).
+- `action` -- `Mixed`. Known action types: `"notify"` / `"notify_merchant"` / `"send_message"` (all send a WhatsApp text), `"auto_reorder"` (logged only, full implementation pending).
 - `rawInstruction` -- the plain-language instruction as typed or spoken by the merchant. Optional but recommended for display purposes.
 - `active` -- defaults to `true`.
 
@@ -181,7 +226,9 @@ Every endpoint returns this exact shape:
 - `PATCH /:id` supports partial updates. The most common use is toggling `active`: `{ "active": false }`.
 - `DELETE /:id` returns `404` (error message contains `WORKFLOW_NOT_FOUND`) if the workflow does not exist or belongs to a different merchant.
 - `GET /` returns **all** workflows (active and inactive) for the merchant, sorted newest-first. There is no status filter parameter.
-- Threshold workflows are evaluated automatically after every successful stock deduction. Only workflows with `trigger: "threshold"` and `active: true` are evaluated.
+- **Threshold** workflows are evaluated automatically after every successful stock deduction.
+- **Schedule** workflows are evaluated by a background timer that runs every 60 seconds.
+- **Message** workflows are evaluated on every incoming text message, before NLP parsing.
 
 ---
 
@@ -301,10 +348,13 @@ Every endpoint returns this exact shape:
   merchantId:     ObjectId -> Merchant (required)
   rawInstruction: String (optional) -- what the merchant typed or said
   trigger:        "message" | "schedule" | "threshold" (required)
-  condition:      Mixed -- for threshold: { quantityThreshold: Number }
-  action:         Mixed -- known types: { type: "notify" } | { type: "auto_reorder" }
+  condition:      Mixed -- shape depends on trigger type:
+                    threshold: { item?: String, quantityThreshold: Number, operator?: "<"|"<="|">"|">="|"==" }
+                    schedule:  { intervalMinutes?: Number }  (defaults to 1440 = 24h)
+                    message:   { keywords?: String[], keyword?: String }
+  action:         Mixed -- { type: "notify"|"notify_merchant"|"send_message"|"auto_reorder", message?: String }
   active:         Boolean, default true
-  nextRunAt:      Date (optional) -- relevant for schedule triggers only
+  nextRunAt:      Date (optional) -- required for schedule triggers; auto-advanced after each fire
   createdAt, updatedAt
 }
 ```
