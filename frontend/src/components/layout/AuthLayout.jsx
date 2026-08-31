@@ -23,7 +23,7 @@ export function AuthLayout({ children, title, subtitle }) {
             alt="VerbaTask Logo"
             className="w-8 h-8 rounded-lg shadow-sm"
           />
-          <span className="text-lg font-medium tracking-tight text-ink">
+          <span className="text-lg font-normal tracking-tight text-ink">
             VerbaTask
           </span>
         </div>

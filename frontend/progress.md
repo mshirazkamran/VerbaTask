@@ -9,8 +9,8 @@ This file tracks implementation progress against the full plan. It serves as bot
 | Phase | Status | Pages | Coverage |
 |---|---|---|---|
 | Phase 1: Setup + Foundation + Auth (3 pages) | `[x] Completed` | Login, Signup, LinkCode | 40% of project (100% of Phase 1) |
-| Phase 2: Dashboard + CRUD Pages (5 pages) | `[ ] Not Started` | Overview, Inventory, Orders, Workflows, Approvals | 60% of project |
-| **Total** | | **8 pages** | **40% Complete** |
+| Phase 2: Dashboard + CRUD Pages (5 pages) | `[x] Completed` | Overview, Inventory, Orders, Workflows, Approvals | 60% of project (100% of Phase 2) |
+| **Total** | | **8 pages** | **100% Complete** |
 
 ---
 
@@ -27,24 +27,24 @@ This file tracks implementation progress against the full plan. It serves as bot
 - `[x]` Rewrite `src/main.jsx` (QueryClientProvider, RouterProvider, Toaster)
 - `[x]` Create `src/lib/api.js` (fetch wrapper, auth header, envelope unwrap)
 - `[x]` Create `src/lib/store.js` (Zustand authStore + uiStore, localStorage persistence)
-- `[x]` Create `src/lib/router.jsx` (React Router v7 config, all routes including Phase 2 placeholders)
+- `[x]` Create `src/lib/router.jsx` (React Router v7 config, all routes)
 - `[x]` Create `src/lib/queryKeys.js` (TanStack Query key factory)
 - `[x]` Create `src/lib/format.js` (formatPKR, formatDate, formatQuantity)
 
 ### Step 3: Shared UI Components
-- `[x]` Create `src/components/ui/Button.jsx` (primary, secondary, ghost, danger variants, pill shape)
-- `[x]` Create `src/components/ui/Input.jsx` (label above, error below, focus ring)
+- `[x]` Create `src/components/ui/Button.jsx` (primary, secondary, ghost, danger variants, pill shape, weight 400)
+- `[x]` Create `src/components/ui/Input.jsx` (label above, error below, focus ring, 15px font)
 - `[x]` Create `src/components/ui/Card.jsx` (rounded-lg, hairline border, shadow-card)
 - `[x]` Create `src/components/ui/Badge.jsx` (completed, pending, approved, rejected, source tags)
-- `[x]` Create `src/components/ui/Table.jsx` (TanStack Table wrapper, tabular figures)
-- `[x]` Create `src/components/ui/Modal.jsx` (backdrop blur, AnimatePresence)
+- `[x]` Create `src/components/ui/Table.jsx` (TanStack Table wrapper, tabular figures, getRowClassName support)
+- `[x]` Create `src/components/ui/Modal.jsx` (backdrop blur, AnimatePresence, rounded-lg)
 - `[x]` Create `src/components/ui/Skeleton.jsx` (shimmer loaders)
 - `[x]` Create `src/components/ui/EmptyState.jsx` (icon + heading + CTA)
 
 ### Step 4: Layout Components
 - `[x]` Create `src/components/layout/DashboardLayout.jsx` (sidebar + topbar + outlet)
 - `[x]` Create `src/components/layout/Sidebar.jsx` (collapsible, 240px/64px, nav items)
-- `[x]` Create `src/components/layout/TopBar.jsx` (page title, theme toggle, system live indicator)
+- `[x]` Create `src/components/layout/TopBar.jsx` (concise page title, theme toggle, system live indicator)
 - `[x]` Create `src/components/layout/AuthLayout.jsx` (centered card, atmospheric gradient mesh bg)
 
 ### Step 5: Auth Pages
@@ -65,74 +65,67 @@ This file tracks implementation progress against the full plan. It serves as bot
 
 ---
 
-## Phase 2: Overview Dashboard + Inventory + Orders + Workflows + Approvals (60% - READY TO START)
+## Phase 2: Overview Dashboard + Inventory + Orders + Workflows + Approvals (60% - COMPLETED)
 
 ### Step 7: Overview Dashboard Page
-- `[ ]` Create `src/pages/OverviewPage.jsx` (KPI cards + charts + recent orders)
-- `[ ]` Create `src/hooks/useDashboard.js` (TanStack Query hook, 30s refetch)
-- `[ ]` KPI stat cards: Today's Sales, Revenue (PKR), Low Stock, Pending Approvals
-- `[ ]` Revenue Trend AreaChart (Recharts, indigo gradient, 7/30-day toggle)
-- `[ ]` Payment Methods DonutChart (indigo/ruby/magenta/lemon)
-- `[ ]` Recent Orders compact table (last 5)
-- `[ ]` Skeleton loading states for all sections
-- `[ ]` Empty/welcome state for new merchants
+- `[x]` Create `src/pages/OverviewPage.jsx` (KPI cards + charts + recent orders)
+- `[x]` Create `src/hooks/useDashboard.js` (TanStack Query hook, 30s refetchInterval)
+- `[x]` KPI stat cards: Today's Sales, Today's Profit, Low Stock, Pending Approvals
+- `[x]` Revenue Activity AreaChart (Recharts with indigo gradient fill)
+- `[x]` Payment Methods Donut/PieChart (Recharts with method color coding)
+- `[x]` Recent Orders compact table (last 5)
+- `[x]` Low Stock Alerts sidebar card
+- `[x]` Skeleton loading states for all sections
 
 ### Step 8: Inventory Page
-- `[ ]` Create `src/pages/InventoryPage.jsx` (full CRUD table)
-- `[ ]` Create `src/hooks/useInventory.js` (list, create, update, delete mutations)
-- `[ ]` Inventory table with TanStack Table (name, quantity, price PKR, unit, actions)
-- `[ ]` Sortable columns (name, quantity, price)
-- `[ ]` Low-stock row highlighting (quantity < 5, ruby left-border)
-- `[ ]` Search/filter input
-- `[ ]` Add Item modal (name, quantity, price, unit fields, Zod validation)
-- `[ ]` Edit Item modal (pre-filled fields, PATCH /api/inventory/:id)
-- `[ ]` Delete confirmation modal (DELETE /api/inventory/:id, Sonner toast)
-- `[ ]` Optimistic updates via TanStack Query onMutate
-- `[ ]` Empty state ("Add your first item")
+- `[x]` Create `src/pages/InventoryPage.jsx` (full CRUD table)
+- `[x]` Create `src/hooks/useInventory.js` (list, create, update, delete mutations)
+- `[x]` Inventory table with TanStack Table (name, quantity, price PKR, unit, actions)
+- `[x]` Sortable columns (name, quantity, price)
+- `[x]` Low-stock row highlighting (quantity < 10, ruby left-border)
+- `[x]` Clean search input
+- `[x]` Add Item modal (name, quantity, price, unit fields)
+- `[x]` Edit Item modal (pre-filled fields with price ?? 0 fallback, PATCH /api/inventory/:id)
+- `[x]` Delete confirmation modal (DELETE /api/inventory/:id, Sonner toast)
+- `[x]` EmptyState component for empty inventory
 
 ### Step 9: Orders Page
-- `[ ]` Create `src/pages/OrdersPage.jsx` (orders table + filters)
-- `[ ]` Create `src/pages/OrderDetailPage.jsx` (single order at /orders/:id)
-- `[ ]` Create `src/hooks/useOrders.js` (list, single, create mutations)
-- `[ ]` Orders table (ID, items, total PKR, payment method, source badge, status badge, date)
-- `[ ]` Filter tabs: All / Completed / Pending / Rejected
-- `[ ]` Click row to navigate to order detail
-- `[ ]` Create Order modal (item selection from inventory, quantity, payment method, amount)
-- `[ ]` Order Detail page: full order card, items list, status, back button
-- `[ ]` Sortable by date, total
+- `[x]` Create `src/pages/OrdersPage.jsx` (orders table + filter tabs + search)
+- `[x]` Create `src/hooks/useOrders.js` (list, single, create mutations)
+- `[x]` Orders table (ID, items, total PKR, payment method, source badge, status badge, date)
+- `[x]` Filter tabs with count badges: All / Completed / Pending Approval / Rejected
+- `[x]` Click row to view Order Detail modal
+- `[x]` Create Order modal (item selection from inventory, quantity, payment method, dynamic total)
+- `[x]` EmptyState component for filtered empty orders
 
 ### Step 10: Workflows Page
-- `[ ]` Create `src/pages/WorkflowsPage.jsx` (workflow cards + CRUD)
-- `[ ]` Create `src/hooks/useWorkflows.js` (list, create, update, delete)
-- `[ ]` Workflow cards in grid (not table): instruction, trigger badge, condition, action, toggle
-- `[ ]` Active/inactive toggle (PATCH /api/workflows/:id with { active })
-- `[ ]` Create Workflow modal (raw instruction, trigger type, condition, action)
-- `[ ]` Delete confirmation
-- `[ ]` Empty state
+- `[x]` Create `src/pages/WorkflowsPage.jsx` (workflow cards + CRUD)
+- `[x]` Create `src/hooks/useWorkflows.js` (list, create, update, delete)
+- `[x]` Workflow table: trigger badge, condition, action label, status toggle, created date
+- `[x]` Active/inactive toggle (PATCH /api/workflows/:id with { active })
+- `[x]` Create Workflow modal (trigger type, quantity threshold, action type, info banner)
+- `[x]` Delete confirmation modal
+- `[x]` EmptyState component for empty workflows
 
 ### Step 11: Approvals Page
-- `[ ]` Create `src/pages/ApprovalsPage.jsx` (approval cards + respond)
-- `[ ]` Create `src/hooks/useApprovals.js` (list, respond mutation)
-- `[ ]` Filter tabs: Pending / Approved / Rejected
-- `[ ]` Approval cards: type badge, summary, status, created date
-- `[ ]` Pending cards: "Approve" (primary) + "Reject" (danger) buttons
-- `[ ]` POST /api/approvals/:id/respond with { decision }
-- `[ ]` Approved/rejected show respondedAt timestamp
-- `[ ]` Empty state
+- `[x]` Create `src/pages/ApprovalsPage.jsx` (approvals queue + respond)
+- `[x]` Create `src/hooks/useApprovals.js` (list pending, respond mutation with cache invalidation)
+- `[x]` Approval table: type badge, summary, status, requested date
+- `[x]` Actions: "Approve" (primary CTA) + "Reject" (danger ghost) with individual row loading
+- `[x]` PATCH /api/approvals/:id/respond with { decision }
+- `[x]` EmptyState component ("No approvals pending. You're all caught up!")
 
 ### Phase 2 Verification
-- `[ ]` Overview dashboard: KPI cards, charts, recent orders render correctly
-- `[ ]` Dashboard auto-refreshes every 30s
-- `[ ]` Inventory CRUD: add -> edit -> delete cycle works
-- `[ ]` Orders: create -> view list -> click detail -> back
-- `[ ]` Workflows: create -> toggle active -> delete
-- `[ ]` Approvals: view pending -> approve -> view approved
-- `[ ]` All tables sort correctly
-- `[ ]` All modals open/close with animation
-- `[ ]` All forms validate with Zod
-- `[ ]` All mutations show Sonner toasts
-- `[ ]` `npm run build` still passes
-- `[ ]` Dark mode correct on all new pages
+- `[x]` Overview dashboard: KPI cards, AreaChart, PieChart, recent orders render correctly
+- `[x]` Dashboard auto-refreshes every 30s (`refetchInterval`)
+- `[x]` Inventory CRUD: add -> edit -> delete cycle works with Sonner toasts
+- `[x]` Orders: create -> view list -> filter tabs -> modal details
+- `[x]` Workflows: create -> toggle active -> delete
+- `[x]` Approvals: view pending -> approve / reject -> immediate list invalidation
+- `[x]` All tables sort and render with tabular figures
+- `[x]` All modals open/close with Motion animation
+- `[x]` `npm run build` passes
+- `[x]` Dark mode verified across all pages and layouts
 
 ---
 

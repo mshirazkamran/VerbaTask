@@ -11,6 +11,7 @@ import {
   IconPencil,
   IconTrash,
   IconAlertCircle,
+  IconBoxSeam,
 } from '@tabler/icons-react';
 import { toast } from 'sonner';
 
@@ -21,6 +22,7 @@ import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
 import {
   useInventory,
   useCreateInventoryItem,
@@ -182,7 +184,7 @@ export function InventoryPage() {
       {
         accessorKey: 'price',
         header: 'Price',
-        cell: ({ getValue }) => formatPKR(getValue()),
+        cell: ({ getValue }) => <span className="font-tabular">{formatPKR(getValue())}</span>,
       },
       {
         accessorKey: 'unit',
@@ -265,12 +267,13 @@ export function InventoryPage() {
       </div>
 
       <Card padding="sm" className="flex items-center gap-3">
-        <IconSearch className="w-4 h-4 text-ink-mute ml-2" />
-        <Input
+        <IconSearch className="w-4 h-4 text-ink-mute ml-2 shrink-0" />
+        <input
+          type="text"
           placeholder="Search items..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="border-0 shadow-none focus:ring-0 h-9"
+          className="w-full bg-transparent text-[15px] text-ink placeholder:text-ink-mute/50 focus:outline-none h-8"
         />
       </Card>
 
@@ -280,8 +283,23 @@ export function InventoryPage() {
           <Skeleton variant="tableRow" />
           <Skeleton variant="tableRow" />
         </div>
+      ) : items?.length === 0 && !search ? (
+        <Card padding="lg">
+          <EmptyState
+            icon={<IconBoxSeam className="w-6 h-6" />}
+            title="No inventory items yet"
+            description="Start tracking your store stock by adding your first product."
+            actionLabel="Add item"
+            actionIcon={<IconPlus className="w-4 h-4" />}
+            onAction={handleAdd}
+          />
+        </Card>
       ) : (
-        <Table table={table} emptyText="No inventory items found" />
+        <Table
+          table={table}
+          emptyText="No inventory items found"
+          getRowClassName={(row) => (row.original.quantity < 10 ? 'border-l-2 border-ruby' : '')}
+        />
       )}
 
       <Modal
@@ -297,8 +315,8 @@ export function InventoryPage() {
               ? {
                   name: editingItem.name,
                   quantity: editingItem.quantity,
-                  price: editingItem.price,
-                  unit: editingItem.unit,
+                  price: editingItem.price ?? 0,
+                  unit: editingItem.unit ?? '',
                 }
               : emptyItem
           }

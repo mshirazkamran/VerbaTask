@@ -2,10 +2,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { queryKeys } from '../lib/queryKeys';
 
-export function useApprovals(status = 'pending') {
+export function useApprovals() {
   return useQuery({
-    queryKey: queryKeys.approvals(status),
-    queryFn: () => api.get(`/api/approvals?status=${status}`),
+    queryKey: queryKeys.approvals(),
+    queryFn: () => api.get('/api/approvals'),
     staleTime: 30 * 1000,
   });
 }

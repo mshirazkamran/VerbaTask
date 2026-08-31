@@ -5,7 +5,7 @@ import { flexRender } from '@tanstack/react-table';
 /**
  * Stripe-styled table wrapper for TanStack Table with tabular typography.
  */
-export function Table({ table, onRowClick, emptyText = 'No records found' }) {
+export function Table({ table, onRowClick, emptyText = 'No records found', getRowClassName }) {
   const rows = table.getRowModel().rows;
 
   return (
@@ -67,21 +67,24 @@ export function Table({ table, onRowClick, emptyText = 'No records found' }) {
               </td>
             </tr>
           ) : (
-            rows.map((row) => (
-              <tr
-                key={row.id}
-                onClick={() => onRowClick && onRowClick(row.original)}
-                className={`transition-colors duration-100 ${
-                  onRowClick ? 'cursor-pointer hover:bg-canvas-soft' : 'hover:bg-canvas-soft/40'
-                }`}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="py-3.5 px-4 text-sm whitespace-nowrap">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))
+            rows.map((row) => {
+              const customClass = getRowClassName ? getRowClassName(row) : '';
+              return (
+                <tr
+                  key={row.id}
+                  onClick={() => onRowClick && onRowClick(row.original)}
+                  className={`transition-colors duration-100 ${
+                    onRowClick ? 'cursor-pointer hover:bg-canvas-soft' : 'hover:bg-canvas-soft/40'
+                  } ${customClass}`}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="py-3.5 px-4 text-sm whitespace-nowrap">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>
