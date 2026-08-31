@@ -4,6 +4,6 @@ export const queryKeys = {
   orders: () => ['orders'],
   order: (id) => ['orders', id],
   workflows: () => ['workflows'],
-  approvals: (status) => ['approvals', status],
+  approvals: () => ['approvals'],
   dashboard: () => ['dashboard'],
 };
