@@ -188,7 +188,7 @@ export function OverviewPage() {
       <div className="space-y-6">
         <div>
           <h2 className="text-xl font-light text-ink tracking-tight">Overview</h2>
-          <p className="text-xs text-ink-mute">Store activity summary and KPI metrics</p>
+          <p className="text-xs text-ink-mute">Sales, stock, and approvals for today</p>
         </div>
         <Card padding="lg" className="text-center py-12">
           <IconAlertCircle className="w-10 h-10 text-ruby mx-auto mb-3" />
@@ -204,7 +204,7 @@ export function OverviewPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-light text-ink tracking-tight">Overview</h2>
-          <p className="text-xs text-ink-mute">Store activity summary and KPI metrics</p>
+          <p className="text-xs text-ink-mute">Sales, stock, and approvals for today</p>
         </div>
         <div className="flex items-center gap-2 px-3 py-1 rounded-pill bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
           <span className="relative flex h-2 w-2">

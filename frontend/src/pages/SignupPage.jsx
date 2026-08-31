@@ -49,7 +49,7 @@ export function SignupPage() {
         password: values.password,
       });
       setAuth(data.token, data.merchantId);
-      toast.success('Account created — now link your WhatsApp number');
+      toast.success('Account created. Now link your WhatsApp number');
       navigate('/link-code', { replace: true });
     } catch (err) {
       toast.error(err.message || 'Registration failed. Please try again.');
@@ -61,7 +61,7 @@ export function SignupPage() {
   return (
     <AuthLayout
       title="Create your merchant account"
-      subtitle="Start logging sales and receiving automated voice orders via WhatsApp."
+      subtitle="Start logging sales by voice note or guided buttons on WhatsApp."
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <Input
