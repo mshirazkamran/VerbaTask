@@ -6,6 +6,7 @@ import InventoryItem from '../models/InventoryItem.js';
 import ConversationState from '../models/ConversationState.js';
 
 import { createOrder } from '../crm/order.service.js';
+import { evaluateMessageWorkflows } from '../workflows/workflow.service.js';
 import { parseIntent } from '../services/qwen.service.js';
 import { downloadMedia } from '../services/media.service.js';
 import {
@@ -290,12 +291,20 @@ async function handleOnboardedMerchant(merchant, message) {
   }
 }
 
-/** Typed text: "order" starts the guided flow, "link"/"code" resends the dashboard linking code, anything else goes through Qwen NLP. */
+/** Typed text: "order" starts the guided flow, "link"/"code" resends the dashboard linking code, message workflows are checked next, anything else goes through Qwen NLP. */
 async function handleTextMessage(merchant, text) {
   const normalized = text.trim().toLowerCase();
 
   if (/^(order|sale|log)$/i.test(normalized)) return startGuidedOrder(merchant);
   if (normalized === 'link' || normalized === 'code') return sendLinkCodeToMerchant(merchant);
+
+  // Check stored message workflows first — if any fire, skip NLP entirely
+  try {
+    const triggered = await evaluateMessageWorkflows(merchant._id, text);
+    if (triggered.length > 0) return; // workflow(s) already replied to the merchant
+  } catch (err) {
+    console.error('evaluateMessageWorkflows error:', err.message);
+  }
 
   try {
     const intent = await parseIntent(text);

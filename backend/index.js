@@ -10,6 +10,7 @@ import crmRoutes from './src/routes/crm.routes.js';
 import approvalRoutes from './src/routes/approval.routes.js';
 import dashboardRoutes from './src/routes/dashboard.routes.js';
 import workflowRoutes from './src/routes/workflow.routes.js';
+import { startScheduleRunner } from './src/workflows/workflow.service.js';
 
 const app = express();
 
@@ -45,7 +46,10 @@ const PORT = process.env.PORT || 8080;
 
 mongoose
   .connect(process.env.MONGODB_URI)
-  .then(() => console.log('MongoDB connected'))
+  .then(() => {
+    console.log('MongoDB connected');
+    startScheduleRunner();
+  })
   .catch((err) => console.error('MongoDB connection failed:', err.message));
 
 app.listen(PORT, () => console.log(`VerbaTask backend listening on :${PORT}`));
