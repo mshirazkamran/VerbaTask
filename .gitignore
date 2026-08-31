@@ -21,3 +21,5 @@ frontend/dist/
 frontend/.vite/
 frontend/ok.md
 backend/.env
+explanation_audit.md
+progress.md

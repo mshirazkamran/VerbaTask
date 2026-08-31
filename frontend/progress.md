@@ -59,7 +59,7 @@ This file tracks implementation progress against the full plan. It serves as bot
 - `[x]` `npm run lint` passes clean (0 errors, 0 warnings)
 - `[x]` Auth flow works: signup -> login -> redirected to dashboard shell -> logout
 - `[x]` Sidebar collapse/expand works with smooth Motion animation
-- `[x]` Dark mode toggle works seamlessly in both auth & dashboard views
+- `[x]` Dark mode toggle works in both auth and dashboard views
 - `[x]` Responsive: mobile breakpoints & drawer work
 - `[x]` All UI components render correctly (Button, Input, Card, Badge, Table, Modal, Skeleton, EmptyState)
 
