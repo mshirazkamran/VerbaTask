@@ -335,17 +335,24 @@ async function handleVoiceNote(merchant, mediaId) {
     // TODO: agent/ owns transcription — this dynamic import lets the
     // WhatsApp layer work tonight even before that module exists, and fails
     // gracefully instead of crashing the server on a missing file.
-    const agent = await import('../agent/transcribeAndParse.js').catch(() => null);
+    const agent = await import('../agent/transcribeAndParse.js').catch((err) => {
+      console.error('failed to import transcribeAndParse agent:', err.message);
+      return null;
+    });
     if (!agent) {
       return sendTextMessage(
         merchant.whatsappNumber,
         'Got your voice note — voice processing is still being built, please type it instead for now.'
       );
     }
-    const intent = await agent.transcribeAndParse(buffer, mimeType);
+    const intent = await agent.transcribeAndParse(buffer, mimeType, merchant.language);
     return routeParsedCommand(merchant, intent, 'voice');
   } catch (err) {
-    console.error('voice note handling failed:', err);
+    const status = err.response?.status;
+    const body = err.response?.data ? JSON.stringify(err.response.data) : '';
+    console.error(
+      `voice note handling failed for ${merchant.whatsappNumber}: ${err.message}${status ? ` (status ${status})` : ''}${body ? ` ${body}` : ''}`
+    );
     return sendTextMessage(merchant.whatsappNumber, "Couldn't process that voice note — try typing it instead.");
   }
 }

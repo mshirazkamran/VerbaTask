@@ -21,13 +21,17 @@ const MAX_AUDIO_BYTES = 8 * 1024 * 1024; // ~8MB, comfortably covers a normal 1-
  * Urdu into native Urdu (Perso-Arabic) script — Qwen-2.5 reads that natively,
  * so the native-script transcript goes straight into the same parseIntent()
  * the text path uses.
+ *
+ * @param {Buffer} buffer
+ * @param {string} mimeType
+ * @param {string} [language='ur'] merchant language ('en' or 'ur')
  */
-export async function transcribeAndParse(buffer, mimeType) {
+export async function transcribeAndParse(buffer, mimeType, language = 'ur') {
   if (buffer.length > MAX_AUDIO_BYTES) {
     return { type: 'unknown', rawText: '', error: 'audio_too_long' };
   }
 
-  const transcript = await transcribeWithRetry(buffer, mimeType);
+  const transcript = await transcribeWithRetry(buffer, mimeType, language);
 
   if (!transcript?.trim()) {
     return { type: 'unknown', rawText: '' };
@@ -37,23 +41,24 @@ export async function transcribeAndParse(buffer, mimeType) {
   return { ...intent, transcript };
 }
 
-async function transcribeWithRetry(buffer, mimeType, attempt = 1) {
+async function transcribeWithRetry(buffer, mimeType, language, attempt = 1) {
   try {
-    return await transcribe(buffer, mimeType);
+    return await transcribe(buffer, mimeType, language);
   } catch (err) {
     const status = err.response?.status;
+    const body = err.response?.data ? JSON.stringify(err.response.data) : '';
     // Retry once on transient failures (timeouts, rate limit, 5xx) — not on
     // 4xx auth/bad-request errors, retrying those just wastes another call.
     const transient = !status || status === 429 || status >= 500;
     if (transient && attempt < 2) {
-      console.warn(`Transcription attempt ${attempt} failed, retrying once...`);
-      return transcribeWithRetry(buffer, mimeType, attempt + 1);
+      console.warn(`Transcription attempt ${attempt} failed (${status} ${body}), retrying once...`);
+      return transcribeWithRetry(buffer, mimeType, language, attempt + 1);
     }
     throw err;
   }
 }
 
-async function transcribe(buffer, mimeType) {
+async function transcribe(buffer, mimeType, language) {
   if (!process.env.GROQ_API_KEY) {
     throw new Error('GROQ_API_KEY not set');
   }
@@ -61,7 +66,7 @@ async function transcribe(buffer, mimeType) {
   const form = new FormData();
   form.append('file', buffer, { filename: filenameFor(mimeType), contentType: mimeType });
   form.append('model', 'whisper-large-v3-turbo'); // fast + free-tier; swap to whisper-large-v3 if accuracy matters more than speed
-  form.append('language', 'ur'); // hint improves accuracy; Groq still auto-detects reasonably if wrong
+  form.append('language', language === 'en' ? 'en' : 'ur'); // hint improves accuracy; Groq still auto-detects reasonably if wrong
 
   const { data } = await axios.post(GROQ_TRANSCRIPTION_URL, form, {
     headers: {
