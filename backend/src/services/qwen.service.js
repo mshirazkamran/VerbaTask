@@ -44,6 +44,12 @@ prose, no markdown fences, JSON only:
 One entry per distinct item the merchant listed. Quantity means how many units are in stock.
 Use quantity 0 and price null when not stated — never invent numbers.`;
 
+const ITEM_RESOLVE_PROMPT = `A Pakistani merchant said they sold an item. Match it against their
+inventory list — names may be in English, Urdu script, or Roman Urdu, so match by MEANING
+("chawal" = "rice" = "چاول", "dal mash" = "daal maash"). Reply with exactly one line and
+nothing else: either the exact inventory name copied character-for-character, or the word
+null if nothing in the inventory is a plausible match. Never invent a name.`;
+
 /** Which host the LLM calls go to — env-overridable, defaults to the free path. */
 function llmProvider() {
   return process.env.LLM_PROVIDER || (process.env.GROQ_API_KEY ? 'groq' : 'dashscope');
@@ -174,6 +180,28 @@ export async function extractInventoryItems(text) {
       .slice(0, 100);
 
     return items.length ? items : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Last-resort item resolver for when string matching fails — the merchant
+ * said "chawal" but their stock list says "rice", or they spoke Urdu script.
+ * Asks the LLM to pick from the actual inventory names; returns the exact
+ * matching inventory name, or null when nothing plausible / LLM unavailable.
+ */
+export async function resolveItemName(saidName, inventoryNames) {
+  if (!llmConfigured() || !inventoryNames?.length || !saidName) return null;
+
+  try {
+    const raw = await chatCompletion(
+      ITEM_RESOLVE_PROMPT,
+      `Inventory: ${inventoryNames.join(', ')}\nItem said: ${saidName}`
+    );
+    const cleaned = raw.trim().replace(/^["'`]+|["'`]+$/g, '');
+    if (!cleaned || cleaned.toLowerCase() === 'null') return null;
+    return inventoryNames.find((n) => n.toLowerCase() === cleaned.toLowerCase()) ?? null;
   } catch {
     return null;
   }
