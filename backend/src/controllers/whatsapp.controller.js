@@ -260,7 +260,17 @@ async function handleOnboardedMerchant(merchant, message) {
       whatsappNumber: merchant.whatsappNumber,
       flow: 'guided_order',
     });
-    if (existingState) return await continueGuidedOrder(merchant, message, existingState);
+    if (existingState) {
+      // An abandoned guided order used to swallow EVERY subsequent message
+      // forever (nothing ever reached the workflows or NLP again). Expire it
+      // after 30 idle minutes and fall through to normal routing instead.
+      const idleMs = Date.now() - new Date(existingState.updatedAt).getTime();
+      if (idleMs > 30 * 60 * 1000) {
+        await ConversationState.deleteOne({ _id: existingState._id });
+      } else {
+        return await continueGuidedOrder(merchant, message, existingState);
+      }
+    }
 
     if (message.type === 'text') {
       return await handleTextMessage(merchant, message.text.body);
@@ -405,6 +415,17 @@ async function startGuidedOrder(merchant) {
 async function continueGuidedOrder(merchant, message, state) {
   const listId = message.interactive?.list_reply?.id;
   const buttonId = message.interactive?.button_reply?.id;
+
+  // Escape hatch — typing "cancel"/"stop" abandons the in-flight order instead
+  // of trapping the merchant in the flow (complements the 30-min idle expiry).
+  const typed = message.text?.body?.trim().toLowerCase();
+  if (typed === 'cancel' || typed === 'stop') {
+    await ConversationState.deleteOne({ _id: state._id });
+    return sendTextMessage(
+      merchant.whatsappNumber,
+      'No problem — order cancelled. Send "order" whenever you want to log another sale.'
+    );
+  }
 
   switch (state.step) {
     case 'awaiting_item': {
