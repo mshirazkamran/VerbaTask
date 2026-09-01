@@ -11,7 +11,7 @@ const conversationStateSchema = new mongoose.Schema(
   {
     whatsappNumber: { type: String, required: true, unique: true },
     merchantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Merchant' },
-    flow: { type: String, enum: ['onboarding', 'guided_order', null], default: null },
+    flow: { type: String, enum: ['onboarding', 'guided_order', 'item_disambiguation', null], default: null },
     step: String, // e.g. 'awaiting_language' | 'awaiting_item' | 'awaiting_payment_method'
     data: { type: mongoose.Schema.Types.Mixed, default: {} }, // whatever's been collected so far in this flow
   },

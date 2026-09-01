@@ -6,7 +6,8 @@ import { createOrder } from '../crm/order.service.js';
 import { evaluateMessageWorkflows, createWorkflow } from '../workflows/workflow.service.js';
 import { respond as respondToApproval, findPendingByOrderId } from '../approvals/approval.service.js';
 import { generateLinkCode } from './auth.controller.js';
-import { parseIntent, extractBusinessDetails, extractInventoryItems } from '../services/qwen.service.js';
+import { parseIntent, extractBusinessDetails, extractInventoryItems, resolveItemName } from '../services/qwen.service.js';
+import { findSimilarInventoryItems } from '../crm/item-matching.js';
 import { transcribeAndParse } from '../agent/transcribeAndParse.js';
 import { downloadMedia } from '../services/media.service.js';
 import {
@@ -257,6 +258,11 @@ async function handleOnboardedMerchant(merchant, message) {
       if (buttonId?.startsWith('approve_') || buttonId?.startsWith('reject_')) {
         return await handleApprovalReply(merchant, buttonId);
       }
+      // "Did you mean?" replies for fuzzy item matches — checked early so a
+      // mid-flow guided order doesn't swallow the tap.
+      if (buttonId?.startsWith('pick_')) {
+        return await handleDisambiguationReply(merchant, buttonId);
+      }
     }
 
     const existingState = await ConversationState.findOne({
@@ -423,15 +429,23 @@ async function sendItemPickerPage(merchant, page) {
   ]);
 }
 
+// Escape-hatch words for the guided flow. Prefixes catch typos like "cancelll"
+// — "sto" alone is skipped so words like "stock" never trigger a cancel.
+const CANCEL_WORDS = ['cancel', 'stop', 'quit', 'exit', 'khatam', 'band karo'];
+function isCancelText(raw) {
+  const s = raw?.trim().toLowerCase();
+  if (!s) return false;
+  return CANCEL_WORDS.includes(s) || s.startsWith('canc') || s.startsWith('stop');
+}
+
 /** Advances an in-flight guided order one step, driven by ConversationState.step. */
 async function continueGuidedOrder(merchant, message, state) {
   const listId = message.interactive?.list_reply?.id;
   const buttonId = message.interactive?.button_reply?.id;
 
-  // Escape hatch — typing "cancel"/"stop" abandons the in-flight order instead
-  // of trapping the merchant in the flow (complements the 30-min idle expiry).
-  const typed = message.text?.body?.trim().toLowerCase();
-  if (typed === 'cancel' || typed === 'stop') {
+  // Escape hatch — typing "cancel"/"stop" (or near-misses) abandons the
+  // in-flight order instead of trapping the merchant in the flow.
+  if (isCancelText(message.text?.body)) {
     await ConversationState.deleteOne({ _id: state._id });
     return sendTextMessage(
       merchant.whatsappNumber,
@@ -448,7 +462,51 @@ async function continueGuidedOrder(merchant, message, state) {
         return sendItemPickerPage(merchant, nextPage);
       }
       if (!listId?.startsWith('item_')) {
-        return sendTextMessage(merchant.whatsappNumber, 'Please pick an item from the list.');
+        // Merchants type the item name more often than they tap the list —
+        // match free text against stock ("daal maash" or "2 daal maash").
+        const raw = message.text?.body?.trim();
+        if (!raw) {
+          return sendTextMessage(merchant.whatsappNumber, 'Please pick an item from the list — or just type its name.');
+        }
+        const qtyMatch = raw.match(/^(\d+)\s+(.+)$/);
+        const saidName = qtyMatch ? qtyMatch[2] : raw;
+        const ranked = await findSimilarInventoryItems(merchant._id, saidName, { limit: 2, minScore: 0.6 });
+        const best = ranked[0];
+        const clearMatch = ranked.length === 1 || (ranked.length === 2 && ranked[0].score - ranked[1].score >= 0.15);
+
+        if (best && clearMatch) {
+          const typedQty = qtyMatch ? parseInt(qtyMatch[1], 10) : null;
+          state.data = {
+            ...state.data,
+            itemId: best.item._id.toString(),
+            itemName: best.item.name,
+            price: best.item.price,
+          };
+          if (typedQty && typedQty > 0) {
+            state.data.quantity = typedQty;
+            state.step = 'awaiting_payment_method';
+            await state.save();
+            return sendInteractiveButtons(merchant.whatsappNumber, 'How was it paid?', [
+              { id: 'pay_cash', title: 'Cash' },
+              { id: 'pay_easypaisa', title: 'EasyPaisa' },
+              { id: 'pay_jazzcash', title: 'JazzCash' },
+            ]);
+          }
+          state.step = 'awaiting_quantity';
+          await state.save();
+          return sendTextMessage(merchant.whatsappNumber, `How many ${best.item.name} did you sell?`);
+        }
+
+        if (ranked.length > 1) {
+          const names = ranked.map((r) => `"${r.item.name}"`).join(' or ');
+          await sendTextMessage(merchant.whatsappNumber, `Did you mean ${names}? Type the full name — or pick from the list below.`);
+          return sendItemPickerPage(merchant, state.data?.page ?? 0);
+        }
+
+        return sendTextMessage(
+          merchant.whatsappNumber,
+          `I couldn't match "${saidName}" — tap an item from the list, or type its exact name. Send "cancel" to exit.`
+        );
       }
       const item = await InventoryItem.findById(listId.replace('item_', ''));
       if (!item) return sendTextMessage(merchant.whatsappNumber, "Couldn't find that item — try again.");
@@ -545,10 +603,7 @@ async function createOrderViaCrm(merchant, command) {
     const message = err?.message ?? '';
 
     if (message.startsWith('ITEM_NOT_FOUND:')) {
-      return sendTextMessage(
-        merchant.whatsappNumber,
-        `I couldn't find "${command.item.name}" in your stock — add it from the dashboard first, or check the spelling.`
-      );
+      return offerItemDisambiguation(merchant, command);
     }
 
     if (message.startsWith('INSUFFICIENT_STOCK:')) {
@@ -565,6 +620,84 @@ async function createOrderViaCrm(merchant, command) {
       "Sorry — I couldn't log that sale. Please try again in a moment."
     );
   }
+}
+
+/**
+ * The merchant's item name didn't match their stock list. Instead of a dead
+ * end, offer the closest candidates as buttons — "Did you mean Daal Maash?"
+ * Candidates come from string similarity first, then the LLM (handles
+ * chawal/rice/چاول and Urdu-script names). The pending command is stashed in
+ * ConversationState so the button tap can finish the sale.
+ */
+async function offerItemDisambiguation(merchant, command) {
+  const saidName = command.item?.name ?? '';
+
+  let ranked = await findSimilarInventoryItems(merchant._id, saidName, { limit: 2, minScore: 0.5 });
+
+  if (!ranked.length) {
+    const inventory = await InventoryItem.find({ merchantId: merchant._id }).limit(100);
+    const resolved = await resolveItemName(saidName, inventory.map((i) => i.name));
+    if (resolved) {
+      ranked = inventory
+        .filter((i) => i.name.toLowerCase() === resolved.toLowerCase())
+        .map((item) => ({ item, score: 1 }));
+    }
+  }
+
+  if (!ranked.length) {
+    return sendTextMessage(
+      merchant.whatsappNumber,
+      `I couldn't find "${saidName}" in your stock — add it from the dashboard first, or check the spelling.`
+    );
+  }
+
+  // WhatsApp caps reply buttons at 3: two candidates + an escape.
+  const buttons = ranked
+    .slice(0, 2)
+    .map(({ item }) => ({ id: `pick_${item._id}`, title: item.name.slice(0, 20) }));
+  buttons.push({ id: 'pick_none', title: 'None of these' });
+
+  await ConversationState.findOneAndUpdate(
+    { whatsappNumber: merchant.whatsappNumber },
+    { merchantId: merchant._id, flow: 'item_disambiguation', step: 'awaiting_choice', data: { command } },
+    { upsert: true }
+  );
+
+  return sendInteractiveButtons(
+    merchant.whatsappNumber,
+    `I couldn't find "${saidName}" in your stock — did you mean:`,
+    buttons
+  );
+}
+
+/** Finishes (or declines) a sale after the merchant taps a "did you mean?" button. */
+async function handleDisambiguationReply(merchant, buttonId) {
+  const state = await ConversationState.findOne({
+    whatsappNumber: merchant.whatsappNumber,
+    flow: 'item_disambiguation',
+  });
+  if (!state) {
+    return sendTextMessage(merchant.whatsappNumber, "Sorry, that choice expired — please send the sale again.");
+  }
+  await ConversationState.deleteOne({ _id: state._id });
+
+  if (buttonId === 'pick_none') {
+    return sendTextMessage(
+      merchant.whatsappNumber,
+      'No problem — sale not logged. Send "order" to pick from your stock list, or add the item from the dashboard.'
+    );
+  }
+
+  const item = await InventoryItem.findById(buttonId.replace('pick_', ''));
+  if (!item) {
+    return sendTextMessage(merchant.whatsappNumber, "Couldn't find that item anymore — please send the sale again.");
+  }
+
+  const command = state.data?.command ?? {};
+  return createOrderViaCrm(merchant, {
+    ...command,
+    item: { ...(command.item ?? {}), name: item.name, inventoryItemId: item._id.toString() },
+  });
 }
 
 /** Creates an automation through workflows/createWorkflow and confirms back to the merchant. */

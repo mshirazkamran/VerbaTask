@@ -2,6 +2,7 @@ import InventoryItem from '../models/InventoryItem.js';
 import Order from '../models/Order.js';
 import { evaluateThresholdWorkflows } from '../workflows/workflow.service.js';
 import { createApproval, HIGH_VALUE_THRESHOLD } from '../approvals/approval.service.js';
+import { findSimilarInventoryItems } from './item-matching.js';
 
 // Item names arrive from free-form WhatsApp text (Qwen NLP) — escape regex
 // metacharacters so "Milk (1L)" matches literally instead of failing silently.
@@ -15,10 +16,20 @@ const resolveInventoryItem = async (merchantId, lineItem) => {
   if (lineItem.inventoryItemId) {
     return InventoryItem.findOne({ _id: lineItem.inventoryItemId, merchantId });
   }
-  return InventoryItem.findOne({
+  const exact = await InventoryItem.findOne({
     merchantId,
     name: new RegExp(`^${escapeRegex(lineItem.name)}$`, 'i'),
   });
+  if (exact) return exact;
+
+  // "dal mash" -> "Daal Maash": a clear near-miss spelling auto-corrects to
+  // the single closest stock item. Genuinely ambiguous names ("daal" — maash
+  // or channa?) fall through to ITEM_NOT_FOUND so the controller can ask
+  // "did you mean?" instead of guessing.
+  const ranked = await findSimilarInventoryItems(merchantId, lineItem.name, { limit: 2, minScore: 0.75 });
+  if (ranked.length === 1) return ranked[0].item;
+  if (ranked.length === 2 && ranked[0].score - ranked[1].score >= 0.15) return ranked[0].item;
+  return null;
 };
 
 /**
