@@ -196,12 +196,12 @@ only ever need to check `success`:
 | Method | Path | Body | `data` |
 |---|---|---|---|
 | GET | `/api/approvals?status=pending` | — | `Approval[]` |
-| POST | `/api/approvals/:id/respond` | `{ decision: "approved" \| "rejected" }` | `Approval` |
+| PATCH | `/api/approvals/:id/respond` | `{ decision: "approved" \| "rejected" }` | `Approval` |
 
 ### Dashboard
 | Method | Path | `data` |
 |---|---|---|
-| GET | `/api/dashboard/overview` | `{ todaySales, todayProfit, lowStockItems, pendingApprovals, recentOrders, activeWorkflows }` |
+| GET | `/api/dashboard/overview` | `{ todaySales, itemsSoldToday, todayOrdersCount, lowStockItems, pendingApprovals, recentOrders, activeWorkflows }` |
 
 ### OCR (optional path, exposed for testing)
 | Method | Path | Body | `data` |
@@ -295,15 +295,27 @@ WHATSAPP_PHONE_NUMBER_ID=
 WHATSAPP_ACCESS_TOKEN=
 WHATSAPP_VERIFY_TOKEN=choose-any-string-and-reuse-it-in-the-meta-console
 
-# Alibaba Cloud DashScope (Qwen-2.5)
+# LLM provider for the NLP layer (intent parsing + onboarding extraction)
+# 'groq' (default, free tier, no card — hosts current Qwen models) or
+# 'dashscope' (Alibaba Model Studio; needs an activated key, see below)
+LLM_PROVIDER=groq
+LLM_MODEL=qwen/qwen3.8-27b
+
+# Alibaba Cloud DashScope (Qwen-2.5) — only used when LLM_PROVIDER=dashscope.
+# IMPORTANT: intl (sk-ws-...) keys only work on dashscope-intl.aliyuncs.com;
+# new accounts must activate the model / free quota or calls return 403.
 DASHSCOPE_API_KEY=
 
 # Alibaba Cloud Visual Intelligence (OCR) — only needed if you build the OCR module
 ALIBABA_ACCESS_KEY_ID=
 ALIBABA_ACCESS_KEY_SECRET=
 
-# Whisper transcription (voice notes) — OpenAI API key, or swap for a self-hosted endpoint
-WHISPER_API_KEY=
+# Groq (free tier, no card) — Whisper voice-note transcription AND the NLP
+# chat layer when LLM_PROVIDER=groq (console.groq.com)
+GROQ_API_KEY=
+
+# Meta webhook signature verification — App Secret from the Meta app dashboard
+WHATSAPP_APP_SECRET=
 
 # Auth
 JWT_SECRET=change-me-to-something-long-and-random
@@ -355,7 +367,9 @@ build/
 ## 10. Zero → working product, in order
 
 1. Accounts: Meta Developer app + WhatsApp test number, MongoDB Atlas
-   cluster, Alibaba Cloud account + DashScope key, Whisper API key.
+   cluster, Groq key (free, no card — covers Whisper + the Qwen NLP layer),
+   Alibaba Cloud account + DashScope key (optional, only if using the
+   dashscope LLM provider).
 2. `cp backend/.env.example backend/.env` and fill it in.
 3. `cd backend && npm install && npm run dev` → confirm `/health` responds
    and Mongo connects.

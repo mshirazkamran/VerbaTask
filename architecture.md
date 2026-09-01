@@ -19,9 +19,10 @@ same data for merchants who want to see it visually.
 - Backend: Node.js + Express + MongoDB (Mongoose)
 - Frontend: React (Vite) + Tailwind CSS, built as an installable PWA
 - WhatsApp: Meta Cloud API (Developer/test mode) via webhooks
-- AI: Alibaba Cloud Qwen-2.5 (DashScope) for language understanding and
-  command parsing; Alibaba Cloud Visual Intelligence for OCR (optional
-  fallback path, not the primary flow)
+- AI: Qwen LLM for language understanding and command parsing — hosted on
+  Groq (default; free tier, e.g. qwen/qwen3.8-27b) or Alibaba Cloud
+  DashScope, switchable via the LLM_PROVIDER env var; Alibaba Cloud Visual
+  Intelligence for OCR (optional fallback path, not the primary flow)
 - Hosting: Alibaba Cloud Function Compute (backend), static hosting or
   Vercel-equivalent (frontend)
 

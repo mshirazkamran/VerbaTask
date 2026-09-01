@@ -37,6 +37,7 @@ export async function transcribeAndParse(buffer, mimeType, language = 'ur') {
     return { type: 'unknown', rawText: '' };
   }
 
+  console.log(`[voice] transcript (${language}): ${transcript}`);
   const intent = await parseIntent(transcript);
   return { ...intent, transcript };
 }
@@ -58,7 +59,11 @@ async function transcribeWithRetry(buffer, mimeType, language, attempt = 1) {
   }
 }
 
-async function transcribe(buffer, mimeType, language) {
+/**
+ * Raw Whisper transcription — exported so the voice half can be tested
+ * directly against a local audio file, without the Qwen parse step.
+ */
+export async function transcribe(buffer, mimeType, language) {
   if (!process.env.GROQ_API_KEY) {
     throw new Error('GROQ_API_KEY not set');
   }

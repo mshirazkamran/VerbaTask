@@ -6,6 +6,7 @@ import Approval from "../models/Approval.js";
 import Workflow from "../models/Workflow.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 // POST /api/auth/signup
 export const signup = async (req, res) => {
@@ -178,8 +179,25 @@ export const getMe = async (req, res) => {
     }
 };
 
-// INTERNAL FUNCTION: Not an Express route. Called internally by the whatsapp module.
+// INTERNAL FUNCTION: Not an Express route. Called in-process by the WhatsApp
+// module (per the design guide) whenever a number needs a dashboard linking
+// code. Reuses an unexpired, unused code if one exists rather than issuing
+// a new one on every message; codes expire after 15 minutes.
 export const generateLinkCode = async (whatsappNumber) => {
-    // TODO: Generate a 6-digit code, save it to the LinkCode collection, and return it.
-    // Expires in 15 minutes.
+    let linkCode = await LinkCode.findOne({
+        whatsappNumber,
+        usedAt: null,
+        expiresAt: { $gt: new Date() },
+    });
+
+    if (!linkCode) {
+        const code = crypto.randomInt(100000, 999999).toString();
+        linkCode = await LinkCode.create({
+            whatsappNumber,
+            code,
+            expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        });
+    }
+
+    return linkCode;
 };

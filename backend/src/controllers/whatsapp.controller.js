@@ -1,13 +1,13 @@
-import crypto from 'crypto';
-
 import Merchant from '../models/Merchant.js';
-import LinkCode from '../models/LinkCode.js';
 import InventoryItem from '../models/InventoryItem.js';
 import ConversationState from '../models/ConversationState.js';
 
 import { createOrder } from '../crm/order.service.js';
-import { evaluateMessageWorkflows } from '../workflows/workflow.service.js';
-import { parseIntent } from '../services/qwen.service.js';
+import { evaluateMessageWorkflows, createWorkflow } from '../workflows/workflow.service.js';
+import { respond as respondToApproval, findPendingByOrderId } from '../approvals/approval.service.js';
+import { generateLinkCode } from './auth.controller.js';
+import { parseIntent, extractBusinessDetails, extractInventoryItems } from '../services/qwen.service.js';
+import { transcribeAndParse } from '../agent/transcribeAndParse.js';
 import { downloadMedia } from '../services/media.service.js';
 import {
   sendTextMessage as sendTextMessageRaw,
@@ -120,30 +120,11 @@ export async function handleIncomingMessage(req, res) {
 
 /**
  * Unknown number → send the signup link plus a fresh linking code the web
- * signup flow will ask for. Reuses an unexpired, unused code if one exists
- * rather than issuing a new one on every message.
+ * signup flow will ask for. generateLinkCode (auth module) reuses an
+ * unexpired, unused code rather than issuing a new one on every message.
  */
-async function createOrReuseLinkCode(whatsappNumber) {
-  let linkCode = await LinkCode.findOne({
-    whatsappNumber,
-    usedAt: null,
-    expiresAt: { $gt: new Date() },
-  });
-
-  if (!linkCode) {
-    const code = crypto.randomInt(100000, 999999).toString();
-    linkCode = await LinkCode.create({
-      whatsappNumber,
-      code,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-    });
-  }
-
-  return linkCode;
-}
-
 async function handleUnregisteredNumber(whatsappNumber) {
-  const linkCode = await createOrReuseLinkCode(whatsappNumber);
+  const linkCode = await generateLinkCode(whatsappNumber);
 
   await sendTextMessage(
     whatsappNumber,
@@ -152,7 +133,7 @@ async function handleUnregisteredNumber(whatsappNumber) {
 }
 
 async function sendLinkCodeToMerchant(merchant) {
-  const linkCode = await createOrReuseLinkCode(merchant.whatsappNumber);
+  const linkCode = await generateLinkCode(merchant.whatsappNumber);
 
   await sendTextMessage(
     merchant.whatsappNumber,
@@ -205,9 +186,13 @@ async function handleOnboarding(merchant, message) {
 
     case 'awaiting_business_details': {
       if (!text) return sendTextMessage(merchant.whatsappNumber, 'Please send this as text.');
-      // TODO: swap this for a Qwen extraction call once agent/ exists — plain
-      // storage of the raw text is enough to unblock testing tonight.
-      merchant.businessName = text;
+      // Qwen extracts name/location/sells; if it can't (no key, timeout,
+      // garbage JSON) keep the raw text on businessName so onboarding never
+      // blocks on a flaky NLP call.
+      const details = await extractBusinessDetails(text);
+      merchant.businessName = details?.businessName || text;
+      if (details?.location) merchant.location = details.location;
+      if (details?.sells) merchant.sells = details.sells;
       await merchant.save();
       state.step = 'awaiting_inventory';
       await state.save();
@@ -219,17 +204,35 @@ async function handleOnboarding(merchant, message) {
 
     case 'awaiting_inventory': {
       if (!text) return sendTextMessage(merchant.whatsappNumber, 'Please send your stock list as text.');
+      let addedCount = 0;
       if (text.toLowerCase() !== 'skip') {
-        // TODO: real parsing belongs in crm/ — placeholder single-item log so
-        // the flow is testable end-to-end tonight.
-        await InventoryItem.create({ merchantId: merchant._id, name: text, quantity: 0 });
+        // Qwen parses the free-form list into real line items; when it can't,
+        // store the raw text as a single unparsed item (the old behaviour)
+        // rather than losing the merchant's input.
+        const items = await extractInventoryItems(text);
+        if (items?.length) {
+          await InventoryItem.insertMany(
+            items.map((i) => ({
+              merchantId: merchant._id,
+              name: i.name,
+              quantity: i.quantity,
+              ...(i.price != null && { price: i.price }),
+              ...(i.unit && { unit: i.unit }),
+            }))
+          );
+          addedCount = items.length;
+        } else {
+          await InventoryItem.create({ merchantId: merchant._id, name: text, quantity: 0 });
+        }
       }
       merchant.onboardingComplete = true;
       await merchant.save();
       await ConversationState.deleteOne({ _id: state._id });
       return sendTextMessage(
         merchant.whatsappNumber,
-        "You're all set! Message me anytime to log a sale or create an automation."
+        addedCount > 0
+          ? `You're all set! I added ${addedCount} item${addedCount === 1 ? '' : 's'} to your stock. Message me anytime to log a sale or create an automation.`
+          : "You're all set! Message me anytime to log a sale or create an automation."
       );
     }
 
@@ -332,20 +335,7 @@ async function handleTextMessage(merchant, text) {
 async function handleVoiceNote(merchant, mediaId) {
   try {
     const { buffer, mimeType } = await downloadMedia(mediaId);
-    // TODO: agent/ owns transcription — this dynamic import lets the
-    // WhatsApp layer work tonight even before that module exists, and fails
-    // gracefully instead of crashing the server on a missing file.
-    const agent = await import('../agent/transcribeAndParse.js').catch((err) => {
-      console.error('failed to import transcribeAndParse agent:', err.message);
-      return null;
-    });
-    if (!agent) {
-      return sendTextMessage(
-        merchant.whatsappNumber,
-        'Got your voice note — voice processing is still being built, please type it instead for now.'
-      );
-    }
-    const intent = await agent.transcribeAndParse(buffer, mimeType, merchant.language);
+    const intent = await transcribeAndParse(buffer, mimeType, merchant.language);
     return routeParsedCommand(merchant, intent, 'voice');
   } catch (err) {
     const status = err.response?.status;
@@ -394,27 +384,42 @@ async function routeParsedCommand(merchant, intent, source) {
 // ---------------------------------------------------------------------------
 // Guided order flow: item picker → quantity → payment method → confirm
 // ---------------------------------------------------------------------------
-/** Starts the guided flow: saves state and sends the item picker list. */
+/** Starts the guided flow: saves state and sends the first item-picker page. */
 async function startGuidedOrder(merchant) {
-  const items = await InventoryItem.find({ merchantId: merchant._id }).limit(50);
-  if (!items.length) {
+  const itemCount = await InventoryItem.countDocuments({ merchantId: merchant._id });
+  if (!itemCount) {
     return sendTextMessage(
       merchant.whatsappNumber,
       'Your stock list is empty — add items from the dashboard first, or just tell me the sale directly (e.g. "2 rice bags, cash, 1500").'
     );
   }
 
-  const rows = items.map((i) => ({ id: `item_${i._id}`, title: i.name.slice(0, 24) }));
-  const [firstPage] = paginateRows(rows); // TODO: wire "Show more" for stock lists over 9 items
-
   await ConversationState.findOneAndUpdate(
     { whatsappNumber: merchant.whatsappNumber },
-    { merchantId: merchant._id, flow: 'guided_order', step: 'awaiting_item', data: {} },
+    { merchantId: merchant._id, flow: 'guided_order', step: 'awaiting_item', data: { page: 0 } },
     { upsert: true }
   );
 
+  return sendItemPickerPage(merchant, 0);
+}
+
+/**
+ * Sends one page of the item picker. paginateRows pages at 9 rows so every
+ * page but the last has room for a "Show more" row inside WhatsApp's 10-row
+ * list cap; the current page rides along in ConversationState.data.
+ */
+async function sendItemPickerPage(merchant, page) {
+  const items = await InventoryItem.find({ merchantId: merchant._id }).limit(50);
+  const rows = items.map((i) => ({ id: `item_${i._id}`, title: i.name.slice(0, 24) }));
+  const pages = paginateRows(rows);
+  const safePage = Math.max(0, Math.min(page, pages.length - 1));
+  const hasMore = safePage < pages.length - 1;
+
   return sendInteractiveList(merchant.whatsappNumber, 'What did you sell?', 'Pick item', [
-    { title: 'Your stock', rows: firstPage },
+    {
+      title: 'Your stock',
+      rows: hasMore ? [...pages[safePage], { id: 'show_more', title: 'Show more' }] : pages[safePage],
+    },
   ]);
 }
 
@@ -436,6 +441,12 @@ async function continueGuidedOrder(merchant, message, state) {
 
   switch (state.step) {
     case 'awaiting_item': {
+      if (listId === 'show_more') {
+        const nextPage = (state.data?.page ?? 0) + 1;
+        state.data = { ...state.data, page: nextPage };
+        await state.save();
+        return sendItemPickerPage(merchant, nextPage);
+      }
       if (!listId?.startsWith('item_')) {
         return sendTextMessage(merchant.whatsappNumber, 'Please pick an item from the list.');
       }
@@ -513,10 +524,8 @@ async function finalizeGuidedOrder(merchant, state) {
 }
 
 // ---------------------------------------------------------------------------
-// crm / workflows integration — call these as direct module imports, never
-// via the HTTP routes (per the backend contract). createOrder's contract is
-// confirmed (see createOrderViaCrm); workflows/createWorkflow.js has no
-// confirmed contract yet, so it keeps its dynamic import + graceful fallback.
+// crm / workflows / approvals integration — call these as direct module
+// imports, never via the HTTP routes (per the backend contract).
 // ---------------------------------------------------------------------------
 /**
  * Runs one log_sale command through crm/order.service.js and replies to the
@@ -558,20 +567,19 @@ async function createOrderViaCrm(merchant, command) {
   }
 }
 
-/** Creates an automation through workflows/createWorkflow; acknowledges if not wired yet. */
+/** Creates an automation through workflows/createWorkflow and confirms back to the merchant. */
 async function createWorkflowViaModule(merchant, command) {
   try {
-    const { createWorkflow } = await import('../workflows/workflow.service.js');
     const workflow = await createWorkflow(command);
     return sendTextMessage(
       merchant.whatsappNumber,
       `✅ Automation created: "${workflow.rawInstruction}". I'll take it from here.`
     );
   } catch (err) {
-    console.error('createWorkflow unavailable or failed:', err.message);
+    console.error('createWorkflow failed:', err.message);
     return sendTextMessage(
       merchant.whatsappNumber,
-      `Got it — automation noted: "${command.rawInstruction}". (Activating it is still being wired up.)`
+      "Sorry — I couldn't create that automation. Please try again, or set it up from the dashboard."
     );
   }
 }
@@ -588,14 +596,13 @@ async function handleApprovalReply(merchant, buttonId) {
   const decision = isApprove ? 'approved' : 'rejected';
 
   try {
-    const { respond, findPendingByOrderId } = await import('../approvals/approval.service.js');
     const approval = await findPendingByOrderId(orderId);
 
     if (!approval) {
       return sendTextMessage(merchant.whatsappNumber, "That order has already been handled.");
     }
 
-    await respond(approval._id, decision);
+    await respondToApproval(approval._id, decision);
 
     return sendTextMessage(
       merchant.whatsappNumber,
