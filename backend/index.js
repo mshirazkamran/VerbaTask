@@ -44,6 +44,14 @@ app.use('/api/workflows', workflowRoutes);
 
 const PORT = process.env.PORT || 8080;
 
+// Startup diagnostics: confirm critical env vars are loaded without leaking them.
+function maskKey(key) {
+  if (!key) return 'not set';
+  if (key.length <= 12) return '***';
+  return `${key.slice(0, 6)}...${key.slice(-4)}`;
+}
+console.log('GROQ_API_KEY loaded:', maskKey(process.env.GROQ_API_KEY));
+
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => {
