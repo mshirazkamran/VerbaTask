@@ -3,6 +3,7 @@ import Order from '../models/Order.js';
 import Merchant from '../models/Merchant.js';
 import InventoryItem from '../models/InventoryItem.js';
 import { sendInteractiveButtons } from '../services/whatsapp.service.js';
+import { emitDashboardUpdate } from '../socket.js';
 
 /** High-value threshold — orders at or above this amount require approval. */
 export const HIGH_VALUE_THRESHOLD = 10_000;
@@ -87,6 +88,8 @@ export const respond = async (id, decision, merchantId) => {
             }
         }
     }
+
+    emitDashboardUpdate(approval.merchantId);
 
     return approval;
 };
