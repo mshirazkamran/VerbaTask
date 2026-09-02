@@ -29,9 +29,10 @@ export const useAuthStore = create((set) => ({
 }));
 
 function applyTheme(theme) {
+  if (typeof window === 'undefined') return;
   const isDark =
     theme === 'dark' ||
-    (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    (theme === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
   if (isDark) {
     document.documentElement.classList.add('dark');
   } else {
@@ -39,7 +40,12 @@ function applyTheme(theme) {
   }
 }
 
-const initialTheme = localStorage.getItem(THEME_KEY) || 'light';
+// Clean up any stale legacy landing theme key to avoid desync
+if (typeof localStorage !== 'undefined') {
+  localStorage.removeItem('verbatask_landing_theme');
+}
+
+const initialTheme = typeof localStorage !== 'undefined' ? (localStorage.getItem(THEME_KEY) || 'light') : 'light';
 applyTheme(initialTheme);
 
 export const useUiStore = create((set) => ({
