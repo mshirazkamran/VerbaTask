@@ -340,7 +340,7 @@ export function InventoryPage() {
           <EmptyState
             icon={<IconBoxSeam className="w-6 h-6" />}
             title="No inventory items yet"
-            description="Start tracking your store stock by adding your first product."
+            description="Start tracking your inventory by adding your first product."
             actionLabel="Add item"
             actionIcon={<IconPlus className="w-4 h-4" />}
             onAction={handleAdd}

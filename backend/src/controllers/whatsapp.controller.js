@@ -192,6 +192,7 @@ async function handleOnboarding(merchant, message) {
       // blocks on a flaky NLP call.
       const details = await extractBusinessDetails(text);
       merchant.businessName = details?.businessName || text;
+      if (details?.businessType) merchant.businessType = details.businessType;
       if (details?.location) merchant.location = details.location;
       if (details?.sells) merchant.sells = details.sells;
       await merchant.save();
@@ -199,7 +200,7 @@ async function handleOnboarding(merchant, message) {
       await state.save();
       return sendTextMessage(
         merchant.whatsappNumber,
-        'Got it. Now list your starting stock (item, quantity, price) — or reply "skip" to add it later from the dashboard.'
+        `Got it — ${merchant.businessName}${details?.businessType ? ` (${details.businessType})` : ''}. Now list your starting stock (item, quantity, price) — or reply "skip" to add it later from the dashboard.`
       );
     }
 
@@ -396,7 +397,7 @@ async function startGuidedOrder(merchant) {
   if (!itemCount) {
     return sendTextMessage(
       merchant.whatsappNumber,
-      'Your stock list is empty — add items from the dashboard first, or just tell me the sale directly (e.g. "2 rice bags, cash, 1500").'
+      'Your stock list is empty — add items from the dashboard first, or just tell me the sale directly (e.g. "2 items, cash, 1500").'
     );
   }
 

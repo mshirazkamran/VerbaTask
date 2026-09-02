@@ -15,7 +15,7 @@ import axios from 'axios';
 // separate keys — the base URL must match the console the key came from.
 // Our key is from Model Studio (International), hence the intl default.
 
-const SYSTEM_PROMPT = `You convert a Pakistani merchant's WhatsApp message (which may be in
+const SYSTEM_PROMPT = `You convert a merchant's WhatsApp message (which may be in
 English, Urdu, or Roman Urdu) into exactly one JSON object — no prose, no markdown fences,
 JSON only. Pick ONE of these three shapes:
 
@@ -31,24 +31,25 @@ JSON only. Pick ONE of these three shapes:
 If required fields aren't confidently extractable, use "unknown" — never guess numbers or
 item names that weren't actually said.`;
 
-const BUSINESS_DETAILS_PROMPT = `You extract business details from a Pakistani merchant's
+const BUSINESS_DETAILS_PROMPT = `You extract business details from a merchant's
 WhatsApp onboarding message (which may be in English, Urdu, or Roman Urdu). Reply with
 exactly one JSON object — no prose, no markdown fences, JSON only:
-{"businessName":"<name or null>","location":"<city/area or null>","sells":"<what they sell or null>"}
+{"businessName":"<name or null>","businessType":"<general|kiryana|medical|clothing|restaurant|electronics|services|auto|salon or null>","location":"<city/area or null>","sells":"<what they sell or null>"}
+Infer businessType from context (e.g. "pharmacy"/"medical store" -> medical, "boutique"/"tailor" -> clothing, "dhaba"/"restaurant" -> restaurant, "cash & carry"/"general store"/"kiryana" -> kiryana, "mobile shop" -> electronics, "workshop"/"garage" -> auto, "parlour"/"salon" -> salon).
 Use null for anything the message doesn't clearly state. Never guess or invent details.`;
 
-const INVENTORY_PROMPT = `You parse a Pakistani merchant's WhatsApp stock list (which may be
+const INVENTORY_PROMPT = `You parse a merchant's WhatsApp stock list (which may be
 in English, Urdu, or Roman Urdu) into line items. Reply with exactly one JSON object — no
 prose, no markdown fences, JSON only:
-{"items":[{"name":"<item name>","quantity":<number or 0>,"price":<number or null>,"unit":"<bag|kg|litre|piece etc, or null>"}]}
+{"items":[{"name":"<item name>","quantity":<number or 0>,"price":<number or null>,"unit":"<piece|box|kg|litre|bottle|packet|strip|meter etc, or null>"}]}
 One entry per distinct item the merchant listed. Quantity means how many units are in stock.
 Use quantity 0 and price null when not stated — never invent numbers.`;
 
-const ITEM_RESOLVE_PROMPT = `A Pakistani merchant said they sold an item. Match it against their
+const ITEM_RESOLVE_PROMPT = `A merchant said they sold an item. Match it against their
 inventory list — names may be in English, Urdu script, or Roman Urdu, so match by MEANING
-("chawal" = "rice" = "چاول", "dal mash" = "daal maash"). Reply with exactly one line and
-nothing else: either the exact inventory name copied character-for-character, or the word
-null if nothing in the inventory is a plausible match. Never invent a name.`;
+(synonyms, translations, phonetic variants like "dal mash" = "daal maash"). Reply with exactly
+one line and nothing else: either the exact inventory name copied character-for-character, or
+the word null if nothing in the inventory is a plausible match. Never invent a name.`;
 
 /** Which host the LLM calls go to — env-overridable, defaults to the free path. */
 function llmProvider() {
@@ -132,30 +133,34 @@ export async function parseIntent(text) {
 }
 
 /**
- * Extracts { businessName, location, sells } from the onboarding message,
- * with null for anything not clearly stated. Returns null when the model is
- * unavailable or returns garbage — callers fall back to the raw text rather
- * than blocking onboarding on a flaky NLP call.
+ * Extracts { businessName, businessType, location, sells } from the onboarding
+ * message, with null for anything not clearly stated. Returns null when the
+ * model is unavailable or returns garbage — callers fall back to the raw text
+ * rather than blocking onboarding on a flaky NLP call.
  */
 export async function extractBusinessDetails(text) {
   if (!llmConfigured()) return null;
 
+  const VALID_TYPES = ['general', 'kiryana', 'medical', 'clothing', 'restaurant', 'electronics', 'services', 'auto', 'salon'];
+
   try {
     const parsed = JSON.parse(await chatCompletion(BUSINESS_DETAILS_PROMPT, text));
     const strOrNull = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+    const rawType = strOrNull(parsed.businessType);
     const details = {
       businessName: strOrNull(parsed.businessName),
+      businessType: rawType && VALID_TYPES.includes(rawType.toLowerCase()) ? rawType.toLowerCase() : null,
       location: strOrNull(parsed.location),
       sells: strOrNull(parsed.sells),
     };
-    return details.businessName || details.location || details.sells ? details : null;
+    return details.businessName || details.businessType || details.location || details.sells ? details : null;
   } catch {
     return null;
   }
 }
 
 /**
- * Parses a free-form stock list ("5 rice bags 2000 each, 3 kg sugar...") into
+ * Parses a free-form stock list ("5 shirts 2000 each, 3 bottles perfume...") into
  * normalized line items for onboarding. Returns a non-empty array, or null
  * when extraction can't run / yields nothing usable — callers then keep the
  * raw text as a single unparsed item so onboarding still completes.
