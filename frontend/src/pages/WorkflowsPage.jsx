@@ -163,8 +163,10 @@ export function WorkflowsPage() {
         header: 'Trigger',
         cell: ({ getValue }) => (
           <div className="flex items-center gap-2">
-            <IconBolt className="w-4 h-4 text-amber-500" />
-            <span className="capitalize text-ink">{getValue()}</span>
+            <span className="w-6 h-6 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <IconBolt className="w-3.5 h-3.5" />
+            </span>
+            <span className="capitalize text-ink font-medium text-xs">{getValue()}</span>
           </div>
         ),
       },
@@ -175,11 +177,15 @@ export function WorkflowsPage() {
           const condition = getValue() || {};
           const text =
             condition.quantityThreshold != null
-              ? `Stock below ${condition.quantityThreshold}`
+              ? `Stock below ${condition.quantityThreshold} units`
               : typeof condition === 'object'
               ? JSON.stringify(condition)
               : String(condition || '-');
-          return <span className="text-sm text-ink-secondary">{text}</span>;
+          return (
+            <span className="px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-xs font-medium text-ink-secondary">
+              {text}
+            </span>
+          );
         },
       },
       {
@@ -195,8 +201,10 @@ export function WorkflowsPage() {
               : action.type || '-';
           return (
             <div className="flex items-center gap-2 max-w-[260px]">
-              <IconBell className="w-4 h-4 text-primary shrink-0" />
-              <span className="text-sm text-ink-secondary truncate" title={label}>
+              <span className="w-6 h-6 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <IconBell className="w-3.5 h-3.5" />
+              </span>
+              <span className="text-xs font-medium text-ink truncate" title={label}>
                 {label}
               </span>
             </div>
@@ -207,13 +215,19 @@ export function WorkflowsPage() {
         accessorKey: 'active',
         header: 'Status',
         cell: ({ getValue }) => (
-          <Badge variant={getValue() ? 'success' : 'neutral'}>{getValue() ? 'Active' : 'Paused'}</Badge>
+          <Badge variant={getValue() ? 'success' : 'neutral'} dot>
+            {getValue() ? 'Active' : 'Paused'}
+          </Badge>
         ),
       },
       {
         accessorKey: 'createdAt',
         header: 'Created',
-        cell: ({ getValue }) => formatDate(getValue()),
+        cell: ({ getValue }) => (
+          <span className="text-xs text-ink-secondary whitespace-nowrap">
+            {formatDate(getValue())}
+          </span>
+        ),
       },
       {
         id: 'actions',
@@ -223,6 +237,7 @@ export function WorkflowsPage() {
             <Button
               variant="ghost"
               size="sm"
+              className={row.original.active ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10' : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10'}
               onClick={() => handleToggle(row.original)}
               disabled={updateWorkflow.isPending}
             >
@@ -231,7 +246,7 @@ export function WorkflowsPage() {
             <Button
               variant="ghost"
               size="sm"
-              className="text-ruby hover:text-ruby hover:bg-ruby/10"
+              className="text-ruby hover:text-ruby hover:bg-ruby/10 border border-ruby/20"
               leftIcon={<IconTrash className="w-4 h-4" />}
               onClick={(e) => {
                 e.stopPropagation();
@@ -277,12 +292,42 @@ export function WorkflowsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-light text-ink tracking-tight">Workflows</h2>
-          <p className="text-xs text-ink-mute">Automate low-stock alerts and actions</p>
+          <h2 className="font-heading text-2xl font-light tracking-[-0.5px] text-ink">Workflows</h2>
+          <p className="font-body text-sm text-ink-mute">Automate threshold warnings and WhatsApp alerts</p>
         </div>
-        <Button leftIcon={<IconPlus className="w-4 h-4" />} onClick={() => setModalOpen(true)}>
+        <Button
+          leftIcon={<IconPlus className="w-4 h-4" />}
+          onClick={() => setModalOpen(true)}
+          className="shadow-sm shadow-primary/25"
+        >
           New workflow
         </Button>
+      </div>
+
+      {/* Automation Hub Banner */}
+      <div className="p-4 rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-canvas flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-card">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-xs">
+            <IconBolt className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-medium text-ink">Autonomous Inventory Watcher</h3>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-medium">
+                Live
+              </span>
+            </div>
+            <p className="text-xs text-ink-mute mt-0.5">
+              Whenever a sale deducts stock below your configured threshold, VerbaTask automatically dispatches an instant WhatsApp notification.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-ink-secondary bg-canvas-soft px-3 py-1.5 rounded-lg border border-hairline shrink-0">
+          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+            {workflows?.filter((w) => w.active)?.length || 0}
+          </span>
+          <span>active triggers</span>
+        </div>
       </div>
 
       {isLoading ? (

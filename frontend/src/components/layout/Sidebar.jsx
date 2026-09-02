@@ -16,11 +16,11 @@ import {
 
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Overview', icon: IconLayoutDashboard, end: true },
-  { to: '/inventory', label: 'Inventory', icon: IconBoxSeam },
-  { to: '/orders', label: 'Orders', icon: IconReceipt },
-  { to: '/workflows', label: 'Workflows', icon: IconGitBranch },
-  { to: '/approvals', label: 'Approvals', icon: IconClipboardCheck },
+  { to: '/dashboard', label: 'Overview', icon: IconLayoutDashboard, end: true },
+  { to: '/dashboard/inventory', label: 'Inventory', icon: IconBoxSeam },
+  { to: '/dashboard/orders', label: 'Orders', icon: IconReceipt },
+  { to: '/dashboard/workflows', label: 'Workflows', icon: IconGitBranch },
+  { to: '/dashboard/approvals', label: 'Approvals', icon: IconClipboardCheck },
 ];
 
 export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
@@ -31,7 +31,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
   const merchantEmail = merchant?.email || '';
 
   const content = (
-    <div className="h-full flex flex-col justify-between bg-canvas border-r border-hairline select-none">
+    <div className="h-full flex flex-col justify-between glass-sidebar border-r border-hairline select-none">
       {/* Brand Header */}
       <div>
         <div className="h-16 px-4 flex items-center gap-3 border-b border-hairline">

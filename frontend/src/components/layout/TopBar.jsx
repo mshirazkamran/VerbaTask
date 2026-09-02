@@ -3,11 +3,11 @@ import { useUiStore } from '../../lib/store';
 import { IconSun, IconMoon, IconMenu2, IconCircleFilled } from '@tabler/icons-react';
 
 const ROUTE_TITLES = {
-  '/': 'Overview',
-  '/inventory': 'Inventory',
-  '/orders': 'Orders',
-  '/workflows': 'Workflows',
-  '/approvals': 'Approvals',
+  '/dashboard': 'Overview',
+  '/dashboard/inventory': 'Inventory',
+  '/dashboard/orders': 'Orders',
+  '/dashboard/workflows': 'Workflows',
+  '/dashboard/approvals': 'Approvals',
 };
 
 export function TopBar({ onOpenMobileMenu }) {
@@ -22,7 +22,7 @@ export function TopBar({ onOpenMobileMenu }) {
   };
 
   return (
-    <header className="h-16 sticky top-0 z-20 w-full bg-canvas/80 backdrop-blur-md border-b border-hairline px-4 sm:px-6 flex items-center justify-between">
+    <header className="h-16 sticky top-0 z-20 w-full glass-nav px-4 sm:px-6 flex items-center justify-between">
       {/* Left: Mobile hamburger + Page Title */}
       <div className="flex items-center gap-3">
         <button

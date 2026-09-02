@@ -10,7 +10,7 @@ export function AuthGuard({ children }) {
 
 
   if (!token) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
+    return <Navigate to="/" replace />;
   }
 
   if (isLoading) {

@@ -23,7 +23,7 @@ export function LoginPage() {
   const location = useLocation();
   const setAuth = useAuthStore((state) => state.setAuth);
 
-  const from = location.state?.from?.pathname || '/';
+  const from = location.state?.from?.pathname || '/dashboard';
 
   const {
     register,

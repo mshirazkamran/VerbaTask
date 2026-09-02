@@ -165,9 +165,28 @@ export function InventoryPage() {
   const deleteItem = useDeleteInventoryItem();
 
   const [search, setSearch] = useState('');
+  const [stockFilter, setStockFilter] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deletingItem, setDeletingItem] = useState(null);
+
+  const counts = useMemo(() => {
+    const list = items || [];
+    return {
+      all: list.length,
+      healthy: list.filter((i) => i.quantity >= 10).length,
+      low: list.filter((i) => i.quantity > 0 && i.quantity < 10).length,
+      out: list.filter((i) => i.quantity === 0).length,
+    };
+  }, [items]);
+
+  const filteredItems = useMemo(() => {
+    if (!items) return [];
+    if (stockFilter === 'healthy') return items.filter((i) => i.quantity >= 10);
+    if (stockFilter === 'low') return items.filter((i) => i.quantity > 0 && i.quantity < 10);
+    if (stockFilter === 'out') return items.filter((i) => i.quantity === 0);
+    return items;
+  }, [items, stockFilter]);
 
   const handleAdd = () => {
     setEditingItem(null);
@@ -215,14 +234,23 @@ export function InventoryPage() {
       {
         accessorKey: 'name',
         header: 'Item',
-        cell: ({ getValue, row }) => (
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-ink truncate">{getValue()}</p>
-            <p className="text-[11px] text-ink-mute truncate">
-              {formatPKR(row.original.price)} / {row.original.unit || 'unit'}
-            </p>
-          </div>
-        ),
+        cell: ({ getValue, row }) => {
+          const name = getValue();
+          const firstLetter = (name || '?').charAt(0).toUpperCase();
+          return (
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/15 to-purple-500/15 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-heading font-semibold text-sm shrink-0 shadow-xs">
+                {firstLetter}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-ink truncate">{name}</p>
+                <p className="text-[11px] text-ink-mute font-tabular">
+                  {formatPKR(row.original.price)} / {row.original.unit || 'unit'}
+                </p>
+              </div>
+            </div>
+          );
+        },
       },
       {
         accessorKey: 'quantity',
@@ -230,18 +258,26 @@ export function InventoryPage() {
         cell: ({ getValue, row }) => {
           const qty = getValue();
           const variant = qty === 0 ? 'danger' : qty < 10 ? 'warning' : 'success';
-          return <Badge variant={variant}>{formatQuantity(qty, row.original.unit)}</Badge>;
+          return <Badge variant={variant} dot>{formatQuantity(qty, row.original.unit)}</Badge>;
         },
       },
       {
         accessorKey: 'price',
         header: 'Price',
-        cell: ({ getValue }) => <span className="font-tabular">{formatPKR(getValue())}</span>,
+        cell: ({ getValue }) => (
+          <span className="font-tabular font-medium text-emerald-600 dark:text-emerald-400">
+            {formatPKR(getValue())}
+          </span>
+        ),
       },
       {
         accessorKey: 'unit',
         header: 'Unit',
-        cell: ({ getValue }) => getValue() || '-',
+        cell: ({ getValue }) => (
+          <span className="text-xs px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-ink-secondary">
+            {getValue() || '-'}
+          </span>
+        ),
       },
       {
         id: 'actions',
@@ -279,7 +315,7 @@ export function InventoryPage() {
   );
 
   const table = useReactTable({
-    data: items || [],
+    data: filteredItems,
     columns,
     state: { globalFilter: search },
     onGlobalFilterChange: setSearch,
@@ -310,24 +346,118 @@ export function InventoryPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-light text-ink tracking-tight">Inventory</h2>
-          <p className="text-xs text-ink-mute">Manage stock, pricing, and units</p>
+          <h2 className="font-heading text-2xl font-light tracking-[-0.5px] text-ink">Inventory</h2>
+          <p className="font-body text-sm text-ink-mute">Manage stock, pricing, and catalog</p>
         </div>
-        <Button leftIcon={<IconPlus className="w-4 h-4" />} onClick={handleAdd}>
+        <Button
+          leftIcon={<IconPlus className="w-4 h-4" />}
+          onClick={handleAdd}
+          className="shadow-sm shadow-primary/25"
+        >
           Add item
         </Button>
       </div>
 
-      <Card padding="sm" className="flex items-center gap-3">
-        <IconSearch className="w-4 h-4 text-ink-mute ml-2 shrink-0" />
-        <input
-          type="text"
-          placeholder="Search items..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-transparent text-[15px] text-ink placeholder:text-ink-mute/50 focus:outline-none h-8"
-        />
-      </Card>
+      {/* KPI Cards for Inventory */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 rounded-xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-canvas flex items-center justify-between shadow-card">
+          <div>
+            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Total Items</p>
+            <p className="text-2xl font-light text-ink font-tabular mt-1">{counts.all}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+            <IconBoxSeam className="w-5 h-5" />
+          </div>
+        </div>
+        <div className="p-4 rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-canvas flex items-center justify-between shadow-card">
+          <div>
+            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Healthy Stock</p>
+            <p className="text-2xl font-light text-ink font-tabular mt-1 text-emerald-600 dark:text-emerald-400">{counts.healthy}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <IconBoxSeam className="w-5 h-5" />
+          </div>
+        </div>
+        <div className="p-4 rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-canvas flex items-center justify-between shadow-card">
+          <div>
+            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Low Stock (&lt;10)</p>
+            <p className="text-2xl font-light text-ink font-tabular mt-1 text-amber-600 dark:text-amber-400">{counts.low}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+            <IconAlertCircle className="w-5 h-5" />
+          </div>
+        </div>
+        <div className="p-4 rounded-xl border border-rose-500/20 bg-gradient-to-br from-rose-500/10 via-ruby/5 to-canvas flex items-center justify-between shadow-card">
+          <div>
+            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Out of Stock</p>
+            <p className="text-2xl font-light text-ink font-tabular mt-1 text-rose-600 dark:text-rose-400">{counts.out}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+            <IconAlertCircle className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
+      {/* Filter Tabs & Search */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 p-1 bg-canvas-soft border border-hairline rounded-lg overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setStockFilter('all')}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+              stockFilter === 'all'
+                ? 'bg-canvas text-ink shadow-xs'
+                : 'text-ink-secondary hover:text-ink'
+            }`}
+          >
+            All Items ({counts.all})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStockFilter('healthy')}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+              stockFilter === 'healthy'
+                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold shadow-xs'
+                : 'text-ink-secondary hover:text-emerald-600'
+            }`}
+          >
+            Healthy ({counts.healthy})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStockFilter('low')}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+              stockFilter === 'low'
+                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 font-semibold shadow-xs'
+                : 'text-ink-secondary hover:text-amber-600'
+            }`}
+          >
+            Low Stock ({counts.low})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStockFilter('out')}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+              stockFilter === 'out'
+                ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 font-semibold shadow-xs'
+                : 'text-ink-secondary hover:text-rose-600'
+            }`}
+          >
+            Out of Stock ({counts.out})
+          </button>
+        </div>
+
+        <div className="relative min-w-[220px]">
+          <IconSearch className="w-4 h-4 text-ink-mute absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search items..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-canvas border border-hairline rounded-lg pl-9 pr-3 text-xs text-ink placeholder:text-ink-mute/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary h-9 transition-colors"
+          />
+        </div>
+      </div>
 
       {isLoading ? (
         <div className="space-y-2">
