@@ -1,5 +1,5 @@
 import { Server } from 'socket.io';
-import { verifyToken } from './controllers/auth.controller.js'; // Let's check if verifyToken is exported
+
 
 let io;
 
