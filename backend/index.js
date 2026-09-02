@@ -3,6 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import mongoose from 'mongoose';
+import http from 'http';
+import { initSocketIO } from './src/socket.js';
 
 import whatsappRoutes from './src/routes/whatsapp.route.js';
 import authRoutes from './src/routes/auth.routes.js';
@@ -43,6 +45,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/workflows', workflowRoutes);
 
 const PORT = process.env.PORT || 8080;
+const server = http.createServer(app);
+initSocketIO(server);
 
 // Startup diagnostics: confirm critical env vars are loaded without leaking them.
 function maskKey(key) {
@@ -60,6 +64,6 @@ mongoose
   })
   .catch((err) => console.error('MongoDB connection failed:', err.message));
 
-app.listen(PORT, () => console.log(`VerbaTask backend listening on :${PORT}`));
+server.listen(PORT, () => console.log(`VerbaTask backend listening on :${PORT}`));
 
 export default app;

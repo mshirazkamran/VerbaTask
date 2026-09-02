@@ -1,12 +1,27 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { queryKeys } from '../lib/queryKeys';
+import { socket } from '../lib/socket';
 
 export function useDashboard() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard() });
+    };
+
+    socket.on('dashboard_update', handleUpdate);
+
+    return () => {
+      socket.off('dashboard_update', handleUpdate);
+    };
+  }, [queryClient]);
+
   return useQuery({
     queryKey: queryKeys.dashboard(),
     queryFn: () => api.get('/api/dashboard/overview'),
-    staleTime: 30 * 1000,
-    refetchInterval: 30 * 1000,
+    staleTime: 60 * 1000 * 5, // 5 minutes, since we have real-time invalidation
   });
 }

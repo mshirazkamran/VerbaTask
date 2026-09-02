@@ -3,6 +3,7 @@ import Order from '../models/Order.js';
 import { evaluateThresholdWorkflows } from '../workflows/workflow.service.js';
 import { createApproval, HIGH_VALUE_THRESHOLD } from '../approvals/approval.service.js';
 import { findSimilarInventoryItems } from './item-matching.js';
+import { emitDashboardUpdate } from '../socket.js';
 
 // Item names arrive from free-form WhatsApp text (Qwen NLP) — escape regex
 // metacharacters so "Milk (1L)" matches literally instead of failing silently.
@@ -129,6 +130,9 @@ export const createOrder = async (command) => {
       console.error('Failed to create approval:', err.message);
     }
   }
+
+  // 7. Emit WebSocket event to refresh dashboard
+  emitDashboardUpdate(merchantId);
 
   return order;
 };
