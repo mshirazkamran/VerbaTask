@@ -54,7 +54,7 @@ export function LoginPage() {
   return (
     <AuthLayout
       title="Sign in to VerbaTask"
-      subtitle="Access your store dashboard, inventory records, and live orders."
+      subtitle="Access your business dashboard, inventory, and live orders."
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <Input

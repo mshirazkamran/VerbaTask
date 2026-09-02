@@ -27,7 +27,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
   const { sidebarCollapsed, toggleSidebar } = useUiStore();
   const { merchant, logout } = useAuthStore();
 
-  const businessName = merchant?.businessName || 'VerbaTask Store';
+  const businessName = merchant?.businessName || 'My Business';
   const merchantEmail = merchant?.email || '';
 
   const content = (
