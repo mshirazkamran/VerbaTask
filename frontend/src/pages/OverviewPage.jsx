@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
 import {
   IconLayoutDashboard,
   IconTrendingUp,
@@ -38,10 +39,10 @@ import jcLogo from '../assets/jc-logo.png';
 import bankLogo from '../assets/bank-logo.png';
 
 const PAYMENT_COLORS = {
-  cash: '#533afd',
-  easypaisa: '#ea2261',
-  jazzcash: '#9b6829',
-  bank: '#f96bee',
+  cash: '#6366f1',
+  easypaisa: '#10b981',
+  jazzcash: '#f59e0b',
+  bank: '#0ea5e9',
 };
 
 const PAYMENT_LOGOS = {
@@ -56,45 +57,98 @@ function PaymentMethod({ method }) {
   const logo = PAYMENT_LOGOS[key];
   const label = key.charAt(0).toUpperCase() + key.slice(1);
   return (
-    <span className="inline-flex items-center gap-1.5">
-      {logo && <img src={logo} alt={label} className="w-5 h-5 rounded object-cover shrink-0" />}
-      <span className="text-sm">{label}</span>
+    <span className="inline-flex items-center gap-2">
+      {logo && <img src={logo} alt={label} className="w-5 h-5 rounded shadow-xs object-cover shrink-0" />}
+      <span className="text-xs font-medium text-ink-secondary">{label}</span>
     </span>
   );
 }
 
-function StatCard({ label, value, sub, icon: Icon, loading, variant = 'primary' }) {
-  const variantIconStyles = {
-    primary: 'bg-primary/10 text-primary',
-    success: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-    warning: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-    danger: 'bg-ruby/10 text-ruby',
+function CountUp({ to, formatter = (v) => v, duration = 0.8 }) {
+  const [display, setDisplay] = useState(() => formatter(0));
+  const motionVal = useMotionValue(0);
+  const spring = useSpring(motionVal, { stiffness: 80, damping: 20 });
+  const formatted = useTransform(spring, (v) => formatter(Math.round(Math.abs(v))));
+
+  useEffect(() => {
+    motionVal.set(to);
+  }, [to, motionVal]);
+
+  useEffect(() => {
+    return formatted.on('change', (v) => setDisplay(v));
+  }, [formatted]);
+
+  return <>{display}</>;
+}
+
+function StatCard({ label, value, sub, icon: Icon, loading, variant = 'primary', formatter, index = 0 }) {
+  const variantStyles = {
+    primary: {
+      border: 'border-indigo-500/25 hover:border-indigo-500/45',
+      gradient: 'from-indigo-500/15 via-purple-500/5 to-canvas',
+      iconBox: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 shadow-sm shadow-indigo-500/25',
+      glow: 'bg-indigo-500',
+    },
+    success: {
+      border: 'border-emerald-500/25 hover:border-emerald-500/45',
+      gradient: 'from-emerald-500/15 via-teal-500/5 to-canvas',
+      iconBox: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shadow-sm shadow-emerald-500/25',
+      glow: 'bg-emerald-500',
+    },
+    warning: {
+      border: 'border-amber-500/25 hover:border-amber-500/45',
+      gradient: 'from-amber-500/15 via-orange-500/5 to-canvas',
+      iconBox: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 shadow-sm shadow-amber-500/25',
+      glow: 'bg-amber-500',
+    },
+    danger: {
+      border: 'border-rose-500/25 hover:border-rose-500/45',
+      gradient: 'from-rose-500/15 via-ruby/10 to-canvas',
+      iconBox: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 shadow-sm shadow-rose-500/25',
+      glow: 'bg-rose-500',
+    },
   };
 
+  const config = variantStyles[variant] || variantStyles.primary;
+
   return (
-    <Card padding="md" className="flex items-start justify-between">
-      <div className="min-w-0">
-        <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">{label}</p>
-        {loading ? (
-          <Skeleton variant="text" className="w-20 h-8 mt-2" />
-        ) : (
-          <p className="text-2xl font-light text-ink font-tabular mt-2 truncate">{value}</p>
-        )}
-        {sub && <p className="text-xs text-ink-mute mt-1 truncate">{sub}</p>}
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: index * 0.08, ease: [0.16, 1, 0.3, 1] }}
+    >
+      <div className={`relative rounded-xl border bg-gradient-to-br ${config.gradient} ${config.border} p-5 shadow-card transition-all duration-200 hover:shadow-float backdrop-blur-xs`}>
+        <div className="flex items-start justify-between">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">{label}</p>
+            {loading ? (
+              <Skeleton variant="text" className="w-24 h-8 mt-2" />
+            ) : (
+              <p className="text-2xl font-light text-ink font-tabular mt-2 truncate">
+                {formatter ? (
+                  <CountUp to={value} formatter={formatter} />
+                ) : (
+                  <CountUp to={value} />
+                )}
+              </p>
+            )}
+            {sub && <p className="text-xs text-ink-mute mt-1.5 truncate">{sub}</p>}
+          </div>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${config.iconBox}`}>
+            <Icon className="w-5 h-5" />
+          </div>
+        </div>
       </div>
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${variantIconStyles[variant]}`}>
-        <Icon className="w-5 h-5" />
-      </div>
-    </Card>
+    </motion.div>
   );
 }
 
 function CustomChartTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-canvas border border-hairline p-2.5 rounded-md shadow-card text-xs">
+      <div className="bg-canvas border border-hairline p-3 rounded-lg shadow-float text-xs">
         <p className="text-ink-mute mb-1 font-medium">{label}</p>
-        <p className="text-primary font-tabular font-medium">
+        <p className="text-primary font-tabular font-semibold text-sm">
           {formatPKR(payload[0].value)}
         </p>
       </div>
@@ -177,19 +231,33 @@ export function OverviewPage() {
         header: 'Items',
         cell: ({ getValue }) => {
           const items = getValue() || [];
+          const count = items.length;
           const summary = items.map((i) => `${i.name} x${i.quantity}`).join(', ');
-          return <span className="truncate max-w-[200px] block" title={summary}>{summary || '-'}</span>;
+          return (
+            <div className="flex items-center gap-2 max-w-[240px]">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium shrink-0">
+                {count} {count === 1 ? 'item' : 'items'}
+              </span>
+              <span className="truncate text-ink text-xs" title={summary}>
+                {summary || '-'}
+              </span>
+            </div>
+          );
         },
       },
       {
         accessorKey: 'total',
         header: 'Total',
-        cell: ({ getValue }) => <span className="font-tabular">{formatPKR(getValue())}</span>,
+        cell: ({ getValue }) => (
+          <span className="font-tabular font-medium text-emerald-600 dark:text-emerald-400">
+            {formatPKR(getValue())}
+          </span>
+        ),
       },
       {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ getValue }) => <Badge variant={getValue()}>{getValue()}</Badge>,
+        cell: ({ getValue }) => <Badge variant={getValue()} dot>{getValue()}</Badge>,
       },
       {
         accessorKey: 'paymentMethod',
@@ -228,8 +296,8 @@ export function OverviewPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-light text-ink tracking-tight">Overview</h2>
-          <p className="text-xs text-ink-mute">Sales, stock, and approvals for today</p>
+          <h2 className="font-heading text-2xl font-light tracking-[-0.5px] text-ink">Overview</h2>
+          <p className="font-body text-sm text-ink-mute">Sales, stock, and approvals for today</p>
         </div>
         <div className="flex items-center gap-2 px-3 py-1 rounded-pill bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
           <span className="relative flex h-2 w-2">
@@ -244,11 +312,13 @@ export function OverviewPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Today's Sales"
-          value={formatPKR(stats?.todaySales ?? 0)}
+          value={stats?.todaySales ?? 0}
+          formatter={formatPKR}
           sub={isLoading ? '' : `${data?.todayOrdersCount ?? 0} orders today`}
           icon={IconTrendingUp}
           loading={isLoading}
           variant="success"
+          index={0}
         />
         <StatCard
           label="Items Sold Today"
@@ -257,6 +327,7 @@ export function OverviewPage() {
           icon={IconBox}
           loading={isLoading}
           variant="primary"
+          index={1}
         />
         <StatCard
           label="Low Stock Items"
@@ -265,6 +336,7 @@ export function OverviewPage() {
           icon={IconPackage}
           loading={isLoading}
           variant={stats?.lowStockCount > 0 ? 'warning' : 'primary'}
+          index={2}
         />
         <StatCard
           label="Pending Approvals"
@@ -273,19 +345,24 @@ export function OverviewPage() {
           icon={IconClipboardCheck}
           loading={isLoading}
           variant={stats?.pendingApprovals > 0 ? 'danger' : 'primary'}
+          index={3}
         />
       </div>
 
       {/* Visualizations Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Revenue Trend AreaChart */}
-        <Card padding="none" className="lg:col-span-2 overflow-hidden flex flex-col">
-          <div className="px-5 py-4 border-b border-hairline flex items-center justify-between">
+        <Card padding="none" className="lg:col-span-2 overflow-hidden flex flex-col border border-primary/20">
+          <div className="px-5 py-4 border-b border-hairline flex items-center justify-between bg-gradient-to-r from-primary/5 to-transparent">
             <div className="flex items-center gap-2">
-              <IconChartBar className="w-4 h-4 text-primary" />
+              <div className="w-6 h-6 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+                <IconChartBar className="w-3.5 h-3.5" />
+              </div>
               <h3 className="text-sm font-medium text-ink">Revenue Activity</h3>
             </div>
-            <span className="text-xs text-ink-mute">Recent transaction volume</span>
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary font-tabular">
+              Recent Volume
+            </span>
           </div>
           <div className="p-4 flex-1 min-h-[220px]">
             {isLoading ? (
@@ -294,9 +371,10 @@ export function OverviewPage() {
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={revenueChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="indigoGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-primary, #533afd)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="var(--color-primary, #533afd)" stopOpacity={0.0} />
+                    <linearGradient id="indigoPurpleGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
+                      <stop offset="60%" stopColor="#a855f7" stopOpacity={0.12} />
+                      <stop offset="100%" stopColor="#6366f1" stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
                   <XAxis
@@ -315,10 +393,10 @@ export function OverviewPage() {
                   <Area
                     type="monotone"
                     dataKey="revenue"
-                    stroke="var(--color-primary, #533afd)"
-                    strokeWidth={2}
+                    stroke="#6366f1"
+                    strokeWidth={2.5}
                     fillOpacity={1}
-                    fill="url(#indigoGradient)"
+                    fill="url(#indigoPurpleGradient)"
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -327,12 +405,15 @@ export function OverviewPage() {
         </Card>
 
         {/* Payment Methods Breakdown */}
-        <Card padding="none" className="overflow-hidden flex flex-col">
-          <div className="px-5 py-4 border-b border-hairline flex items-center justify-between">
+        <Card padding="none" className="overflow-hidden flex flex-col border border-hairline">
+          <div className="px-5 py-4 border-b border-hairline flex items-center justify-between bg-gradient-to-r from-canvas-soft to-transparent">
             <div className="flex items-center gap-2">
-              <IconCreditCard className="w-4 h-4 text-primary" />
+              <div className="w-6 h-6 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                <IconCreditCard className="w-3.5 h-3.5" />
+              </div>
               <h3 className="text-sm font-medium text-ink">Payment Methods</h3>
             </div>
+            <span className="text-[11px] text-ink-mute">By count</span>
           </div>
           <div className="p-4 flex-1 min-h-[220px] flex items-center justify-center">
             {isLoading ? (
@@ -352,7 +433,7 @@ export function OverviewPage() {
                     {paymentBreakdownData.map((entry, index) => (
                       <Cell
                         key={`cell-${index}`}
-                        fill={PAYMENT_COLORS[entry.method] || '#533afd'}
+                        fill={PAYMENT_COLORS[entry.method] || '#6366f1'}
                       />
                     ))}
                   </Pie>
@@ -361,7 +442,7 @@ export function OverviewPage() {
                     contentStyle={{
                       backgroundColor: 'var(--color-canvas, #fff)',
                       borderColor: 'var(--color-hairline, #e3e8ee)',
-                      borderRadius: '6px',
+                      borderRadius: '8px',
                       fontSize: '12px',
                     }}
                   />
@@ -373,9 +454,9 @@ export function OverviewPage() {
                       const logo = PAYMENT_LOGOS[method];
                       const label = method.charAt(0).toUpperCase() + method.slice(1);
                       return (
-                        <span className="inline-flex items-center gap-1 text-xs text-ink-secondary">
-                          {logo && <img src={logo} alt={label} className="w-4 h-4 rounded object-cover" />}
-                          {label}
+                        <span className="inline-flex items-center gap-1.5 text-xs text-ink-secondary">
+                          {logo && <img src={logo} alt={label} className="w-3.5 h-3.5 rounded object-cover" />}
+                          <span className="font-medium">{label}</span>
                         </span>
                       );
                     }}
@@ -389,15 +470,17 @@ export function OverviewPage() {
 
       {/* Orders & Low Stock Tables */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <Card padding="none" className="xl:col-span-2 overflow-hidden">
+        <Card padding="none" className="xl:col-span-2 overflow-hidden border border-hairline">
           <div className="px-5 py-4 border-b border-hairline flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <IconShoppingCart className="w-4 h-4 text-ink-mute" />
+              <div className="w-6 h-6 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                <IconShoppingCart className="w-3.5 h-3.5" />
+              </div>
               <h3 className="text-sm font-medium text-ink">Recent Orders</h3>
             </div>
             {stats?.activeWorkflows != null && (
-              <div className="flex items-center gap-1.5 text-xs text-ink-mute">
-                <IconBolt className="w-3.5 h-3.5 text-primary" />
+              <div className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 font-medium">
+                <IconBolt className="w-3.5 h-3.5" />
                 {stats.activeWorkflows} active workflow{stats.activeWorkflows === 1 ? '' : 's'}
               </div>
             )}
@@ -415,10 +498,17 @@ export function OverviewPage() {
           </div>
         </Card>
 
-        <Card padding="none" className="overflow-hidden">
-          <div className="px-5 py-4 border-b border-hairline flex items-center gap-2">
-            <IconPackage className="w-4 h-4 text-ink-mute" />
-            <h3 className="text-sm font-medium text-ink">Low Stock Alerts</h3>
+        <Card padding="none" className="overflow-hidden border border-hairline">
+          <div className="px-5 py-4 border-b border-hairline flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                <IconPackage className="w-3.5 h-3.5" />
+              </div>
+              <h3 className="text-sm font-medium text-ink">Low Stock Alerts</h3>
+            </div>
+            {data?.lowStockItems?.length ? (
+              <Badge variant="warning" size="sm" dot>{data.lowStockItems.length} alert{data.lowStockItems.length === 1 ? '' : 's'}</Badge>
+            ) : null}
           </div>
           <div className="p-1">
             {isLoading ? (
@@ -430,14 +520,19 @@ export function OverviewPage() {
             ) : data?.lowStockItems?.length ? (
               <ul className="divide-y divide-hairline">
                 {data.lowStockItems.map((item) => (
-                  <li key={item._id} className="px-4 py-3 flex items-center justify-between">
-                    <div className="min-w-0">
-                      <p className="text-sm text-ink truncate">{item.name}</p>
-                      <p className="text-[11px] text-ink-mute font-tabular">
-                        {item.price ? formatPKR(item.price) : 'No price'} / {item.unit || 'unit'}
-                      </p>
+                  <li key={item._id} className="px-4 py-3 flex items-center justify-between hover:bg-canvas-soft/60 transition-colors">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <IconPackage className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-ink truncate">{item.name}</p>
+                        <p className="text-[11px] text-ink-mute font-tabular">
+                          {item.price ? formatPKR(item.price) : 'No price'} / {item.unit || 'unit'}
+                        </p>
+                      </div>
                     </div>
-                    <Badge variant={item.quantity === 0 ? 'danger' : 'warning'}>
+                    <Badge variant={item.quantity === 0 ? 'danger' : 'warning'} dot>
                       {formatQuantity(item.quantity, item.unit)}
                     </Badge>
                   </li>
@@ -445,8 +540,11 @@ export function OverviewPage() {
               </ul>
             ) : (
               <div className="py-12 text-center">
-                <IconPackage className="w-8 h-8 text-ink-mute/50 mx-auto mb-2" />
-                <p className="text-sm text-ink-secondary">All stock is healthy</p>
+                <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-2">
+                  <IconPackage className="w-5 h-5" />
+                </div>
+                <p className="text-sm font-medium text-ink">All stock is healthy</p>
+                <p className="text-xs text-ink-mute mt-0.5">No items are below threshold</p>
               </div>
             )}
           </div>

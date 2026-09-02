@@ -2,6 +2,9 @@ import { createBrowserRouter, Navigate } from 'react-router';
 
 import { AuthGuard } from '../components/AuthGuard';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
+import { LandingPage } from '../pages/LandingPage';
+import { FAQPage } from '../pages/FAQPage';
+import { ContactPage } from '../pages/ContactPage';
 import { LoginPage } from '../pages/LoginPage';
 import { SignupPage } from '../pages/SignupPage';
 import { LinkCodePage } from '../pages/LinkCodePage';
@@ -12,6 +15,20 @@ import { ApprovalsPage } from '../pages/ApprovalsPage';
 import { WorkflowsPage } from '../pages/WorkflowsPage';
 
 export const router = createBrowserRouter([
+  // Public landing pages
+  {
+    path: '/',
+    element: <LandingPage />,
+  },
+  {
+    path: '/faq',
+    element: <FAQPage />,
+  },
+  {
+    path: '/contact',
+    element: <ContactPage />,
+  },
+
   // Public Auth routes
   {
     path: '/login',
@@ -28,7 +45,7 @@ export const router = createBrowserRouter([
 
   // Protected Dashboard routes
   {
-    path: '/',
+    path: '/dashboard',
     element: <AuthGuard />,
     children: [
       {

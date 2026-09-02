@@ -1,5 +1,6 @@
 import { IconChevronUp, IconChevronDown, IconSelector } from '@tabler/icons-react';
 import { flexRender } from '@tanstack/react-table';
+import { motion } from 'motion/react';
 
 
 /**
@@ -67,11 +68,18 @@ export function Table({ table, onRowClick, emptyText = 'No records found', getRo
               </td>
             </tr>
           ) : (
-            rows.map((row) => {
+            rows.map((row, index) => {
               const customClass = getRowClassName ? getRowClassName(row) : '';
               return (
-                <tr
+                <motion.tr
                   key={row.id}
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{
+                    duration: 0.25,
+                    delay: index * 0.04,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
                   onClick={() => onRowClick && onRowClick(row.original)}
                   className={`transition-colors duration-100 ${
                     onRowClick ? 'cursor-pointer hover:bg-canvas-soft' : 'hover:bg-canvas-soft/40'
@@ -82,7 +90,7 @@ export function Table({ table, onRowClick, emptyText = 'No records found', getRo
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
-                </tr>
+                </motion.tr>
               );
             })
           )}
