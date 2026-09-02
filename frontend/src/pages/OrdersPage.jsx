@@ -232,47 +232,78 @@ export function OrdersPage() {
     return orders.filter((o) => o.status === statusFilter);
   }, [orders, statusFilter]);
 
+  const totalRevenue = useMemo(() => {
+    return (orders || []).reduce((sum, o) => sum + (o.total || 0), 0);
+  }, [orders]);
+
+  const paymentBadges = {
+    cash: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
+    easypaisa: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    jazzcash: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    bank: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
+  };
+
   const columns = useMemo(
     () => [
       {
         accessorKey: 'createdAt',
         header: 'Date',
-        cell: ({ getValue }) => formatDate(getValue()),
+        cell: ({ getValue }) => (
+          <span className="text-xs text-ink-secondary whitespace-nowrap">
+            {formatDate(getValue())}
+          </span>
+        ),
       },
       {
         accessorKey: 'items',
         header: 'Items',
         cell: ({ getValue }) => {
           const items = getValue() || [];
+          const count = items.length;
           const summary = items.map((i) => `${i.name} x${i.quantity}`).join(', ');
           return (
-            <span className="truncate max-w-[240px] block" title={summary}>
-              {summary || '-'}
-            </span>
+            <div className="flex items-center gap-2 max-w-[260px]">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium shrink-0">
+                {count} {count === 1 ? 'item' : 'items'}
+              </span>
+              <span className="truncate text-ink text-xs" title={summary}>
+                {summary || '-'}
+              </span>
+            </div>
           );
         },
       },
       {
         accessorKey: 'total',
         header: 'Total',
-        cell: ({ getValue }) => <span className="font-tabular">{formatPKR(getValue())}</span>,
+        cell: ({ getValue }) => (
+          <span className="font-tabular font-medium text-emerald-600 dark:text-emerald-400">
+            {formatPKR(getValue())}
+          </span>
+        ),
       },
       {
         accessorKey: 'paymentMethod',
         header: 'Payment',
-        cell: ({ getValue }) => (
-          <span className="capitalize text-ink-secondary">{getValue()}</span>
-        ),
+        cell: ({ getValue }) => {
+          const key = (getValue() || 'cash').toLowerCase();
+          const badgeClass = paymentBadges[key] || paymentBadges.cash;
+          return (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border capitalize ${badgeClass}`}>
+              {key}
+            </span>
+          );
+        },
       },
       {
         accessorKey: 'source',
         header: 'Source',
-        cell: ({ getValue }) => <Badge variant={getValue()}>{getValue()}</Badge>,
+        cell: ({ getValue }) => <Badge variant={getValue()} dot>{getValue()}</Badge>,
       },
       {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ getValue }) => <Badge variant={getValue()}>{getValue()}</Badge>,
+        cell: ({ getValue }) => <Badge variant={getValue()} dot>{getValue()}</Badge>,
       },
     ],
     []
@@ -309,17 +340,61 @@ export function OrdersPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-light text-ink tracking-tight">Orders</h2>
-          <p className="text-xs text-ink-mute">Review transactions and order history</p>
+          <h2 className="font-heading text-2xl font-light tracking-[-0.5px] text-ink">Orders</h2>
+          <p className="font-body text-sm text-ink-mute">Review transactions and order history</p>
         </div>
-        <Button leftIcon={<IconPlus className="w-4 h-4" />} onClick={() => setNewOrderOpen(true)}>
+        <Button
+          leftIcon={<IconPlus className="w-4 h-4" />}
+          onClick={() => setNewOrderOpen(true)}
+          className="shadow-sm shadow-primary/25"
+        >
           New order
         </Button>
       </div>
 
+      {/* KPI Cards for Orders */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 rounded-xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-canvas flex items-center justify-between shadow-card">
+          <div>
+            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Total Volume</p>
+            <p className="text-2xl font-light text-ink font-tabular mt-1">{formatPKR(totalRevenue)}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+            <IconReceipt className="w-5 h-5" />
+          </div>
+        </div>
+        <div className="p-4 rounded-xl border border-sky-500/20 bg-gradient-to-br from-sky-500/10 via-blue-500/5 to-canvas flex items-center justify-between shadow-card">
+          <div>
+            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Total Orders</p>
+            <p className="text-2xl font-light text-ink font-tabular mt-1">{counts.all}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+            <IconReceipt className="w-5 h-5" />
+          </div>
+        </div>
+        <div className="p-4 rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-canvas flex items-center justify-between shadow-card">
+          <div>
+            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Completed</p>
+            <p className="text-2xl font-light text-ink font-tabular mt-1 text-emerald-600 dark:text-emerald-400">{counts.completed}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <IconReceipt className="w-5 h-5" />
+          </div>
+        </div>
+        <div className="p-4 rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-canvas flex items-center justify-between shadow-card">
+          <div>
+            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Pending Review</p>
+            <p className="text-2xl font-light text-ink font-tabular mt-1 text-amber-600 dark:text-amber-400">{counts.pending_approval}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+            <IconAlertCircle className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         {/* Status Filter Tabs */}
-        <div className="flex items-center gap-1 p-1 bg-canvas border border-hairline rounded-lg overflow-x-auto">
+        <div className="flex items-center gap-1.5 p-1 bg-canvas-soft border border-hairline rounded-lg overflow-x-auto">
           {STATUS_TABS.map((tab) => {
             const active = statusFilter === tab.id;
             return (
@@ -330,13 +405,13 @@ export function OrdersPage() {
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                   active
                     ? 'bg-primary text-on-primary shadow-xs'
-                    : 'text-ink-secondary hover:text-ink hover:bg-canvas-soft'
+                    : 'text-ink-secondary hover:text-ink'
                 }`}
               >
                 <span>{tab.label}</span>
                 <span
                   className={`text-[10px] px-1.5 py-0.5 rounded-full font-tabular ${
-                    active ? 'bg-white/20 text-white' : 'bg-canvas-soft text-ink-mute'
+                    active ? 'bg-white/20 text-white' : 'bg-canvas border border-hairline text-ink-mute'
                   }`}
                 >
                   {counts[tab.id] ?? 0}
@@ -347,16 +422,16 @@ export function OrdersPage() {
         </div>
 
         {/* Search */}
-        <Card padding="sm" className="flex items-center gap-3 sm:w-72">
-          <IconSearch className="w-4 h-4 text-ink-mute ml-2 shrink-0" />
+        <div className="relative min-w-[220px]">
+          <IconSearch className="w-4 h-4 text-ink-mute absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             placeholder="Search orders..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-transparent text-[15px] text-ink placeholder:text-ink-mute/50 focus:outline-none h-8"
+            className="w-full bg-canvas border border-hairline rounded-lg pl-9 pr-3 text-xs text-ink placeholder:text-ink-mute/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary h-9 transition-colors"
           />
-        </Card>
+        </div>
       </div>
 
       {isLoading ? (

@@ -47,27 +47,39 @@ export function ApprovalsPage() {
         accessorKey: 'type',
         header: 'Type',
         cell: ({ getValue }) => (
-          <span className="capitalize text-ink-secondary">{getValue()}</span>
+          <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium text-xs capitalize">
+            {getValue()}
+          </span>
         ),
       },
       {
         accessorKey: 'summary',
-        header: 'Summary',
+        header: 'Order Details',
         cell: ({ getValue }) => (
-          <span className="truncate max-w-[300px] block" title={getValue()}>
-            {getValue() || '-'}
-          </span>
+          <div className="min-w-0 py-1">
+            <span className="text-sm font-medium text-ink block truncate max-w-[340px]" title={getValue()}>
+              {getValue() || '-'}
+            </span>
+            <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1 mt-0.5">
+              <IconAlertCircle className="w-3 h-3" />
+              Exceeds Rs. 10,000 threshold
+            </span>
+          </div>
         ),
       },
       {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ getValue }) => <Badge variant={getValue()}>{getValue()}</Badge>,
+        cell: ({ getValue }) => <Badge variant={getValue()} dot>{getValue()}</Badge>,
       },
       {
         accessorKey: 'createdAt',
         header: 'Requested',
-        cell: ({ getValue }) => formatDate(getValue()),
+        cell: ({ getValue }) => (
+          <span className="text-xs text-ink-secondary whitespace-nowrap">
+            {formatDate(getValue())}
+          </span>
+        ),
       },
       {
         id: 'actions',
@@ -82,6 +94,7 @@ export function ApprovalsPage() {
               <Button
                 variant="primary"
                 size="sm"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-600 shadow-xs shadow-emerald-500/25"
                 disabled={disabled}
                 loading={isActing && acting.decision === 'approved'}
                 leftIcon={<IconCheck className="w-4 h-4" />}
@@ -92,7 +105,7 @@ export function ApprovalsPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-ruby hover:text-ruby hover:bg-ruby/10"
+                className="text-ruby hover:text-ruby hover:bg-ruby/10 border border-ruby/20"
                 disabled={disabled}
                 loading={isActing && acting.decision === 'rejected'}
                 leftIcon={<IconX className="w-4 h-4" />}
@@ -136,8 +149,8 @@ export function ApprovalsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-light text-ink tracking-tight">Approvals</h2>
-          <p className="text-xs text-ink-mute">Review flagged orders and workflow actions</p>
+          <h2 className="font-heading text-2xl font-light tracking-[-0.5px] text-ink">Approvals</h2>
+          <p className="font-body text-sm text-ink-mute">Review flagged orders and high-value transactions</p>
         </div>
         {isLoading ? (
           <Skeleton variant="button" />
@@ -146,6 +159,30 @@ export function ApprovalsPage() {
             {approvals?.length || 0} pending
           </Badge>
         )}
+      </div>
+
+      {/* High-Value Protection Banner */}
+      <div className="p-4 rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-canvas flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-card">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-xs">
+            <IconClipboardCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-medium text-ink">High-Value Order Protection</h3>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-medium">
+                Active Guard
+              </span>
+            </div>
+            <p className="text-xs text-ink-mute mt-0.5">
+              Sales of Rs. 10,000 or more require explicit merchant authorization before stock is deducted.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-ink-secondary bg-canvas-soft px-3 py-1.5 rounded-lg border border-hairline shrink-0">
+          <span className="font-semibold text-amber-600 dark:text-amber-400">{approvals?.length || 0}</span>
+          <span>awaiting response</span>
+        </div>
       </div>
 
       {isLoading ? (
