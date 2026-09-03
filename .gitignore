@@ -24,3 +24,5 @@ backend/.env
 explanation_audit.md
 progress.md
 urdu_translation.md
+
+frontend/dev-dist
