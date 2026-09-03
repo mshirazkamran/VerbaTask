@@ -347,6 +347,7 @@ async function handleOnboarding(merchant, message) {
  * (voice-note pipeline), image (OCR placeholder).
  */
 async function handleOnboardedMerchant(merchant, message) {
+  console.log('RECEIVED MESSAGE:', JSON.stringify(message, null, 2));
   try {
     // Check approval button taps first — before the guided-order state check so
     // an approve/reject tap mid-guided-order isn't swallowed by that flow.
