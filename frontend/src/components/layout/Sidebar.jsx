@@ -12,6 +12,7 @@ import {
  IconLayoutSidebarLeftExpand,
  IconLogout,
  IconBuildingStore,
+ IconSettings,
 } from '@tabler/icons-react';
 
 
@@ -21,36 +22,43 @@ const NAV_ITEMS = [
  label: 'Overview',
  icon: IconLayoutDashboard,
  end: true,
- activeClass: 'bg-[#064E3B] text-[#6EE7B7] font-medium border-l-2 border-[#6EE7B7]',
- iconActive: 'text-[#6EE7B7]',
+ activeClass: 'bg-indigo-50/90 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 font-medium border-l-2 border-indigo-600 dark:border-indigo-400',
+ iconActive: 'text-indigo-600 dark:text-indigo-400',
  },
  {
  to: '/dashboard/inventory',
  label: 'Inventory',
  icon: IconBoxSeam,
- activeClass: 'bg-[#064E3B] text-[#6EE7B7] font-medium border-l-2 border-[#6EE7B7]',
- iconActive: 'text-[#6EE7B7]',
+ activeClass: 'bg-emerald-50/90 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-medium border-l-2 border-emerald-600 dark:border-emerald-400',
+ iconActive: 'text-emerald-600 dark:text-emerald-400',
  },
  {
  to: '/dashboard/orders',
  label: 'Orders',
  icon: IconReceipt,
- activeClass: 'bg-[#064E3B] text-[#6EE7B7] font-medium border-l-2 border-[#6EE7B7]',
- iconActive: 'text-[#6EE7B7]',
+ activeClass: 'bg-sky-50/90 dark:bg-sky-950/40 text-sky-900 dark:text-sky-200 font-medium border-l-2 border-sky-600 dark:border-sky-400',
+ iconActive: 'text-sky-600 dark:text-sky-400',
  },
  {
  to: '/dashboard/workflows',
  label: 'Workflows',
  icon: IconGitBranch,
- activeClass: 'bg-[#064E3B] text-[#6EE7B7] font-medium border-l-2 border-[#6EE7B7]',
- iconActive: 'text-[#6EE7B7]',
+ activeClass: 'bg-fuchsia-50/90 dark:bg-fuchsia-950/40 text-fuchsia-900 dark:text-fuchsia-200 font-medium border-l-2 border-fuchsia-600 dark:border-fuchsia-400',
+ iconActive: 'text-fuchsia-600 dark:text-fuchsia-400',
  },
  {
  to: '/dashboard/approvals',
  label: 'Approvals',
  icon: IconClipboardCheck,
- activeClass: 'bg-[#064E3B] text-[#6EE7B7] font-medium border-l-2 border-[#6EE7B7]',
- iconActive: 'text-[#6EE7B7]',
+ activeClass: 'bg-amber-50/90 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-medium border-l-2 border-amber-600 dark:border-amber-400',
+ iconActive: 'text-amber-600 dark:text-amber-400',
+ },
+ {
+ to: '/dashboard/settings',
+ label: 'Store Settings',
+ icon: IconSettings,
+ activeClass: 'bg-purple-50/90 dark:bg-purple-950/40 text-purple-900 dark:text-purple-200 font-medium border-l-2 border-purple-600 dark:border-purple-400',
+ iconActive: 'text-purple-600 dark:text-purple-400',
  },
 ];
 
@@ -121,28 +129,34 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
  <div className="p-2 border-t border-hairline space-y-1">
  {/* Merchant Info */}
  {(!sidebarCollapsed || mobileOpen) ? (
- <div className="px-3 py-2 flex items-center gap-2.5 rounded-md bg-[#1E293B] border border-[#273449]">
- <div className="w-7 h-7 rounded-full bg-emerald-500/20 text-[#10B981] flex items-center justify-center shrink-0 text-xs font-medium">
+ <NavLink
+ to="/dashboard/settings"
+ onClick={onMobileClose}
+ className="px-3 py-2 flex items-center gap-2.5 rounded-md bg-canvas-soft/80 border border-hairline hover:border-primary/40 hover:bg-canvas-soft transition-colors cursor-pointer"
+ title="Open Store Settings"
+ >
+ <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 text-xs font-medium">
  <IconBuildingStore className="w-4 h-4" />
  </div>
  <div className="min-w-0 flex-1">
- <p className="text-xs font-medium text-[#F8FAFC] truncate leading-tight">
+ <p className="text-xs font-medium text-ink truncate leading-tight">
  {businessName}
  </p>
  {merchantEmail && (
- <p className="text-[10px] text-[#94A3B8] truncate">{merchantEmail}</p>
+ <p className="text-[10px] text-ink-mute truncate">{merchantEmail}</p>
  )}
  </div>
- </div>
+ </NavLink>
  ) : (
- <div
- className="w-full flex justify-center py-2 text-[#CBD5E1]"
+ <NavLink
+ to="/dashboard/settings"
+ className="w-full flex justify-center py-2 text-ink-secondary hover:text-primary transition-colors cursor-pointer"
  title={businessName}
  >
- <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-[#10B981] flex items-center justify-center text-xs font-medium">
+ <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-medium">
  <IconBuildingStore className="w-4 h-4" />
  </div>
- </div>
+ </NavLink>
  )}
 
  {/* Sidebar Collapse Toggle (Desktop only) */}
