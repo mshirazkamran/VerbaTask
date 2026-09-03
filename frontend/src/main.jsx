@@ -7,19 +7,19 @@ import { router } from './lib/router';
 import './app.css';
 
 const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-  },
+ defaultOptions: {
+ queries: {
+ refetchOnWindowFocus: false,
+ retry: 1,
+ },
+ },
 });
 
 createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-      <Toaster position="top-right" richColors closeButton />
-    </QueryClientProvider>
-  </StrictMode>
+ <StrictMode>
+ <QueryClientProvider client={queryClient}>
+ <RouterProvider router={router} />
+ <Toaster position="top-right" richColors closeButton />
+ </QueryClientProvider>
+ </StrictMode>
 );

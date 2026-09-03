@@ -16,74 +16,74 @@ import { ApprovalsPage } from '../pages/ApprovalsPage';
 import { WorkflowsPage } from '../pages/WorkflowsPage';
 
 export const router = createBrowserRouter([
-  // Public landing pages
-  {
-    path: '/',
-    element: <LandingPage />,
-  },
-  {
-    path: '/faq',
-    element: <FAQPage />,
-  },
-  {
-    path: '/contact',
-    element: <ContactPage />,
-  },
+ // Public landing pages
+ {
+ path: '/',
+ element: <LandingPage />,
+ },
+ {
+ path: '/faq',
+ element: <FAQPage />,
+ },
+ {
+ path: '/contact',
+ element: <ContactPage />,
+ },
 
-  // Public Auth routes
-  {
-    path: '/login',
-    element: <LoginPage />,
-  },
-  {
-    path: '/signup',
-    element: <SignupPage />,
-  },
-  {
-    path: '/link-code',
-    element: <LinkCodePage />,
-  },
-  {
-    path: '/forgot-password',
-    element: <ForgotPasswordPage />,
-  },
+ // Public Auth routes
+ {
+ path: '/login',
+ element: <LoginPage />,
+ },
+ {
+ path: '/signup',
+ element: <SignupPage />,
+ },
+ {
+ path: '/link-code',
+ element: <LinkCodePage />,
+ },
+ {
+ path: '/forgot-password',
+ element: <ForgotPasswordPage />,
+ },
 
-  // Protected Dashboard routes
-  {
-    path: '/dashboard',
-    element: <AuthGuard />,
-    children: [
-      {
-        element: <DashboardLayout />,
-        children: [
-          {
-            index: true,
-            element: <OverviewPage />,
-          },
-          {
-            path: 'inventory',
-            element: <InventoryPage />,
-          },
-          {
-            path: 'orders',
-            element: <OrdersPage />,
-          },
-          {
-            path: 'workflows',
-            element: <WorkflowsPage />,
-          },
-          {
-            path: 'approvals',
-            element: <ApprovalsPage />,
-          },
-        ],
-      },
-    ],
-  },
+ // Protected Dashboard routes
+ {
+ path: '/dashboard',
+ element: <AuthGuard />,
+ children: [
+ {
+ element: <DashboardLayout />,
+ children: [
+ {
+ index: true,
+ element: <OverviewPage />,
+ },
+ {
+ path: 'inventory',
+ element: <InventoryPage />,
+ },
+ {
+ path: 'orders',
+ element: <OrdersPage />,
+ },
+ {
+ path: 'workflows',
+ element: <WorkflowsPage />,
+ },
+ {
+ path: 'approvals',
+ element: <ApprovalsPage />,
+ },
+ ],
+ },
+ ],
+ },
 
-  // Fallback
-  {
-    path: '*',
-    element: <Navigate to="/" replace />,
-  },
+ // Fallback
+ {
+ path: '*',
+ element: <Navigate to="/" replace />,
+ },
 ]);
