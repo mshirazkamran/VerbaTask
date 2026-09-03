@@ -8,6 +8,7 @@ import { ContactPage } from '../pages/ContactPage';
 import { LoginPage } from '../pages/LoginPage';
 import { SignupPage } from '../pages/SignupPage';
 import { LinkCodePage } from '../pages/LinkCodePage';
+import { ForgotPasswordPage } from '../pages/ForgotPasswordPage';
 import { OverviewPage } from '../pages/OverviewPage';
 import { InventoryPage } from '../pages/InventoryPage';
 import { OrdersPage } from '../pages/OrdersPage';
@@ -41,6 +42,10 @@ export const router = createBrowserRouter([
   {
     path: '/link-code',
     element: <LinkCodePage />,
+  },
+  {
+    path: '/forgot-password',
+    element: <ForgotPasswordPage />,
   },
 
   // Protected Dashboard routes
