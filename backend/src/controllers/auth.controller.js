@@ -4,6 +4,8 @@ import InventoryItem from "../models/InventoryItem.js";
 import Order from "../models/Order.js";
 import Approval from "../models/Approval.js";
 import Workflow from "../models/Workflow.js";
+import PasswordResetCode from "../models/PasswordResetCode.js";
+import { sendTextMessage } from "../services/whatsapp.service.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
@@ -231,4 +233,206 @@ export const generateLinkCode = async (whatsappNumber) => {
     }
 
     return linkCode;
+};
+
+const ONE_HOUR_MS = 60 * 60 * 1000;
+const RATE_LIMIT_MAX = 3;
+
+function normalizePhone(str) {
+    if (!str) return '';
+    const digits = String(str).replace(/\D/g, '');
+    if (digits.startsWith('92') && digits.length === 12) return digits;
+    if (digits.startsWith('0') && digits.length === 11) return '92' + digits.slice(1);
+    if (digits.length === 10 && digits.startsWith('3')) return '92' + digits;
+    return digits;
+}
+
+function maskPhone(phone) {
+    if (!phone || phone.length < 7) return phone;
+    return phone.slice(0, 5) + '****' + phone.slice(-3);
+}
+
+// POST /api/auth/forgot-password/request
+export const requestPasswordReset = async (req, res) => {
+    try {
+        const identifier = String(req.body.identifier || req.body.email || req.body.whatsappNumber || '').trim();
+        if (!identifier) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "Email or WhatsApp number is required" },
+            });
+        }
+
+        const normalizedPhone = normalizePhone(identifier);
+        const merchant = await Merchant.findOne({
+            $or: [
+                { email: identifier.toLowerCase() },
+                ...(normalizedPhone ? [{ whatsappNumber: normalizedPhone }, { whatsappNumber: `+${normalizedPhone}` }] : []),
+                { whatsappNumber: identifier },
+            ],
+        });
+
+        if (!merchant) {
+            return res.status(404).json({
+                success: false,
+                error: { message: "No account found with this email or WhatsApp number" },
+            });
+        }
+
+        if (merchant.whatsappNumber?.startsWith('unlinked_')) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "No WhatsApp number is linked to this account yet. Please contact support or link your number." },
+            });
+        }
+
+        // Rate limiting check (max 3 in 1 hour)
+        let resetRecord = await PasswordResetCode.findOne({ merchantId: merchant._id });
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - ONE_HOUR_MS);
+
+        const recentRequests = resetRecord?.requestHistory
+            ? resetRecord.requestHistory.filter((t) => new Date(t) > oneHourAgo)
+            : [];
+
+        if (recentRequests.length >= RATE_LIMIT_MAX) {
+            const oldestRecent = Math.min(...recentRequests.map((t) => new Date(t).getTime()));
+            const waitMinutes = Math.ceil((oldestRecent + ONE_HOUR_MS - now.getTime()) / (60 * 1000));
+            return res.status(429).json({
+                success: false,
+                error: {
+                    message: `Rate limit exceeded. You can only request up to ${RATE_LIMIT_MAX} verification codes per hour. Please try again in ${waitMinutes} minute(s).`,
+                    retryAfterMinutes: waitMinutes,
+                },
+            });
+        }
+
+        // Generate 6-digit verification code
+        const code = crypto.randomInt(100000, 999999).toString();
+        const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 minutes
+        const updatedHistory = [...recentRequests, now];
+
+        if (!resetRecord) {
+            resetRecord = await PasswordResetCode.create({
+                merchantId: merchant._id,
+                whatsappNumber: merchant.whatsappNumber,
+                code,
+                expiresAt,
+                usedAt: null,
+                requestHistory: updatedHistory,
+            });
+        } else {
+            resetRecord.code = code;
+            resetRecord.expiresAt = expiresAt;
+            resetRecord.usedAt = null;
+            resetRecord.whatsappNumber = merchant.whatsappNumber;
+            resetRecord.requestHistory = updatedHistory;
+            await resetRecord.save();
+        }
+
+        // Send via WhatsApp
+        try {
+            const msg = `🔐 *VerbaTask Verification Code*\n\nYour password reset code is: *${code}*\n\nThis code will expire in 10 minutes.\nIf you did not request a password reset, please ignore this message.`;
+            await sendTextMessage(merchant.whatsappNumber, msg);
+        } catch (err) {
+            console.warn('Failed to send WhatsApp reset message:', err.message);
+        }
+
+        const remainingAttempts = RATE_LIMIT_MAX - updatedHistory.length;
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                message: 'Verification code sent to your WhatsApp',
+                whatsappMasked: maskPhone(merchant.whatsappNumber),
+                identifier: merchant.email || merchant.whatsappNumber,
+                remainingAttempts,
+                expiresInMinutes: 10,
+            },
+        });
+    } catch (error) {
+        console.error("RequestPasswordReset error:", error);
+        return res.status(500).json({ success: false, error: { message: "Server error requesting password reset" } });
+    }
+};
+
+// POST /api/auth/forgot-password/resend
+export const resendPasswordResetCode = async (req, res) => {
+    return requestPasswordReset(req, res);
+};
+
+// POST /api/auth/forgot-password/reset
+export const resetPassword = async (req, res) => {
+    try {
+        const { identifier, code, newPassword } = req.body;
+
+        if (!identifier || !code || !newPassword) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "Email/phone, code, and new password are required" },
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "New password must be at least 6 characters long" },
+            });
+        }
+
+        const normalizedPhone = normalizePhone(identifier);
+        const merchant = await Merchant.findOne({
+            $or: [
+                { email: identifier.toLowerCase() },
+                ...(normalizedPhone ? [{ whatsappNumber: normalizedPhone }, { whatsappNumber: `+${normalizedPhone}` }] : []),
+                { whatsappNumber: identifier },
+            ],
+        });
+
+        if (!merchant) {
+            return res.status(404).json({
+                success: false,
+                error: { message: "No account found with this email or WhatsApp number" },
+            });
+        }
+
+        const resetRecord = await PasswordResetCode.findOne({ merchantId: merchant._id });
+        if (!resetRecord || resetRecord.code !== String(code).trim()) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "Invalid verification code. Please check and try again." },
+            });
+        }
+
+        if (resetRecord.usedAt) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "This verification code has already been used. Please request a new one." },
+            });
+        }
+
+        if (new Date() > resetRecord.expiresAt) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "Verification code has expired. Please request a new one." },
+            });
+        }
+
+        // Update password
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+        merchant.passwordHash = passwordHash;
+        await merchant.save();
+
+        // Mark code used
+        resetRecord.usedAt = new Date();
+        await resetRecord.save();
+
+        return res.status(200).json({
+            success: true,
+            data: { message: "Password has been reset successfully. You can now log in with your new password." },
+        });
+    } catch (error) {
+        console.error("ResetPassword error:", error);
+        return res.status(500).json({ success: false, error: { message: "Server error resetting password" } });
+    }
 };
