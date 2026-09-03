@@ -51,3 +51,30 @@ export function useUpdatePaymentMethods() {
     },
   });
 }
+
+export function useRequestPhoneChange() {
+  return useMutation({
+    mutationFn: (newPhoneNumber) =>
+      api.post('/api/merchant/phone/request-change', { newPhoneNumber }),
+  });
+}
+
+export function useVerifyPhoneChange() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ newPhoneNumber, code }) =>
+      api.post('/api/merchant/phone/verify-change', { newPhoneNumber, code }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.merchant() });
+    },
+  });
+}
+
+export function useResendPhoneChangeCode() {
+  return useMutation({
+    mutationFn: (newPhoneNumber) =>
+      api.post('/api/merchant/phone/resend-code', { newPhoneNumber }),
+  });
+}

@@ -5,6 +5,9 @@ import {
   updateProfile,
   getPaymentMethods,
   updatePaymentMethods,
+  requestPhoneChange,
+  verifyPhoneChange,
+  resendPhoneChangeCode,
 } from '../controllers/merchant.controller.js';
 
 const router = Router();
@@ -17,5 +20,10 @@ router.patch('/profile', updateProfile);
 
 router.get('/payment-methods', getPaymentMethods);
 router.put('/payment-methods', updatePaymentMethods);
+
+// Phone change verification routes
+router.post('/phone/request-change', requestPhoneChange);
+router.post('/phone/verify-change', verifyPhoneChange);
+router.post('/phone/resend-code', resendPhoneChangeCode);
 
 export default router;

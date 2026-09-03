@@ -11,10 +11,16 @@ import {
   IconInfoCircle,
   IconDeviceMobile,
   IconRefresh,
+  IconEdit,
+  IconKey,
+  IconX,
+  IconArrowRight,
+  IconBrandWhatsapp,
 } from '@tabler/icons-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
 import { Badge } from '../components/ui/Badge';
 import { Skeleton } from '../components/ui/Skeleton';
 import {
@@ -22,6 +28,9 @@ import {
   useUpdateMerchantProfile,
   usePaymentMethods,
   useUpdatePaymentMethods,
+  useRequestPhoneChange,
+  useVerifyPhoneChange,
+  useResendPhoneChangeCode,
 } from '../hooks/useMerchantSettings';
 
 const BUSINESS_TYPES = [
@@ -45,11 +54,33 @@ export function SettingsPage() {
   const { data: paymentMethodsData, isLoading: paymentsLoading } = usePaymentMethods();
   const updatePaymentsMutation = useUpdatePaymentMethods();
 
+  const requestPhoneChangeMutation = useRequestPhoneChange();
+  const verifyPhoneChangeMutation = useVerifyPhoneChange();
+  const resendPhoneCodeMutation = useResendPhoneChangeCode();
+
   // Store Profile State
   const [businessName, setBusinessName] = useState('');
   const [businessType, setBusinessType] = useState('general');
   const [location, setLocation] = useState('');
   const [sells, setSells] = useState('');
+
+  // Phone Number Change Flow State
+  const [isChangingPhone, setIsChangingPhone] = useState(false);
+  const [phoneStep, setPhoneStep] = useState('input'); // 'input' | 'otp'
+  const [newPhoneNumber, setNewPhoneNumber] = useState('');
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [phoneCooldown, setPhoneCooldown] = useState(0);
+  const [maskedNewPhone, setMaskedNewPhone] = useState('');
+  const [phoneRemainingAttempts, setPhoneRemainingAttempts] = useState(3);
+
+  // Phone cooldown timer
+  useEffect(() => {
+    if (phoneCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setPhoneCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [phoneCooldown]);
 
   // Voice & Language State
   const [language, setLanguage] = useState('ur');
@@ -96,6 +127,60 @@ export function SettingsPage() {
       toast.success('Store profile updated successfully!');
     } catch (err) {
       toast.error(err.message || 'Failed to update store profile');
+    }
+  };
+
+  // Phone Change Handlers
+  const handleRequestPhoneChange = async (e) => {
+    e?.preventDefault();
+    if (!newPhoneNumber.trim()) {
+      toast.error('Please enter your new WhatsApp number');
+      return;
+    }
+
+    try {
+      const res = await requestPhoneChangeMutation.mutateAsync(newPhoneNumber.trim());
+      setMaskedNewPhone(res.maskedNumber || '');
+      setPhoneRemainingAttempts(res.remainingAttempts ?? 2);
+      setPhoneStep('otp');
+      setPhoneCooldown(60);
+      toast.success('Verification OTP sent to your new WhatsApp number!');
+    } catch (err) {
+      toast.error(err.message || 'Failed to send OTP to new number');
+    }
+  };
+
+  const handleVerifyPhoneChange = async (e) => {
+    e?.preventDefault();
+    if (!phoneOtp.trim() || phoneOtp.trim().length !== 6) {
+      toast.error('Please enter the 6-digit OTP code');
+      return;
+    }
+
+    try {
+      await verifyPhoneChangeMutation.mutateAsync({
+        newPhoneNumber: newPhoneNumber.trim(),
+        code: phoneOtp.trim(),
+      });
+      toast.success('WhatsApp phone number successfully updated and activated!');
+      setIsChangingPhone(false);
+      setPhoneStep('input');
+      setNewPhoneNumber('');
+      setPhoneOtp('');
+    } catch (err) {
+      toast.error(err.message || 'Failed to verify OTP code');
+    }
+  };
+
+  const handleResendPhoneOtp = async () => {
+    if (phoneCooldown > 0 || resendPhoneCodeMutation.isPending) return;
+    try {
+      const res = await resendPhoneCodeMutation.mutateAsync(newPhoneNumber.trim());
+      setPhoneRemainingAttempts(res.remainingAttempts ?? phoneRemainingAttempts - 1);
+      setPhoneCooldown(60);
+      toast.success('New OTP sent to your new WhatsApp number!');
+    } catch (err) {
+      toast.error(err.message || 'Failed to resend OTP');
     }
   };
 
@@ -255,20 +340,12 @@ export function SettingsPage() {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-ink-secondary flex items-center gap-1 mb-1.5">
-                  Business Category
-                </label>
-                <select
+                <Select
+                  label="Business Category"
+                  options={BUSINESS_TYPES}
                   value={businessType}
-                  onChange={(e) => setBusinessType(e.target.value)}
-                  className="w-full h-9 px-3 text-xs bg-canvas text-ink border border-hairline rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors"
-                >
-                  {BUSINESS_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setBusinessType(val)}
+                />
               </div>
 
               <div>
@@ -294,26 +371,182 @@ export function SettingsPage() {
             </div>
           </Card>
 
-          {/* Contact & Linking Info */}
+          {/* Contact & Linking Info with Change Phone Number Flow */}
           <Card>
             <div className="flex items-center gap-3 mb-4">
               <IconDeviceMobile className="w-5 h-5 text-ink-secondary" />
               <div>
                 <h3 className="text-sm font-medium text-ink">Linked WhatsApp & Account</h3>
-                <p className="text-xs text-ink-mute">Identity details used for orders and WhatsApp alerts.</p>
+                <p className="text-xs text-ink-mute">Identity details used for WhatsApp orders and automated alerts.</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-3 rounded-lg bg-surface/50 border border-hairline">
-                <span className="text-ink-mute block mb-1">WhatsApp Number</span>
-                <span className="font-mono font-medium text-ink">{profile?.whatsappNumber || 'Unlinked'}</span>
+              <div className="p-3.5 rounded-lg bg-surface/50 border border-hairline flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-ink-mute block">Active WhatsApp Number</span>
+                    <Badge variant="success" className="text-[10px] py-0.5">Active</Badge>
+                  </div>
+                  <span className="font-mono text-sm font-medium text-ink block">
+                    {profile?.whatsappNumber || 'Unlinked'}
+                  </span>
+                </div>
+
+                {!isChangingPhone && (
+                  <div className="mt-3 pt-2.5 border-t border-hairline/60 flex items-center justify-between">
+                    <span className="text-[11px] text-ink-mute">Bot orders & voice notes sent here</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setIsChangingPhone(true);
+                        setPhoneStep('input');
+                        setNewPhoneNumber('');
+                        setPhoneOtp('');
+                      }}
+                      leftIcon={<IconEdit className="w-3 h-3" />}
+                      className="text-[11px] h-7 px-2.5"
+                    >
+                      Change Number
+                    </Button>
+                  </div>
+                )}
               </div>
-              <div className="p-3 rounded-lg bg-surface/50 border border-hairline">
-                <span className="text-ink-mute block mb-1">Account Email</span>
-                <span className="font-mono font-medium text-ink">{profile?.email || 'None'}</span>
+
+              <div className="p-3.5 rounded-lg bg-surface/50 border border-hairline flex flex-col justify-between">
+                <div>
+                  <span className="text-ink-mute block mb-1.5">Account Email</span>
+                  <span className="font-mono text-sm font-medium text-ink block">{profile?.email || 'None'}</span>
+                </div>
+                <div className="mt-3 pt-2.5 border-t border-hairline/60">
+                  <span className="text-[11px] text-ink-mute">Used for dashboard sign-in</span>
+                </div>
               </div>
             </div>
+
+            {/* Change Phone Number Flow (Step 1: Input / Remove / Add New, Step 2: Verify OTP) */}
+            {isChangingPhone && (
+              <div className="mt-4 p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-hairline">
+                  <div className="flex items-center gap-2">
+                    <IconBrandWhatsapp className="w-4 h-4 text-emerald-500" />
+                    <span className="text-xs font-medium text-ink">
+                      {phoneStep === 'input' ? 'Change Store WhatsApp Number' : 'Verify New Phone Number'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsChangingPhone(false);
+                      setNewPhoneNumber('');
+                      setPhoneOtp('');
+                    }}
+                    className="text-ink-mute hover:text-ink cursor-pointer"
+                  >
+                    <IconX className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {phoneStep === 'input' ? (
+                  <div className="space-y-3">
+                    <p className="text-xs text-ink-mute">
+                      To replace your current number, enter your new Pakistani WhatsApp number below. It will <strong>not</strong> be activated until you verify it with a 6-digit OTP.
+                    </p>
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="flex-1">
+                        <Input
+                          id="new-phone-input"
+                          placeholder="e.g. 03001234567 or +923001234567"
+                          value={newPhoneNumber}
+                          onChange={(e) => setNewPhoneNumber(e.target.value)}
+                          leftIcon={<IconDeviceMobile className="w-4 h-4" />}
+                          autoFocus
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={handleRequestPhoneChange}
+                        loading={requestPhoneChangeMutation.isPending}
+                        rightIcon={<IconArrowRight className="w-4 h-4" />}
+                        className="text-xs shrink-0"
+                      >
+                        Send Verification OTP
+                      </Button>
+                    </div>
+
+                    <p className="text-[11px] text-ink-mute">
+                      Rate limit: Up to 3 code requests per hour.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="p-2.5 rounded-lg bg-surface border border-hairline flex items-center justify-between text-xs">
+                      <div>
+                        <span className="text-ink-mute block text-[11px]">OTP Code Sent to</span>
+                        <span className="font-mono font-medium text-ink">{maskedNewPhone || newPhoneNumber}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPhoneStep('input');
+                          setPhoneOtp('');
+                        }}
+                        className="text-xs text-primary hover:underline cursor-pointer"
+                      >
+                        Change number
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="flex-1">
+                        <Input
+                          id="phone-otp-input"
+                          placeholder="Enter 6-digit OTP (e.g. 123456)"
+                          maxLength={6}
+                          value={phoneOtp}
+                          onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, ''))}
+                          leftIcon={<IconKey className="w-4 h-4" />}
+                          autoFocus
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={handleVerifyPhoneChange}
+                        loading={verifyPhoneChangeMutation.isPending}
+                        rightIcon={<IconCheck className="w-4 h-4" />}
+                        className="text-xs shrink-0"
+                      >
+                        Verify & Activate Number
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs pt-1">
+                      <span className="text-[11px] text-ink-mute">
+                        {phoneRemainingAttempts > 0
+                          ? `${phoneRemainingAttempts} request(s) left this hour`
+                          : 'Hourly limit reached'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleResendPhoneOtp}
+                        disabled={phoneCooldown > 0 || resendPhoneCodeMutation.isPending || phoneRemainingAttempts <= 0}
+                        className={`text-[11px] font-medium flex items-center gap-1 cursor-pointer ${
+                          phoneCooldown > 0 || phoneRemainingAttempts <= 0
+                            ? 'text-ink-mute cursor-not-allowed'
+                            : 'text-primary hover:underline'
+                        }`}
+                      >
+                        <IconRefresh className={`w-3 h-3 ${resendPhoneCodeMutation.isPending ? 'animate-spin' : ''}`} />
+                        {phoneCooldown > 0 ? `Resend in ${phoneCooldown}s` : 'Resend OTP'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
 
           <div className="flex justify-end">

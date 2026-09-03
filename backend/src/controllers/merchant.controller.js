@@ -7,6 +7,9 @@
  */
 
 import Merchant from '../models/Merchant.js';
+import PhoneChangeVerification from '../models/PhoneChangeVerification.js';
+import { sendTextMessage } from '../services/whatsapp.service.js';
+import crypto from 'crypto';
 import {
   getAllPaymentMethods,
   isValidPaymentMethod,
@@ -231,4 +234,231 @@ export async function updatePaymentMethods(req, res) {
     console.error('updatePaymentMethods error:', error);
     return res.status(500).json({ success: false, error: { message: 'Server error updating payment methods' } });
   }
+}
+
+const ONE_HOUR_MS = 60 * 60 * 1000;
+const RATE_LIMIT_MAX = 3;
+
+function normalizePhone(str) {
+  if (!str) return '';
+  const digits = String(str).replace(/\D/g, '');
+  if (digits.startsWith('92') && digits.length === 12) return digits;
+  if (digits.startsWith('0') && digits.length === 11) return '92' + digits.slice(1);
+  if (digits.length === 10 && digits.startsWith('3')) return '92' + digits;
+  return digits;
+}
+
+function maskPhone(phone) {
+  if (!phone || phone.length < 7) return phone;
+  return phone.slice(0, 5) + '****' + phone.slice(-3);
+}
+
+/**
+ * POST /api/merchant/phone/request-change
+ * Initiates phone number change by dispatching a 6-digit OTP to the NEW WhatsApp number.
+ * The new number is NOT activated until OTP is verified.
+ */
+export async function requestPhoneChange(req, res) {
+  try {
+    const rawNumber = String(req.body.newPhoneNumber || '').trim();
+    if (!rawNumber) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'New WhatsApp phone number is required.' },
+      });
+    }
+
+    const normalized = normalizePhone(rawNumber);
+    if (!normalized || normalized.length < 10) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Please provide a valid Pakistani phone number (e.g. 03001234567 or +923001234567).' },
+      });
+    }
+
+    const merchant = await Merchant.findById(req.merchantId);
+    if (!merchant) {
+      return res.status(404).json({ success: false, error: { message: 'Merchant not found.' } });
+    }
+
+    // Must not be the same as the current number
+    if (merchant.whatsappNumber === normalized) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'This is already your current active WhatsApp number.' },
+      });
+    }
+
+    // Must not conflict with another existing merchant account
+    const existing = await Merchant.findOne({
+      whatsappNumber: normalized,
+      _id: { $ne: merchant._id },
+    });
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'This WhatsApp number is already registered to another merchant account.' },
+      });
+    }
+
+    // Rate limiting: Max 3 OTP requests per hour
+    let verification = await PhoneChangeVerification.findOne({
+      merchantId: merchant._id,
+      newWhatsappNumber: normalized,
+    });
+
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - ONE_HOUR_MS);
+
+    const recentRequests = verification?.requestHistory
+      ? verification.requestHistory.filter((t) => new Date(t) > oneHourAgo)
+      : [];
+
+    if (recentRequests.length >= RATE_LIMIT_MAX) {
+      const oldestRecent = Math.min(...recentRequests.map((t) => new Date(t).getTime()));
+      const waitMinutes = Math.ceil((oldestRecent + ONE_HOUR_MS - now.getTime()) / (60 * 1000));
+      return res.status(429).json({
+        success: false,
+        error: {
+          message: `Rate limit exceeded. You can request up to ${RATE_LIMIT_MAX} verification codes per hour. Please try again in ${waitMinutes} minute(s).`,
+          retryAfterMinutes: waitMinutes,
+        },
+      });
+    }
+
+    // Generate 6-digit OTP code with 10-minute expiry
+    const code = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
+    const updatedHistory = [...recentRequests, now];
+
+    if (!verification) {
+      verification = await PhoneChangeVerification.create({
+        merchantId: merchant._id,
+        newWhatsappNumber: normalized,
+        code,
+        expiresAt,
+        usedAt: null,
+        requestHistory: updatedHistory,
+      });
+    } else {
+      verification.code = code;
+      verification.expiresAt = expiresAt;
+      verification.usedAt = null;
+      verification.requestHistory = updatedHistory;
+      await verification.save();
+    }
+
+    // Send OTP to the NEW WhatsApp number
+    try {
+      const msg = `🔐 *VerbaTask Phone Verification*\n\nYour OTP to update and activate your store WhatsApp number is: *${code}*\n\nThis code will expire in 10 minutes.\nDo not share this code with anyone.`;
+      await sendTextMessage(normalized, msg);
+    } catch (err) {
+      console.warn('Failed to send WhatsApp phone verification message:', err.message);
+    }
+
+    const remainingAttempts = RATE_LIMIT_MAX - updatedHistory.length;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        message: `Verification code sent to ${maskPhone(normalized)}`,
+        newWhatsappNumber: normalized,
+        maskedNumber: maskPhone(normalized),
+        remainingAttempts,
+        expiresInMinutes: 10,
+      },
+    });
+  } catch (error) {
+    console.error('requestPhoneChange error:', error);
+    return res.status(500).json({ success: false, error: { message: 'Server error requesting phone change.' } });
+  }
+}
+
+/**
+ * POST /api/merchant/phone/verify-change
+ * Verifies the OTP and activates the new WhatsApp phone number on the merchant account.
+ */
+export async function verifyPhoneChange(req, res) {
+  try {
+    const { newPhoneNumber, code } = req.body;
+
+    if (!newPhoneNumber || !code) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'New phone number and 6-digit verification code are required.' },
+      });
+    }
+
+    const normalized = normalizePhone(newPhoneNumber);
+    const merchant = await Merchant.findById(req.merchantId);
+    if (!merchant) {
+      return res.status(404).json({ success: false, error: { message: 'Merchant not found.' } });
+    }
+
+    const verification = await PhoneChangeVerification.findOne({
+      merchantId: merchant._id,
+      newWhatsappNumber: normalized,
+    });
+
+    if (!verification || verification.code !== String(code).trim()) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Invalid verification code. Please check and try again.' },
+      });
+    }
+
+    if (verification.usedAt) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'This verification code has already been used. Please request a new one.' },
+      });
+    }
+
+    if (new Date() > verification.expiresAt) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Verification code has expired. Please request a new code.' },
+      });
+    }
+
+    // Check collision again before activating
+    const conflict = await Merchant.findOne({
+      whatsappNumber: normalized,
+      _id: { $ne: merchant._id },
+    });
+    if (conflict) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'This phone number was recently registered by another account.' },
+      });
+    }
+
+    // ACTIVATE NEW NUMBER
+    const oldNumber = merchant.whatsappNumber;
+    merchant.whatsappNumber = normalized;
+    await merchant.save();
+
+    verification.usedAt = new Date();
+    await verification.save();
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        message: 'WhatsApp phone number successfully updated and activated!',
+        oldWhatsappNumber: oldNumber,
+        whatsappNumber: normalized,
+      },
+    });
+  } catch (error) {
+    console.error('verifyPhoneChange error:', error);
+    return res.status(500).json({ success: false, error: { message: 'Server error verifying phone change.' } });
+  }
+}
+
+/**
+ * POST /api/merchant/phone/resend-code
+ * Resends a fresh OTP to the pending new WhatsApp number.
+ */
+export async function resendPhoneChangeCode(req, res) {
+  return requestPhoneChange(req, res);
 }
