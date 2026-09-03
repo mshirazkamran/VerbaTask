@@ -18,7 +18,7 @@ export function Card({
 
   return (
     <div
-      className={`bg-canvas text-ink border border-hairline rounded-lg shadow-card transition-all duration-200 ${
+      className={`bg-canvas/80 dark:bg-canvas/70 backdrop-blur-md text-ink border border-hairline/80 dark:border-white/10 rounded-xl shadow-card transition-all duration-200 ${
         hoverEffect ? 'hover:shadow-float hover:-translate-y-0.5' : ''
       } ${paddingStyles[padding] || paddingStyles.md} ${className}`}
       {...props}

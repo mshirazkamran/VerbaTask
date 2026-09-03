@@ -237,10 +237,10 @@ export function OrdersPage() {
   }, [orders]);
 
   const paymentBadges = {
-    cash: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
-    easypaisa: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-    jazzcash: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
-    bank: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
+    cash: 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60',
+    easypaisa: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60',
+    jazzcash: 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/60',
+    bank: 'bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 border-sky-200 dark:border-sky-800/60',
   };
 
   const columns = useMemo(
@@ -263,7 +263,7 @@ export function OrdersPage() {
           const summary = items.map((i) => `${i.name} x${i.quantity}`).join(', ');
           return (
             <div className="flex items-center gap-2 max-w-[260px]">
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium shrink-0">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-medium shrink-0">
                 {count} {count === 1 ? 'item' : 'items'}
               </span>
               <span className="truncate text-ink text-xs" title={summary}>
@@ -289,7 +289,7 @@ export function OrdersPage() {
           const key = (getValue() || 'cash').toLowerCase();
           const badgeClass = paymentBadges[key] || paymentBadges.cash;
           return (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border capitalize ${badgeClass}`}>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border capitalize ${badgeClass}`}>
               {key}
             </span>
           );
@@ -336,6 +336,13 @@ export function OrdersPage() {
     );
   }
 
+  const tabColors = {
+    all: 'bg-sky-600 text-white',
+    completed: 'bg-emerald-600 text-white',
+    pending_approval: 'bg-amber-600 text-white',
+    rejected: 'bg-rose-600 text-white',
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -352,51 +359,52 @@ export function OrdersPage() {
         </Button>
       </div>
 
-      {/* KPI Cards for Orders */}
+      {/* KPI Cards for Orders - Solid Colors, Glassmorphism & High Contrast */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-canvas flex items-center justify-between shadow-card">
+        <div className="p-4 rounded-xl border border-sky-200/80 dark:border-sky-800/50 bg-sky-50/70 dark:bg-sky-950/30 backdrop-blur-md flex items-center justify-between shadow-card hover:shadow-float transition-all duration-200">
           <div>
-            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Total Volume</p>
-            <p className="text-2xl font-light text-ink font-tabular mt-1">{formatPKR(totalRevenue)}</p>
+            <p className="text-xs uppercase tracking-wider font-medium text-sky-700 dark:text-sky-300">Total Volume</p>
+            <p className="text-2xl font-light text-sky-950 dark:text-sky-50 font-tabular mt-1">{formatPKR(totalRevenue)}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-sky-100/90 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300 border border-sky-200/80 dark:border-sky-700/50 flex items-center justify-center backdrop-blur-xs">
             <IconReceipt className="w-5 h-5" />
           </div>
         </div>
-        <div className="p-4 rounded-xl border border-sky-500/20 bg-gradient-to-br from-sky-500/10 via-blue-500/5 to-canvas flex items-center justify-between shadow-card">
+        <div className="p-4 rounded-xl border border-indigo-200/80 dark:border-indigo-800/50 bg-indigo-50/70 dark:bg-indigo-950/30 backdrop-blur-md flex items-center justify-between shadow-card hover:shadow-float transition-all duration-200">
           <div>
-            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Total Orders</p>
-            <p className="text-2xl font-light text-ink font-tabular mt-1">{counts.all}</p>
+            <p className="text-xs uppercase tracking-wider font-medium text-indigo-700 dark:text-indigo-300">Total Orders</p>
+            <p className="text-2xl font-light text-indigo-950 dark:text-indigo-50 font-tabular mt-1">{counts.all}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-indigo-100/90 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-700/50 flex items-center justify-center backdrop-blur-xs">
             <IconReceipt className="w-5 h-5" />
           </div>
         </div>
-        <div className="p-4 rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-canvas flex items-center justify-between shadow-card">
+        <div className="p-4 rounded-xl border border-emerald-200/80 dark:border-emerald-800/50 bg-emerald-50/70 dark:bg-emerald-950/30 backdrop-blur-md flex items-center justify-between shadow-card hover:shadow-float transition-all duration-200">
           <div>
-            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Completed</p>
-            <p className="text-2xl font-light text-ink font-tabular mt-1 text-emerald-600 dark:text-emerald-400">{counts.completed}</p>
+            <p className="text-xs uppercase tracking-wider font-medium text-emerald-700 dark:text-emerald-300">Completed</p>
+            <p className="text-2xl font-light font-tabular mt-1 text-emerald-950 dark:text-emerald-50">{counts.completed}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-emerald-100/90 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-700/50 flex items-center justify-center backdrop-blur-xs">
             <IconReceipt className="w-5 h-5" />
           </div>
         </div>
-        <div className="p-4 rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-canvas flex items-center justify-between shadow-card">
+        <div className="p-4 rounded-xl border border-amber-200/80 dark:border-amber-800/50 bg-amber-50/70 dark:bg-amber-950/30 backdrop-blur-md flex items-center justify-between shadow-card hover:shadow-float transition-all duration-200">
           <div>
-            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Pending Review</p>
-            <p className="text-2xl font-light text-ink font-tabular mt-1 text-amber-600 dark:text-amber-400">{counts.pending_approval}</p>
+            <p className="text-xs uppercase tracking-wider font-medium text-amber-800 dark:text-amber-300">Pending Review</p>
+            <p className="text-2xl font-light font-tabular mt-1 text-amber-950 dark:text-amber-50">{counts.pending_approval}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-amber-100/90 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-700/50 flex items-center justify-center backdrop-blur-xs">
             <IconAlertCircle className="w-5 h-5" />
           </div>
         </div>
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        {/* Status Filter Tabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-canvas-soft border border-hairline rounded-lg overflow-x-auto">
+        {/* Status Filter Tabs (Segmented controls) */}
+        <div className="flex items-center gap-1.5 p-1 bg-canvas-soft/80 dark:bg-canvas-soft/60 backdrop-blur-md border border-hairline/80 rounded-lg overflow-x-auto">
           {STATUS_TABS.map((tab) => {
             const active = statusFilter === tab.id;
+            const activeStyle = tabColors[tab.id] || 'bg-sky-600 text-white';
             return (
               <button
                 key={tab.id}
@@ -404,13 +412,13 @@ export function OrdersPage() {
                 onClick={() => setStatusFilter(tab.id)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                   active
-                    ? 'bg-primary text-on-primary shadow-xs'
-                    : 'text-ink-secondary hover:text-ink'
+                    ? `${activeStyle} shadow-xs`
+                    : 'text-ink-secondary hover:text-ink hover:bg-canvas/80'
                 }`}
               >
                 <span>{tab.label}</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-tabular ${
+                  className={`text-[10px] px-1.5 py-0.5 rounded-md font-tabular ${
                     active ? 'bg-white/20 text-white' : 'bg-canvas border border-hairline text-ink-mute'
                   }`}
                 >
@@ -429,7 +437,7 @@ export function OrdersPage() {
             placeholder="Search orders..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-canvas border border-hairline rounded-lg pl-9 pr-3 text-xs text-ink placeholder:text-ink-mute/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary h-9 transition-colors"
+            className="w-full bg-canvas/80 dark:bg-canvas/60 backdrop-blur-md border border-hairline/80 rounded-lg pl-9 pr-3 text-xs text-ink placeholder:text-ink-mute/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary h-9 transition-colors"
           />
         </div>
       </div>

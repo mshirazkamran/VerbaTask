@@ -163,7 +163,7 @@ export function WorkflowsPage() {
         header: 'Trigger',
         cell: ({ getValue }) => (
           <div className="flex items-center gap-2">
-            <span className="w-6 h-6 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+            <span className="w-7 h-7 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 flex items-center justify-center shrink-0">
               <IconBolt className="w-3.5 h-3.5" />
             </span>
             <span className="capitalize text-ink font-medium text-xs">{getValue()}</span>
@@ -201,7 +201,7 @@ export function WorkflowsPage() {
               : action.type || '-';
           return (
             <div className="flex items-center gap-2 max-w-[260px]">
-              <span className="w-6 h-6 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <span className="w-7 h-7 rounded-md bg-fuchsia-50 dark:bg-fuchsia-950/40 border border-fuchsia-200 dark:border-fuchsia-800/60 text-fuchsia-800 dark:text-fuchsia-300 flex items-center justify-center shrink-0">
                 <IconBell className="w-3.5 h-3.5" />
               </span>
               <span className="text-xs font-medium text-ink truncate" title={label}>
@@ -304,16 +304,16 @@ export function WorkflowsPage() {
         </Button>
       </div>
 
-      {/* Automation Hub Banner */}
-      <div className="p-4 rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-canvas flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-card">
+      {/* Automation Hub Banner - Solid Accent & Glassmorphism */}
+      <div className="p-4 rounded-xl border-l-4 border-l-emerald-500 border border-emerald-200/80 dark:border-emerald-800/50 bg-emerald-50/70 dark:bg-emerald-950/30 backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-card hover:shadow-float transition-all duration-200">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-xs">
+          <div className="w-10 h-10 rounded-lg bg-emerald-100/90 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-700/50 flex items-center justify-center shrink-0 shadow-xs backdrop-blur-xs">
             <IconBolt className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-medium text-ink">Autonomous Inventory Watcher</h3>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-medium">
+              <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-100/90 dark:bg-emerald-900/60 border border-emerald-300/80 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 font-medium backdrop-blur-xs">
                 Live
               </span>
             </div>
@@ -322,8 +322,8 @@ export function WorkflowsPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-ink-secondary bg-canvas-soft px-3 py-1.5 rounded-lg border border-hairline shrink-0">
-          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+        <div className="flex items-center gap-2 text-xs text-ink-secondary bg-canvas/80 dark:bg-canvas/60 backdrop-blur-sm px-3 py-1.5 rounded-md border border-hairline/80 shrink-0 font-tabular">
+          <span className="font-semibold text-emerald-800 dark:text-emerald-300">
             {workflows?.filter((w) => w.active)?.length || 0}
           </span>
           <span>active triggers</span>

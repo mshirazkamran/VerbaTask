@@ -47,7 +47,7 @@ export function ApprovalsPage() {
         accessorKey: 'type',
         header: 'Type',
         cell: ({ getValue }) => (
-          <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium text-xs capitalize">
+          <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-indigo-800 dark:text-indigo-300 font-medium text-xs capitalize">
             {getValue()}
           </span>
         ),
@@ -60,8 +60,8 @@ export function ApprovalsPage() {
             <span className="text-sm font-medium text-ink block truncate max-w-[340px]" title={getValue()}>
               {getValue() || '-'}
             </span>
-            <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1 mt-0.5">
-              <IconAlertCircle className="w-3 h-3" />
+            <span className="text-[11px] text-amber-800 dark:text-amber-300 font-medium flex items-center gap-1 mt-0.5">
+              <IconAlertCircle className="w-3.5 h-3.5" />
               Exceeds Rs. 10,000 threshold
             </span>
           </div>
@@ -161,16 +161,16 @@ export function ApprovalsPage() {
         )}
       </div>
 
-      {/* High-Value Protection Banner */}
-      <div className="p-4 rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-canvas flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-card">
+      {/* High-Value Protection Banner - Solid Warm Accent & Glassmorphism */}
+      <div className="p-4 rounded-xl border-l-4 border-l-amber-500 border border-amber-200/80 dark:border-amber-800/50 bg-amber-50/70 dark:bg-amber-950/30 backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-card hover:shadow-float transition-all duration-200">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-xs">
+          <div className="w-10 h-10 rounded-lg bg-amber-100/90 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-700/50 flex items-center justify-center shrink-0 shadow-xs backdrop-blur-xs">
             <IconClipboardCheck className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-medium text-ink">High-Value Order Protection</h3>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-medium">
+              <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-50/80 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300 font-medium backdrop-blur-xs">
                 Active Guard
               </span>
             </div>
@@ -179,8 +179,8 @@ export function ApprovalsPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-ink-secondary bg-canvas-soft px-3 py-1.5 rounded-lg border border-hairline shrink-0">
-          <span className="font-semibold text-amber-600 dark:text-amber-400">{approvals?.length || 0}</span>
+        <div className="flex items-center gap-2 text-xs text-ink-secondary bg-canvas/80 dark:bg-canvas/60 backdrop-blur-sm px-3 py-1.5 rounded-md border border-hairline/80 shrink-0 font-tabular">
+          <span className="font-semibold text-amber-800 dark:text-amber-300">{approvals?.length || 0}</span>
           <span>awaiting response</span>
         </div>
       </div>

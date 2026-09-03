@@ -10,7 +10,14 @@ export function DashboardLayout() {
   const location = useLocation();
 
   return (
-    <div className="min-h-screen min-h-[100dvh] flex bg-canvas-soft text-ink">
+    <div className="min-h-screen min-h-[100dvh] flex bg-canvas-soft text-ink relative">
+      {/* Ambient background lighting for glassmorphic depth */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden opacity-40 dark:opacity-20 select-none">
+        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="absolute top-1/4 -right-32 w-96 h-96 rounded-full bg-emerald-500/15 blur-3xl" />
+        <div className="absolute -bottom-32 left-1/3 w-96 h-96 rounded-full bg-sky-500/15 blur-3xl" />
+      </div>
+
       {/* Sidebar */}
       <Sidebar
         mobileOpen={mobileOpen}
@@ -18,7 +25,7 @@ export function DashboardLayout() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 z-10">
         <TopBar onOpenMobileMenu={() => setMobileOpen(true)} />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1400px] w-full mx-auto">
