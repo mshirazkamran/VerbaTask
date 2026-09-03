@@ -6,6 +6,7 @@ import { createOrder } from '../crm/order.service.js';
 import { evaluateMessageWorkflows, createWorkflow } from '../workflows/workflow.service.js';
 import { respond as respondToApproval, findPendingByOrderId } from '../approvals/approval.service.js';
 import { generateLinkCode } from './auth.controller.js';
+import { emitDashboardUpdate } from '../socket.js';
 import { parseIntent, extractBusinessDetails, extractInventoryItems, resolveItemName } from '../services/qwen.service.js';
 import { findSimilarInventoryItems, cleanAndStandardizeItemName } from '../crm/item-matching.js';
 import { transcribeAndParse } from '../agent/transcribeAndParse.js';
@@ -338,6 +339,11 @@ async function handleOnboardedMerchant(merchant, message) {
       if (buttonId?.startsWith('approve_') || buttonId?.startsWith('reject_')) {
         return await handleApprovalReply(merchant, buttonId);
       }
+      
+      if (buttonId?.startsWith('clearexpiry_')) {
+        return await handleClearExpiryReply(merchant, buttonId);
+      }
+
       // "Did you mean?" replies for fuzzy item matches — checked early so a
       // mid-flow guided order doesn't swallow the tap.
       if (buttonId?.startsWith('pick_')) {
@@ -713,6 +719,8 @@ async function continueGuidedOrder(merchant, message, state) {
       return sendTextMessage(merchant.whatsappNumber, 'Something went wrong — let\'s start over. Type "order" to try again.');
     }
   }
+}
+
 /** Sends interactive buttons or options for merchant's accepted payment methods. */
 async function sendPaymentMethodPicker(merchant) {
   const allowed = merchant.acceptedPaymentMethods?.length
@@ -939,7 +947,37 @@ async function handleApprovalReply(merchant, buttonId) {
     if (err.message?.startsWith('APPROVAL_NOT_FOUND')) {
       return sendTextMessage(merchant.whatsappNumber, "That order has already been handled.");
     }
-    console.error('handleApprovalReply failed:', err.message);
+    console.error('handleApprovalReply error:', err.message);
     return sendTextMessage(merchant.whatsappNumber, "Couldn't process that — please try from the dashboard.");
+  }
+}
+
+/** Handles taps on 'Clear Alert' buttons from expiry notifications */
+async function handleClearExpiryReply(merchant, buttonId) {
+  try {
+    // Format: clearexpiry_{itemId}_{dateToClear}
+    const parts = buttonId.split('_');
+    if (parts.length < 3) return;
+    const itemId = parts[1];
+    const dateToClear = parts.slice(2).join('_'); // Just in case there are underscores in date
+
+    const item = await InventoryItem.findOne({ _id: itemId, merchantId: merchant._id });
+    if (!item) {
+      return sendTextMessage(merchant.whatsappNumber, "Couldn't find that item — it might have been deleted.");
+    }
+
+    if (!item.expiryDates.includes(dateToClear)) {
+      return sendTextMessage(merchant.whatsappNumber, "That expiry alert was already cleared.");
+    }
+
+    item.expiryDates = item.expiryDates.filter(d => d !== dateToClear);
+    await item.save();
+
+    emitDashboardUpdate(merchant._id);
+
+    return sendTextMessage(merchant.whatsappNumber, `✅ Alert cleared for *${item.name}* (${dateToClear}).`);
+  } catch (err) {
+    console.error('handleClearExpiryReply error:', err.message);
+    return sendTextMessage(merchant.whatsappNumber, "Couldn't clear the alert — please try from the dashboard.");
   }
 }

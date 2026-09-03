@@ -2,6 +2,7 @@ import Order from '../models/Order.js';
 import InventoryItem from '../models/InventoryItem.js';
 import Approval from '../models/Approval.js';
 import Workflow from '../models/Workflow.js';
+import { checkAndSendExpiryNotifications } from '../services/expiry.service.js';
 
 const LOW_STOCK_THRESHOLD = 10;
 
@@ -19,12 +20,17 @@ export const getDashboardOverview = async (req, res) => {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
+    const targetExpiry = new Date();
+    targetExpiry.setDate(targetExpiry.getDate() + 45); // 45 days warning
+    const expiryThreshold = `${targetExpiry.getFullYear()}-${String(targetExpiry.getMonth() + 1).padStart(2, '0')}`;
+
     const [
       todayOrders,
       lowStockItems,
       pendingApprovals,
       recentOrders,
       activeWorkflows,
+      expiringItems,
     ] = await Promise.all([
       Order.find({
         merchantId,
@@ -44,6 +50,10 @@ export const getDashboardOverview = async (req, res) => {
         .limit(5)
         .lean(),
       Workflow.countDocuments({ merchantId, active: true }),
+      InventoryItem.find({
+        merchantId,
+        expiryDates: { $lte: expiryThreshold },
+      }).lean(),
     ]);
 
     const todaySales = todayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
@@ -62,10 +72,25 @@ export const getDashboardOverview = async (req, res) => {
         pendingApprovals,
         recentOrders,
         activeWorkflows,
+        expiringItems,
       },
     });
   } catch (err) {
     console.error('getDashboardOverview error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to load dashboard' });
+  }
+};
+
+export const triggerExpiryNotifications = async (req, res) => {
+  try {
+    const merchantId = req.merchantId || req.merchant?._id;
+    if (!merchantId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    const result = await checkAndSendExpiryNotifications(merchantId);
+    res.json(result);
+  } catch (err) {
+    console.error('triggerExpiryNotifications error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to trigger notifications' });
   }
 };
