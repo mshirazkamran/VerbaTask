@@ -377,6 +377,88 @@ export function InventoryPage() {
       return baseCols;
     },
     [showExpiry]
+    () => [
+      {
+        accessorKey: 'name',
+        header: 'Item',
+        cell: ({ getValue, row }) => {
+          const name = getValue();
+          const firstLetter = (name || '?').charAt(0).toUpperCase();
+          return (
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-heading font-semibold text-sm shrink-0 shadow-xs">
+                {firstLetter}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-ink truncate">{name}</p>
+                <p className="text-[11px] text-ink-mute font-tabular">
+                  {formatPKR(row.original.price)} / {row.original.unit || 'unit'}
+                </p>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'quantity',
+        header: 'Stock',
+        cell: ({ getValue, row }) => {
+          const qty = getValue();
+          const variant = qty === 0 ? 'danger' : qty < 10 ? 'warning' : 'success';
+          return <Badge variant={variant} dot>{formatQuantity(qty, row.original.unit)}</Badge>;
+        },
+      },
+      {
+        accessorKey: 'price',
+        header: 'Price',
+        cell: ({ getValue }) => (
+          <span className="font-tabular font-medium text-emerald-600 dark:text-emerald-400">
+            {formatPKR(getValue())}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'unit',
+        header: 'Unit',
+        cell: ({ getValue }) => (
+          <span className="text-xs px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-ink-secondary">
+            {getValue() || '-'}
+          </span>
+        ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              leftIcon={<IconPencil className="w-4 h-4" />}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEdit(row.original);
+              }}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-ruby hover:text-ruby hover:bg-ruby/10"
+              leftIcon={<IconTrash className="w-4 h-4" />}
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeletingItem(row.original);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    []
   );
 
   const table = useReactTable({
@@ -423,56 +505,84 @@ export function InventoryPage() {
         </Button>
       </div>
 
-      {/* KPI Cards for Inventory */}
+      {/* KPI Cards for Inventory - Solid Colors, Glassmorphism & High Contrast */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-canvas flex items-center justify-between shadow-card">
+        <div className="p-4 rounded-xl border border-indigo-200/80 dark:border-indigo-800/50 bg-indigo-50/70 dark:bg-indigo-950/30 backdrop-blur-md flex items-center justify-between shadow-card hover:shadow-float transition-all duration-200">
           <div>
-            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Total Items</p>
-            <p className="text-2xl font-light text-ink font-tabular mt-1">{counts.all}</p>
+            <p className="text-xs uppercase tracking-wider font-medium text-indigo-700 dark:text-indigo-300">Total Items</p>
+            <p className="text-2xl font-light text-indigo-950 dark:text-indigo-50 font-tabular mt-1">{counts.all}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-indigo-100/90 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-700/50 flex items-center justify-center backdrop-blur-xs">
             <IconBoxSeam className="w-5 h-5" />
           </div>
         </div>
-        <div className="p-4 rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-canvas flex items-center justify-between shadow-card">
+        <div className="p-4 rounded-xl border border-emerald-200/80 dark:border-emerald-800/50 bg-emerald-50/70 dark:bg-emerald-950/30 backdrop-blur-md flex items-center justify-between shadow-card hover:shadow-float transition-all duration-200">
           <div>
-            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Healthy Stock</p>
-            <p className="text-2xl font-light text-ink font-tabular mt-1 text-emerald-600 dark:text-emerald-400">{counts.healthy}</p>
+            <p className="text-xs uppercase tracking-wider font-medium text-emerald-700 dark:text-emerald-300">Healthy Stock</p>
+            <p className="text-2xl font-light font-tabular mt-1 text-emerald-950 dark:text-emerald-50">{counts.healthy}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-emerald-100/90 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-700/50 flex items-center justify-center backdrop-blur-xs">
             <IconBoxSeam className="w-5 h-5" />
           </div>
         </div>
-        <div className="p-4 rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-canvas flex items-center justify-between shadow-card">
+        <div className="p-4 rounded-xl border border-amber-200/80 dark:border-amber-800/50 bg-amber-50/70 dark:bg-amber-950/30 backdrop-blur-md flex items-center justify-between shadow-card hover:shadow-float transition-all duration-200">
           <div>
-            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Low Stock (&lt;10)</p>
-            <p className="text-2xl font-light text-ink font-tabular mt-1 text-amber-600 dark:text-amber-400">{counts.low}</p>
+            <p className="text-xs uppercase tracking-wider font-medium text-amber-800 dark:text-amber-300">Low Stock (&lt;10)</p>
+            <p className="text-2xl font-light font-tabular mt-1 text-amber-950 dark:text-amber-50">{counts.low}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-amber-100/90 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-700/50 flex items-center justify-center backdrop-blur-xs">
             <IconAlertCircle className="w-5 h-5" />
           </div>
         </div>
-        <div className="p-4 rounded-xl border border-rose-500/20 bg-gradient-to-br from-rose-500/10 via-ruby/5 to-canvas flex items-center justify-between shadow-card">
+        <div className="p-4 rounded-xl border border-rose-200/80 dark:border-rose-800/50 bg-rose-50/70 dark:bg-rose-950/30 backdrop-blur-md flex items-center justify-between shadow-card hover:shadow-float transition-all duration-200">
           <div>
-            <p className="text-xs text-ink-mute uppercase tracking-wider font-medium">Out of Stock</p>
-            <p className="text-2xl font-light text-ink font-tabular mt-1 text-rose-600 dark:text-rose-400">{counts.out}</p>
+            <p className="text-xs uppercase tracking-wider font-medium text-rose-800 dark:text-rose-300">Out of Stock</p>
+            <p className="text-2xl font-light font-tabular mt-1 text-rose-950 dark:text-rose-50">{counts.out}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-rose-100/90 dark:bg-rose-900/50 text-rose-800 dark:text-rose-300 border border-rose-200/80 dark:border-rose-700/50 flex items-center justify-center backdrop-blur-xs">
             <IconAlertCircle className="w-5 h-5" />
           </div>
         </div>
       </div>
 
+      {/* Stock Health Distribution Bar */}
+      {counts.all > 0 && (
+        <div className="p-3.5 bg-canvas/80 dark:bg-canvas/70 backdrop-blur-md border border-hairline/80 dark:border-white/10 rounded-xl shadow-card">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-ink-mute gap-2 mb-2">
+            <span className="font-medium text-ink">Catalog Stock Health</span>
+            <div className="flex items-center gap-4 text-[11px]">
+              <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
+                <span className="w-2.5 h-2.5 rounded-xs bg-emerald-500" />
+                Healthy ({counts.healthy})
+              </span>
+              <span className="flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-400">
+                <span className="w-2.5 h-2.5 rounded-xs bg-amber-500" />
+                Low Stock ({counts.low})
+              </span>
+              <span className="flex items-center gap-1.5 font-medium text-rose-700 dark:text-rose-400">
+                <span className="w-2.5 h-2.5 rounded-xs bg-rose-500" />
+                Out of Stock ({counts.out})
+              </span>
+            </div>
+          </div>
+          <div className="w-full h-2 rounded-xs bg-canvas-soft overflow-hidden flex gap-0.5">
+            <div style={{ width: `${(counts.healthy / counts.all) * 100}%` }} className="bg-emerald-500 transition-all duration-300" title={`Healthy: ${counts.healthy}`} />
+            <div style={{ width: `${(counts.low / counts.all) * 100}%` }} className="bg-amber-500 transition-all duration-300" title={`Low: ${counts.low}`} />
+            <div style={{ width: `${(counts.out / counts.all) * 100}%` }} className="bg-rose-500 transition-all duration-300" title={`Out: ${counts.out}`} />
+          </div>
+        </div>
+      )}
+
       {/* Filter Tabs & Search */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 p-1 bg-canvas-soft border border-hairline rounded-lg overflow-x-auto">
+        <div className="flex items-center gap-1.5 p-1 bg-canvas-soft/80 dark:bg-canvas-soft/60 backdrop-blur-md border border-hairline/80 rounded-lg overflow-x-auto">
           <button
             type="button"
             onClick={() => setStockFilter('all')}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
               stockFilter === 'all'
-                ? 'bg-canvas text-ink shadow-xs'
-                : 'text-ink-secondary hover:text-ink'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-ink-secondary hover:text-ink hover:bg-canvas/80'
             }`}
           >
             All Items ({counts.all})
@@ -482,8 +592,8 @@ export function InventoryPage() {
             onClick={() => setStockFilter('healthy')}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
               stockFilter === 'healthy'
-                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold shadow-xs'
-                : 'text-ink-secondary hover:text-emerald-600'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-ink-secondary hover:text-emerald-600 hover:bg-canvas/80'
             }`}
           >
             Healthy ({counts.healthy})
@@ -493,8 +603,8 @@ export function InventoryPage() {
             onClick={() => setStockFilter('low')}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
               stockFilter === 'low'
-                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 font-semibold shadow-xs'
-                : 'text-ink-secondary hover:text-amber-600'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-ink-secondary hover:text-amber-600 hover:bg-canvas/80'
             }`}
           >
             Low Stock ({counts.low})
@@ -504,8 +614,8 @@ export function InventoryPage() {
             onClick={() => setStockFilter('out')}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
               stockFilter === 'out'
-                ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 font-semibold shadow-xs'
-                : 'text-ink-secondary hover:text-rose-600'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'text-ink-secondary hover:text-rose-600 hover:bg-canvas/80'
             }`}
           >
             Out of Stock ({counts.out})
@@ -519,7 +629,7 @@ export function InventoryPage() {
             placeholder="Search items..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-canvas border border-hairline rounded-lg pl-9 pr-3 text-xs text-ink placeholder:text-ink-mute/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary h-9 transition-colors"
+            className="w-full bg-canvas/80 dark:bg-canvas/60 backdrop-blur-md border border-hairline/80 rounded-lg pl-9 pr-3 text-xs text-ink placeholder:text-ink-mute/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary h-9 transition-colors"
           />
         </div>
       </div>

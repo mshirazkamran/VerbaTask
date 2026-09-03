@@ -16,11 +16,42 @@ import {
 
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Overview', icon: IconLayoutDashboard, end: true },
-  { to: '/dashboard/inventory', label: 'Inventory', icon: IconBoxSeam },
-  { to: '/dashboard/orders', label: 'Orders', icon: IconReceipt },
-  { to: '/dashboard/workflows', label: 'Workflows', icon: IconGitBranch },
-  { to: '/dashboard/approvals', label: 'Approvals', icon: IconClipboardCheck },
+  {
+    to: '/dashboard',
+    label: 'Overview',
+    icon: IconLayoutDashboard,
+    end: true,
+    activeClass: 'bg-indigo-50/90 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 font-medium border-l-2 border-indigo-600 dark:border-indigo-400',
+    iconActive: 'text-indigo-600 dark:text-indigo-400',
+  },
+  {
+    to: '/dashboard/inventory',
+    label: 'Inventory',
+    icon: IconBoxSeam,
+    activeClass: 'bg-emerald-50/90 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-medium border-l-2 border-emerald-600 dark:border-emerald-400',
+    iconActive: 'text-emerald-600 dark:text-emerald-400',
+  },
+  {
+    to: '/dashboard/orders',
+    label: 'Orders',
+    icon: IconReceipt,
+    activeClass: 'bg-sky-50/90 dark:bg-sky-950/40 text-sky-900 dark:text-sky-200 font-medium border-l-2 border-sky-600 dark:border-sky-400',
+    iconActive: 'text-sky-600 dark:text-sky-400',
+  },
+  {
+    to: '/dashboard/workflows',
+    label: 'Workflows',
+    icon: IconGitBranch,
+    activeClass: 'bg-fuchsia-50/90 dark:bg-fuchsia-950/40 text-fuchsia-900 dark:text-fuchsia-200 font-medium border-l-2 border-fuchsia-600 dark:border-fuchsia-400',
+    iconActive: 'text-fuchsia-600 dark:text-fuchsia-400',
+  },
+  {
+    to: '/dashboard/approvals',
+    label: 'Approvals',
+    icon: IconClipboardCheck,
+    activeClass: 'bg-amber-50/90 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-medium border-l-2 border-amber-600 dark:border-amber-400',
+    iconActive: 'text-amber-600 dark:text-amber-400',
+  },
 ];
 
 export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
@@ -64,17 +95,21 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
                 end={item.end}
                 onClick={onMobileClose}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors duration-150 ${
+                  `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-all duration-150 ${
                     isActive
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-ink-secondary hover:text-ink hover:bg-canvas-soft'
+                      ? item.activeClass
+                      : 'text-ink-secondary hover:text-ink hover:bg-canvas-soft border-l-2 border-transparent'
                   }`
                 }
                 title={sidebarCollapsed && !mobileOpen ? item.label : undefined}
               >
-                <Icon className="w-5 h-5 shrink-0" />
-                {(!sidebarCollapsed || mobileOpen) && (
-                  <span className="truncate">{item.label}</span>
+                {({ isActive }) => (
+                  <>
+                    <Icon className={`w-5 h-5 shrink-0 transition-colors ${isActive ? item.iconActive : 'text-ink-mute'}`} />
+                    {(!sidebarCollapsed || mobileOpen) && (
+                      <span className="truncate">{item.label}</span>
+                    )}
+                  </>
                 )}
               </NavLink>
             );

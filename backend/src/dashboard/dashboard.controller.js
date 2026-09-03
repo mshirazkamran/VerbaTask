@@ -20,6 +20,10 @@ export const getDashboardOverview = async (req, res) => {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
     const targetExpiry = new Date();
     targetExpiry.setDate(targetExpiry.getDate() + 45); // 45 days warning
     const expiryThreshold = `${targetExpiry.getFullYear()}-${String(targetExpiry.getMonth() + 1).padStart(2, '0')}`;
@@ -30,6 +34,7 @@ export const getDashboardOverview = async (req, res) => {
       pendingApprovals,
       recentOrders,
       activeWorkflows,
+      trendOrders,
       expiringItems,
     ] = await Promise.all([
       Order.find({
@@ -50,6 +55,11 @@ export const getDashboardOverview = async (req, res) => {
         .limit(5)
         .lean(),
       Workflow.countDocuments({ merchantId, active: true }),
+      Order.find({
+        merchantId,
+        status: { $in: ['completed', 'approved'] },
+        createdAt: { $gte: sevenDaysAgo },
+      }).lean(),
       InventoryItem.find({
         merchantId,
         expiryDates: { $lte: expiryThreshold },
@@ -62,6 +72,31 @@ export const getDashboardOverview = async (req, res) => {
       0,
     );
 
+    // Build rolling 7-day trend (from 6 days ago through today)
+    const salesTrend = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const weekday = d.toLocaleDateString('en-PK', { weekday: 'short' });
+
+      salesTrend.push({
+        date: weekday,
+        fullDate: dateStr,
+        revenue: 0,
+        ordersCount: 0,
+      });
+    }
+
+    trendOrders.forEach((order) => {
+      const orderDate = new Date(order.createdAt).toISOString().split('T')[0];
+      const bucket = salesTrend.find((b) => b.fullDate === orderDate);
+      if (bucket) {
+        bucket.revenue += order.total || 0;
+        bucket.ordersCount += 1;
+      }
+    });
+
     res.json({
       success: true,
       data: {
@@ -72,6 +107,7 @@ export const getDashboardOverview = async (req, res) => {
         pendingApprovals,
         recentOrders,
         activeWorkflows,
+        salesTrend,
         expiringItems,
       },
     });

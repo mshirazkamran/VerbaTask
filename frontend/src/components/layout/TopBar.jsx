@@ -41,19 +41,19 @@ export function TopBar({ onOpenMobileMenu }) {
 
       {/* Right: Live System indicator + Theme Toggle */}
       <div className="flex items-center gap-3">
-        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
-          <IconCircleFilled className="w-2 h-2 animate-pulse" />
+        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300 text-xs font-medium">
+          <IconCircleFilled className="w-2 h-2 animate-pulse text-emerald-500" />
           <span>System Live</span>
         </div>
 
         <button
           type="button"
           onClick={toggleTheme}
-          className="p-2 text-ink-secondary hover:text-ink bg-canvas-soft border border-hairline rounded-pill hover:bg-canvas transition-colors cursor-pointer"
+          className="p-2 text-ink-secondary hover:text-ink bg-canvas-soft border border-hairline rounded-md hover:bg-canvas transition-colors cursor-pointer"
           aria-label="Toggle dark mode"
         >
           {theme === 'dark' ? (
-            <IconSun className="w-4 h-4 text-lemon" />
+            <IconSun className="w-4 h-4 text-amber-400" />
           ) : (
             <IconMoon className="w-4 h-4 text-ink-secondary" />
           )}

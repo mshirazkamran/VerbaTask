@@ -10,13 +10,13 @@ export function Table({ table, onRowClick, emptyText = 'No records found', getRo
   const rows = table.getRowModel().rows;
 
   return (
-    <div className="w-full overflow-x-auto border border-hairline rounded-lg bg-canvas shadow-card">
+    <div className="w-full overflow-x-auto border border-hairline/80 dark:border-white/10 rounded-xl bg-canvas/80 dark:bg-canvas/70 backdrop-blur-md shadow-card">
       <table className="w-full text-left border-collapse text-sm">
         <thead>
           {table.getHeaderGroups().map((headerGroup) => (
             <tr
               key={headerGroup.id}
-              className="border-b border-hairline bg-canvas-soft/60"
+              className="border-b border-hairline/80 bg-canvas-soft/80 dark:bg-canvas-soft/40 backdrop-blur-sm"
             >
               {headerGroup.headers.map((header) => {
                 const canSort = header.column.getCanSort();

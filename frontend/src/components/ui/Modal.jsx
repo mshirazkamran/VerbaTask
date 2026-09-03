@@ -48,7 +48,7 @@ export function Modal({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             onClick={onClose}
-            className="fixed inset-0 bg-brand-dark/40 backdrop-blur-xs"
+            className="fixed inset-0 bg-brand-dark/50 backdrop-blur-sm"
           />
 
           {/* Modal Panel */}
@@ -57,7 +57,7 @@ export function Modal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 8 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className={`relative w-full ${maxWidth} bg-canvas text-ink border border-hairline rounded-lg shadow-float p-6 z-10 overflow-hidden`}
+            className={`relative w-full ${maxWidth} bg-canvas/90 dark:bg-canvas/85 backdrop-blur-2xl text-ink border border-hairline/80 dark:border-white/10 rounded-xl shadow-float p-6 z-10 overflow-hidden`}
           >
             {(title || showCloseButton) && (
               <div className="flex items-start justify-between gap-4 mb-4">
