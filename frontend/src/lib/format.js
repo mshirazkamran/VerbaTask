@@ -37,12 +37,32 @@ export function formatDate(dateInput) {
 
 /**
  * Formats quantity with optional unit label.
+ * Avoids ambiguous number collisions (e.g. "18 250g" -> "18 × 250g").
  * @param {number} qty
  * @param {string} [unit]
- * @returns {string} e.g. "15 kg", "20 bags"
+ * @returns {string} e.g. "15 kg", "18 × 250g", "20 packs"
  */
 export function formatQuantity(qty, unit) {
-  const q = typeof qty === 'number' ? qty : 0;
-  if (!unit) return `${q}`;
-  return `${q} ${unit}`;
+  const q = typeof qty === 'number' ? qty : Number(qty) || 0;
+  if (!unit || !unit.trim()) return `${q}`;
+
+  const u = unit.trim();
+
+  // If unit contains digits (e.g. "250g", "250gram stick", "500ml", "1.5L"),
+  // it specifies a package size. Use "×" to clearly denote count × pack size.
+  if (/\d/.test(u)) {
+    return `${q} × ${u}`;
+  }
+
+  // Handle pluralization for standard count units
+  const countUnits = ['pack', 'packet', 'box', 'bottle', 'can', 'bag', 'carton', 'piece', 'item', 'unit', 'stick', 'sachet'];
+  const lower = u.toLowerCase();
+  if (countUnits.includes(lower)) {
+    if (q === 1) return `1 ${u}`;
+    if (lower === 'box') return `${q} boxes`;
+    return `${q} ${u}s`;
+  }
+
+  // Loose weight or liquid measures (kg, litre, g, dozen, etc.)
+  return `${q} ${u}`;
 }
