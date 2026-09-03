@@ -158,7 +158,7 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
           label="Unit"
           value={form.unit}
           onChange={handleChange}
-          placeholder="kg"
+          placeholder="e.g. kg, 250g, litre"
           {...fieldKeyDown('unit')}
         />
       </div>
@@ -283,7 +283,7 @@ export function InventoryPage() {
             const firstLetter = (name || '?').charAt(0).toUpperCase();
             return (
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/15 to-purple-500/15 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-heading font-semibold text-sm shrink-0 shadow-xs">
+                <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-heading font-semibold text-sm shrink-0 shadow-xs">
                   {firstLetter}
                 </div>
                 <div className="min-w-0">
@@ -301,8 +301,22 @@ export function InventoryPage() {
           header: 'Stock',
           cell: ({ getValue, row }) => {
             const qty = getValue();
+            const unit = (row.original.unit || '').trim();
             const variant = qty === 0 ? 'danger' : qty < 10 ? 'warning' : 'success';
-            return <Badge variant={variant} dot>{formatQuantity(qty, row.original.unit)}</Badge>;
+            const isPackSize = /\d/.test(unit);
+
+            return (
+              <div className="flex flex-col items-start gap-0.5 py-0.5">
+                <Badge variant={variant} dot className="font-tabular font-medium">
+                  {formatQuantity(qty, unit)}
+                </Badge>
+                {isPackSize && (
+                  <span className="text-[10px] text-ink-mute font-tabular">
+                    {qty === 0 ? 'Out of stock' : `${qty} in stock`}
+                  </span>
+                )}
+              </div>
+            );
           },
         },
         {
@@ -377,88 +391,6 @@ export function InventoryPage() {
       return baseCols;
     },
     [showExpiry]
-    () => [
-      {
-        accessorKey: 'name',
-        header: 'Item',
-        cell: ({ getValue, row }) => {
-          const name = getValue();
-          const firstLetter = (name || '?').charAt(0).toUpperCase();
-          return (
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-heading font-semibold text-sm shrink-0 shadow-xs">
-                {firstLetter}
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-ink truncate">{name}</p>
-                <p className="text-[11px] text-ink-mute font-tabular">
-                  {formatPKR(row.original.price)} / {row.original.unit || 'unit'}
-                </p>
-              </div>
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: 'quantity',
-        header: 'Stock',
-        cell: ({ getValue, row }) => {
-          const qty = getValue();
-          const variant = qty === 0 ? 'danger' : qty < 10 ? 'warning' : 'success';
-          return <Badge variant={variant} dot>{formatQuantity(qty, row.original.unit)}</Badge>;
-        },
-      },
-      {
-        accessorKey: 'price',
-        header: 'Price',
-        cell: ({ getValue }) => (
-          <span className="font-tabular font-medium text-emerald-600 dark:text-emerald-400">
-            {formatPKR(getValue())}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'unit',
-        header: 'Unit',
-        cell: ({ getValue }) => (
-          <span className="text-xs px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-ink-secondary">
-            {getValue() || '-'}
-          </span>
-        ),
-      },
-      {
-        id: 'actions',
-        header: '',
-        cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              leftIcon={<IconPencil className="w-4 h-4" />}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleEdit(row.original);
-              }}
-            >
-              Edit
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-ruby hover:text-ruby hover:bg-ruby/10"
-              leftIcon={<IconTrash className="w-4 h-4" />}
-              onClick={(e) => {
-                e.stopPropagation();
-                setDeletingItem(row.original);
-              }}
-            >
-              Delete
-            </Button>
-          </div>
-        ),
-      },
-    ],
-    []
   );
 
   const table = useReactTable({
