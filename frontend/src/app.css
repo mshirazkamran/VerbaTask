@@ -36,47 +36,47 @@
 
 @layer base {
   :root {
-    --bg-canvas: #ffffff;
-    --bg-canvas-soft: #f6f9fc;
-    --bg-canvas-cream: #f5e9d4;
-    --text-ink: #0d253d;
-    --text-ink-secondary: #273951;
-    --text-ink-mute: #64748d;
-    --border-hairline: #e3e8ee;
-    --border-hairline-input: #a8c3de;
-    --color-primary: #533afd;
-    --color-primary-deep: #4434d4;
-    --color-primary-press: #2e2b8c;
-    --color-primary-soft: #665efd;
-    --color-primary-subdued: #b9b9f9;
-    --color-brand-dark: #1c1e54;
-    --color-ruby: #ea2261;
-    --color-magenta: #f96bee;
-    --color-lemon: #9b6829;
-    --shadow-card: 0 1px 3px rgba(0, 55, 112, 0.08);
-    --shadow-float: 0 8px 24px rgba(0, 55, 112, 0.08), 0 2px 6px rgba(0, 55, 112, 0.04);
+    --bg-canvas: #FFFFFF;
+    --bg-canvas-soft: #F8FAFC;
+    --bg-canvas-cream: #FFFFFF;
+    --text-ink: #0F172A;
+    --text-ink-secondary: #475569;
+    --text-ink-mute: #94A3B8;
+    --border-hairline: #E2E8F0;
+    --border-hairline-input: #CBD5E1;
+    --color-primary: #10B981;
+    --color-primary-deep: #059669;
+    --color-primary-press: #047857;
+    --color-primary-soft: #34D399;
+    --color-primary-subdued: #D1FAE5;
+    --color-brand-dark: #0F172A;
+    --color-ruby: #EF4444;
+    --color-magenta: #8B5CF6;
+    --color-lemon: #F59E0B;
+    --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06);
+    --shadow-float: 0 4px 6px rgba(15, 23, 42, 0.1);
   }
 
   .dark {
-    --bg-canvas: #0b1329;
-    --bg-canvas-soft: #060b18;
-    --bg-canvas-cream: #141e38;
-    --text-ink: #f1f5f9;
-    --text-ink-secondary: #cbd5e1;
-    --text-ink-mute: #8193af;
-    --border-hairline: #1e293b;
-    --border-hairline-input: #334155;
-    --color-primary: #665efd;
-    --color-primary-deep: #533afd;
-    --color-primary-press: #4434d4;
-    --color-primary-soft: #857efd;
-    --color-primary-subdued: #2d2b6b;
-    --color-brand-dark: #070a1e;
-    --color-ruby: #f43f5e;
-    --color-magenta: #f472b6;
-    --color-lemon: #eab308;
-    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4);
-    --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+    --bg-canvas: #111827;
+    --bg-canvas-soft: #0B1120;
+    --bg-canvas-cream: #1F2937;
+    --text-ink: #F8FAFC;
+    --text-ink-secondary: #CBD5E1;
+    --text-ink-mute: #94A3B8;
+    --border-hairline: #1F2937;
+    --border-hairline-input: #273449;
+    --color-primary: #10B981;
+    --color-primary-deep: #34D399;
+    --color-primary-press: #059669;
+    --color-primary-soft: #34D399;
+    --color-primary-subdued: #064E3B;
+    --color-brand-dark: #0B1120;
+    --color-ruby: #EF4444;
+    --color-magenta: #8B5CF6;
+    --color-lemon: #F59E0B;
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25);
+    --shadow-float: 0 4px 6px rgba(0, 0, 0, 0.4);
   }
 
   * {
@@ -157,78 +157,47 @@
 }
 
 .mesh-gradient-bg {
-  background: radial-gradient(at 10% 20%, rgba(245, 233, 212, 0.7) 0px, transparent 50%),
-              radial-gradient(at 80% 0%, rgba(185, 185, 249, 0.5) 0px, transparent 50%),
-              radial-gradient(at 0% 50%, rgba(234, 34, 97, 0.2) 0px, transparent 50%),
-              radial-gradient(at 80% 50%, rgba(83, 58, 253, 0.2) 0px, transparent 50%),
-              radial-gradient(at 40% 80%, rgba(249, 107, 238, 0.15) 0px, transparent 50%),
-              radial-gradient(at 60% 30%, rgba(6, 182, 212, 0.12) 0px, transparent 50%),
-              radial-gradient(at 0% 100%, rgba(102, 94, 253, 0.25) 0px, transparent 50%),
-              var(--bg-canvas-soft);
+  background: var(--bg-canvas-soft);
 }
 
 .dark .mesh-gradient-bg {
-  background: radial-gradient(at 10% 20%, rgba(28, 30, 84, 0.7) 0px, transparent 50%),
-              radial-gradient(at 80% 0%, rgba(45, 43, 107, 0.6) 0px, transparent 50%),
-              radial-gradient(at 0% 50%, rgba(244, 63, 94, 0.12) 0px, transparent 50%),
-              radial-gradient(at 80% 50%, rgba(102, 94, 253, 0.25) 0px, transparent 50%),
-              radial-gradient(at 40% 80%, rgba(244, 114, 182, 0.1) 0px, transparent 50%),
-              radial-gradient(at 60% 30%, rgba(6, 182, 212, 0.08) 0px, transparent 50%),
-              radial-gradient(at 0% 100%, rgba(20, 30, 56, 0.5) 0px, transparent 50%),
-              var(--bg-canvas-soft);
+  background: var(--bg-canvas-soft);
 }
 
-/* Glassmorphism — macOS Tahoe style */
 .glass {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(24px) saturate(200%);
-  -webkit-backdrop-filter: blur(24px) saturate(200%);
-  border: 1px solid var(--border-hairline, #e3e8ee);
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-hairline);
 }
 
 .dark .glass {
-  background: rgba(10, 15, 28, 0.65);
-  backdrop-filter: blur(24px) saturate(200%);
-  -webkit-backdrop-filter: blur(24px) saturate(200%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-hairline);
 }
 
 .glass-nav {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(28px) saturate(200%);
-  -webkit-backdrop-filter: blur(28px) saturate(200%);
-  border-bottom: 1px solid var(--border-hairline, #e3e8ee);
+  background: var(--bg-canvas);
+  border-bottom: 1px solid var(--border-hairline);
 }
 
 .dark .glass-nav {
-  background: rgba(6, 11, 24, 0.72);
-  backdrop-filter: blur(28px) saturate(200%);
-  -webkit-backdrop-filter: blur(28px) saturate(200%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-canvas);
+  border-bottom: 1px solid var(--border-hairline);
 }
 
 .glass-sidebar {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: #0f172a;
 }
 
 .dark .glass-sidebar {
-  background: rgba(11, 19, 41, 0.75);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: #0b1120;
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  border: 1px solid var(--border-hairline, #e3e8ee);
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-hairline);
 }
 
 .dark .glass-card {
-  background: rgba(11, 19, 41, 0.55);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-hairline);
 }
