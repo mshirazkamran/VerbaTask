@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { queryKeys } from '../lib/queryKeys';
 import { socket } from '../lib/socket';
@@ -23,5 +23,11 @@ export function useDashboard() {
     queryKey: queryKeys.dashboard(),
     queryFn: () => api.get('/api/dashboard/overview'),
     staleTime: 60 * 1000 * 5, // 5 minutes, since we have real-time invalidation
+  });
+}
+
+export function useNotifyExpiries() {
+  return useMutation({
+    mutationFn: () => api.post('/api/dashboard/notify-expiries'),
   });
 }

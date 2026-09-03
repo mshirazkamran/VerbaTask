@@ -5,7 +5,8 @@ const inventoryItemSchema = new mongoose.Schema({
   name:       { type: String, required: true },
   quantity:   { type: Number, default: 0 },
   price:      { type: Number },
-  unit:       { type: String } // e.g., "bag", "kg", "piece"
+  unit:       { type: String }, // e.g., "bag", "kg", "piece"
+  expiryDates: { type: [String], default: [] } // format 'YYYY-MM'
 }, { 
   timestamps: true 
 });

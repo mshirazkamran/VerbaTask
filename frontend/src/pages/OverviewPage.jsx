@@ -11,6 +11,8 @@ import {
   IconChartBar,
   IconCreditCard,
   IconBox,
+  IconCalendarEvent,
+  IconBrandWhatsapp,
 } from '@tabler/icons-react';
 import { useReactTable, getCoreRowModel, getSortedRowModel } from '@tanstack/react-table';
 import {
@@ -30,7 +32,8 @@ import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Table } from '../components/ui/Table';
 import { Skeleton } from '../components/ui/Skeleton';
-import { useDashboard } from '../hooks/useDashboard';
+import { useDashboard, useNotifyExpiries } from '../hooks/useDashboard';
+import { useUpdateInventoryItem } from '../hooks/useInventory';
 import { formatPKR, formatDate, formatQuantity } from '../lib/format';
 
 import cashLogo from '../assets/cash-logo.jpeg';
@@ -159,6 +162,17 @@ function CustomChartTooltip({ active, payload, label }) {
 
 export function OverviewPage() {
   const { data, isLoading, error } = useDashboard();
+  const updateItem = useUpdateInventoryItem();
+  const notifyExpiries = useNotifyExpiries();
+
+  const handleClearExpiry = async (itemId, currentDates, dateToClear) => {
+    try {
+      const newDates = currentDates.filter(d => d !== dateToClear);
+      await updateItem.mutateAsync({ id: itemId, expiryDates: newDates });
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const stats = useMemo(() => {
     if (!data) return null;
@@ -549,6 +563,67 @@ export function OverviewPage() {
             )}
           </div>
         </Card>
+
+        {data?.expiringItems?.length > 0 && (
+          <Card padding="none" className="overflow-hidden border border-hairline mt-6">
+            <div className="px-5 py-4 border-b border-hairline flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+                  <IconCalendarEvent className="w-3.5 h-3.5" />
+                </div>
+                <h3 className="text-sm font-medium text-ink">Expiring Soon</h3>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => notifyExpiries.mutate()}
+                  disabled={notifyExpiries.isPending}
+                  className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20 transition-colors disabled:opacity-50"
+                  title="Send alert to WhatsApp"
+                >
+                  <IconBrandWhatsapp className="w-3.5 h-3.5" />
+                  {notifyExpiries.isPending ? 'Sending...' : 'Send Alert'}
+                </button>
+                <Badge variant="danger" size="sm" dot>{data.expiringItems.length} alert{data.expiringItems.length === 1 ? '' : 's'}</Badge>
+              </div>
+            </div>
+            <div className="p-1">
+              <ul className="divide-y divide-hairline">
+                {data.expiringItems.map((item) => {
+                  // Find the earliest date(s) that are near expiry to show
+                  const targetExpiry = new Date();
+                  targetExpiry.setDate(targetExpiry.getDate() + 45);
+                  const expiryThreshold = `${targetExpiry.getFullYear()}-${String(targetExpiry.getMonth() + 1).padStart(2, '0')}`;
+                  
+                  const nearingExpiry = item.expiryDates.filter(d => d <= expiryThreshold).sort();
+                  const dateToShow = nearingExpiry[0];
+
+                  return (
+                    <li key={item._id} className="px-4 py-3 flex items-center justify-between hover:bg-canvas-soft/60 transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                          <IconCalendarEvent className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-ink truncate">{item.name}</p>
+                          <p className="text-[11px] text-ink-mute font-tabular">
+                            Expires: <span className="text-rose-600 dark:text-rose-400 font-medium">{dateToShow}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => handleClearExpiry(item._id, item.expiryDates, dateToShow)}
+                        className="text-[10px] px-2 py-1 rounded-md bg-canvas border border-hairline text-ink hover:text-emerald-600 hover:border-emerald-500/30 transition-colors shrink-0"
+                        title="Mark as cleared (sold or removed)"
+                      >
+                        Cleared
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );

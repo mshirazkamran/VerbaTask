@@ -18,7 +18,7 @@ export const getInventory = async (req, res) => {
 
 export const createInventoryItem = async (req, res) => {
     try {
-        const { name, quantity, price, unit } = req.body;
+        const { name, quantity, price, unit, expiryDates } = req.body;
 
         // 1. Check if this merchant already has an item with this exact name (case-insensitive)
         let item = await InventoryItem.findOne({
@@ -33,6 +33,9 @@ export const createInventoryItem = async (req, res) => {
             // Optionally update price and unit if new ones were provided
             if (price) item.price = price;
             if (unit) item.unit = unit;
+            if (expiryDates && Array.isArray(expiryDates)) {
+                item.expiryDates = [...new Set([...item.expiryDates, ...expiryDates])];
+            }
             
             await item.save();
             return res.status(200).json({ success: true, data: item });
@@ -44,7 +47,8 @@ export const createInventoryItem = async (req, res) => {
             name,
             quantity: quantity || 0,
             price,
-            unit
+            unit,
+            expiryDates: Array.isArray(expiryDates) ? expiryDates : []
         });
 
         res.status(201).json({ success: true, data: item });

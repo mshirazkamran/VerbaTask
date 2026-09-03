@@ -29,9 +29,10 @@ import {
   useUpdateInventoryItem,
   useDeleteInventoryItem,
 } from '../hooks/useInventory';
+import { useAuthStore } from '../lib/store';
 import { formatPKR, formatQuantity } from '../lib/format';
 
-const emptyItem = { name: '', quantity: '', price: '', unit: '' };
+const emptyItem = { name: '', quantity: '', price: '', unit: '', expiryDates: [] };
 
 function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, loading }) {
   const [form, setForm] = useState(initial);
@@ -44,12 +45,25 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
   const fieldOrder = ['name', 'quantity', 'price', 'unit'];
   const fieldRefs = { name: nameRef, quantity: quantityRef, price: priceRef, unit: unitRef };
 
+  const [newExpiry, setNewExpiry] = useState('');
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({
       ...prev,
       [name]: name === 'name' || name === 'unit' ? value : value === '' ? '' : Number(value),
     }));
+  };
+
+  const handleAddExpiry = () => {
+    if (newExpiry && !form.expiryDates.includes(newExpiry)) {
+      setForm(prev => ({ ...prev, expiryDates: [...prev.expiryDates, newExpiry] }));
+      setNewExpiry('');
+    }
+  };
+
+  const handleRemoveExpiry = (dateToRemove) => {
+    setForm(prev => ({ ...prev, expiryDates: prev.expiryDates.filter(d => d !== dateToRemove) }));
   };
 
   const isFieldEmpty = useCallback((fieldName) => {
@@ -87,6 +101,7 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
       quantity: Number(form.quantity) || 0,
       price: Number(form.price) || 0,
       unit: form.unit.trim() || undefined,
+      expiryDates: form.expiryDates || []
     });
   };
 
@@ -98,6 +113,7 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
       quantity: Number(form.quantity) || 0,
       price: Number(form.price) || 0,
       unit: form.unit.trim() || undefined,
+      expiryDates: form.expiryDates || []
     });
   };
 
@@ -146,6 +162,30 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
           {...fieldKeyDown('unit')}
         />
       </div>
+
+      <div className="space-y-2">
+        <label className="text-xs font-medium text-ink">Expiry Reminders (YYYY-MM)</label>
+        <div className="flex gap-2">
+          <Input 
+            type="month"
+            value={newExpiry}
+            onChange={(e) => setNewExpiry(e.target.value)}
+            className="flex-1"
+          />
+          <Button type="button" variant="secondary" onClick={handleAddExpiry}>Add</Button>
+        </div>
+        {form.expiryDates?.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {form.expiryDates.map(date => (
+              <Badge key={date} variant="warning" className="flex items-center gap-1">
+                {date}
+                <button type="button" onClick={() => handleRemoveExpiry(date)} className="hover:text-ruby">×</button>
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="ghost" onClick={onCancel} disabled={loading}>
           Cancel
@@ -159,6 +199,9 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
 }
 
 export function InventoryPage() {
+  const merchant = useAuthStore(state => state.merchant);
+  const showExpiry = ['medical', 'kiryana', 'general'].includes(merchant?.businessType);
+
   const { data: items, isLoading, error } = useInventory();
   const createItem = useCreateInventoryItem();
   const updateItem = useUpdateInventoryItem();
@@ -230,88 +273,110 @@ export function InventoryPage() {
   };
 
   const columns = useMemo(
-    () => [
-      {
-        accessorKey: 'name',
-        header: 'Item',
-        cell: ({ getValue, row }) => {
-          const name = getValue();
-          const firstLetter = (name || '?').charAt(0).toUpperCase();
-          return (
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/15 to-purple-500/15 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-heading font-semibold text-sm shrink-0 shadow-xs">
-                {firstLetter}
+    () => {
+      const baseCols = [
+        {
+          accessorKey: 'name',
+          header: 'Item',
+          cell: ({ getValue, row }) => {
+            const name = getValue();
+            const firstLetter = (name || '?').charAt(0).toUpperCase();
+            return (
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/15 to-purple-500/15 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-heading font-semibold text-sm shrink-0 shadow-xs">
+                  {firstLetter}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink truncate">{name}</p>
+                  <p className="text-[11px] text-ink-mute font-tabular">
+                    {formatPKR(row.original.price)} / {row.original.unit || 'unit'}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-ink truncate">{name}</p>
-                <p className="text-[11px] text-ink-mute font-tabular">
-                  {formatPKR(row.original.price)} / {row.original.unit || 'unit'}
-                </p>
-              </div>
+            );
+          },
+        },
+        {
+          accessorKey: 'quantity',
+          header: 'Stock',
+          cell: ({ getValue, row }) => {
+            const qty = getValue();
+            const variant = qty === 0 ? 'danger' : qty < 10 ? 'warning' : 'success';
+            return <Badge variant={variant} dot>{formatQuantity(qty, row.original.unit)}</Badge>;
+          },
+        },
+        {
+          accessorKey: 'price',
+          header: 'Price',
+          cell: ({ getValue }) => (
+            <span className="font-tabular font-medium text-emerald-600 dark:text-emerald-400">
+              {formatPKR(getValue())}
+            </span>
+          ),
+        },
+        {
+          accessorKey: 'unit',
+          header: 'Unit',
+          cell: ({ getValue }) => (
+            <span className="text-xs px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-ink-secondary">
+              {getValue() || '-'}
+            </span>
+          ),
+        },
+        {
+          id: 'actions',
+          header: '',
+          cell: ({ row }) => (
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                leftIcon={<IconPencil className="w-4 h-4" />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEdit(row.original);
+                }}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-ruby hover:text-ruby hover:bg-ruby/10"
+                leftIcon={<IconTrash className="w-4 h-4" />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeletingItem(row.original);
+                }}
+              >
+                Delete
+              </Button>
             </div>
-          );
+          ),
         },
-      },
-      {
-        accessorKey: 'quantity',
-        header: 'Stock',
-        cell: ({ getValue, row }) => {
-          const qty = getValue();
-          const variant = qty === 0 ? 'danger' : qty < 10 ? 'warning' : 'success';
-          return <Badge variant={variant} dot>{formatQuantity(qty, row.original.unit)}</Badge>;
-        },
-      },
-      {
-        accessorKey: 'price',
-        header: 'Price',
-        cell: ({ getValue }) => (
-          <span className="font-tabular font-medium text-emerald-600 dark:text-emerald-400">
-            {formatPKR(getValue())}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'unit',
-        header: 'Unit',
-        cell: ({ getValue }) => (
-          <span className="text-xs px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-ink-secondary">
-            {getValue() || '-'}
-          </span>
-        ),
-      },
-      {
-        id: 'actions',
-        header: '',
-        cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              leftIcon={<IconPencil className="w-4 h-4" />}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleEdit(row.original);
-              }}
-            >
-              Edit
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-ruby hover:text-ruby hover:bg-ruby/10"
-              leftIcon={<IconTrash className="w-4 h-4" />}
-              onClick={(e) => {
-                e.stopPropagation();
-                setDeletingItem(row.original);
-              }}
-            >
-              Delete
-            </Button>
-          </div>
-        ),
-      },
-    ],
-    []
+      ];
+
+      if (showExpiry) {
+        baseCols.splice(baseCols.length - 1, 0, {
+          accessorKey: 'expiryDates',
+          header: 'Reminders',
+          cell: ({ getValue }) => {
+            const dates = getValue() || [];
+            if (dates.length === 0) return <span className="text-xs text-ink-mute">-</span>;
+            return (
+              <div className="flex flex-wrap gap-1">
+                {dates.map(d => (
+                  <Badge key={d} variant="warning" className="text-[10px] py-0 px-1.5">{d}</Badge>
+                ))}
+              </div>
+            );
+          }
+        });
+      }
+
+      return baseCols;
+    },
+    [showExpiry]
   );
 
   const table = useReactTable({
@@ -499,6 +564,7 @@ export function InventoryPage() {
                   quantity: editingItem.quantity,
                   price: editingItem.price ?? 0,
                   unit: editingItem.unit ?? '',
+                  expiryDates: editingItem.expiryDates ?? [],
                 }
               : emptyItem
           }

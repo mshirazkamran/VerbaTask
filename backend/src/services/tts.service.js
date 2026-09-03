@@ -11,7 +11,7 @@
 
 import axios from 'axios';
 import dotenv from 'dotenv';
-import lamejs from '@breezystack/lamejs';
+import lamejs from '../../node_modules/@breezystack/lamejs/dist/lamejs.js';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import * as googleTTS from 'google-tts-api';
 
