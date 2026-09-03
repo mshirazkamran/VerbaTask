@@ -22,6 +22,8 @@
     "msedge-tts": "^2.0.7",
     "multer": "^2.3.0",
     "openai": "^7.8.0",
+    "pdfkit": "^0.20.2",
+    "pdfkit-table": "^0.2.11",
     "socket.io": "^4.8.3"
   }
 }

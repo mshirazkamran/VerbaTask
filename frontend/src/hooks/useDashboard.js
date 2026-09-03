@@ -31,3 +31,9 @@ export function useNotifyExpiries() {
     mutationFn: () => api.post('/api/dashboard/notify-expiries'),
   });
 }
+
+export function useGenerateReport() {
+  return useMutation({
+    mutationFn: (reportType) => api.post('/api/reports/whatsapp', { reportType }),
+  });
+}

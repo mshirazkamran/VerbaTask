@@ -47,6 +47,15 @@ export async function sendAudioMessage(to, mediaId) {
   });
 }
 
+/** Document message using an uploaded Meta media ID (e.g. PDF report). */
+export async function sendDocumentMessage(to, mediaId, filename, caption = '') {
+  return send({
+    to,
+    type: 'document',
+    document: { id: mediaId, filename, caption },
+  });
+}
+
 /**
  * Sends a spoken voice reply to the merchant using TTS, with an optional
  * companion text message. Gracefully falls back to plain text if TTS synthesis

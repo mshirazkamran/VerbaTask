@@ -12,10 +12,18 @@ import { findSimilarInventoryItems, cleanAndStandardizeItemName } from '../crm/i
 import { transcribeAndParse } from '../agent/transcribeAndParse.js';
 import { downloadMedia } from '../services/media.service.js';
 import {
+  generateInventoryReport,
+  generateLowStockReport,
+  generateExpiringReport,
+  generateSalesReport,
+  generateTopSellingReport
+} from '../services/report.service.js';
+import {
   sendTextMessage as sendTextMessageRaw,
   sendInteractiveButtons as sendInteractiveButtonsRaw,
   sendInteractiveList as sendInteractiveListRaw,
   sendVoiceReply as sendVoiceReplyRaw,
+  sendDocumentMessage as sendDocumentMessageRaw,
   paginateRows,
 } from '../services/whatsapp.service.js';
 import { spokenPhrases } from '../services/localization.service.js';
@@ -66,6 +74,14 @@ async function sendInteractiveList(to, body, buttonText, sections) {
     return await sendInteractiveListRaw(to, body, buttonText, sections);
   } catch (err) {
     console.error('sendInteractiveList failed:', err.message);
+  }
+}
+
+async function sendDocumentMessage(to, mediaId, filename, caption) {
+  try {
+    return await sendDocumentMessageRaw(to, mediaId, filename, caption);
+  } catch (err) {
+    console.error('sendDocumentMessage failed:', err.message);
   }
 }
 
@@ -380,6 +396,9 @@ async function handleOnboardedMerchant(merchant, message) {
       const idleMs = Date.now() - new Date(existingState.updatedAt).getTime();
       if (idleMs > 30 * 60 * 1000) {
         await ConversationState.deleteOne({ _id: existingState._id });
+      } else if (message.type === 'text' && message.text?.body?.toLowerCase().includes('report')) {
+        // Global override: If they explicitly ask for a report, abort the guided flow
+        await ConversationState.deleteOne({ _id: existingState._id });
       } else {
         return await continueGuidedOrder(merchant, message, existingState);
       }
@@ -517,6 +536,10 @@ async function routeParsedCommand(merchant, intent, source) {
     });
   }
 
+  if (intent.type === 'generate_report') {
+    return handleReportRequest(merchant, intent.reportType, source, effectiveLanguage);
+  }
+
   if (intent.type === 'greeting') {
     const greetingPhrases = effectiveLanguage === 'en'
       ? {
@@ -531,6 +554,49 @@ async function routeParsedCommand(merchant, intent, source) {
   }
 
   return replyToMerchant(merchant, spokenPhrases.unrecognizedIntent(effectiveLanguage), source, effectiveLanguage);
+}
+
+async function handleReportRequest(merchant, reportType, source, language) {
+  const waitMsg = language === 'en' ? 'Generating your PDF report, please wait...' : 'آپ کی رپورٹ تیار ہو رہی ہے، براہ کرم انتظار کریں...';
+  await sendTextMessage(merchant.whatsappNumber, waitMsg);
+
+  try {
+    let report;
+    switch (reportType) {
+      case 'low_stock':
+        report = await generateLowStockReport(merchant);
+        break;
+      case 'top_selling':
+        report = await generateTopSellingReport(merchant);
+        break;
+      case 'expiring':
+        report = await generateExpiringReport(merchant);
+        break;
+      case 'sales':
+        report = await generateSalesReport(merchant);
+        break;
+      case 'inventory':
+      default:
+        report = await generateInventoryReport(merchant);
+        break;
+    }
+
+    const { uploadMedia } = await import('../services/media.service.js');
+    const { id: mediaId } = await uploadMedia(report.buffer, 'application/pdf', report.filename);
+    
+    await sendDocumentMessage(
+      merchant.whatsappNumber,
+      mediaId,
+      report.filename,
+      language === 'en' ? 'Here is your requested report! 📄' : 'یہ رہی آپ کی رپورٹ! 📄'
+    );
+  } catch (err) {
+    console.error('Report generation failed:', err);
+    await sendTextMessage(
+      merchant.whatsappNumber,
+      language === 'en' ? 'Sorry, something went wrong while generating your report.' : 'معذرت، رپورٹ تیار کرنے میں کچھ مسئلہ پیش آیا۔'
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

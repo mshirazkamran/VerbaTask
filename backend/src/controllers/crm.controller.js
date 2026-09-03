@@ -1,6 +1,16 @@
 import InventoryItem from '../models/InventoryItem.js';
 import Order from '../models/Order.js';
 import { createOrder as processOrderCommand } from '../crm/order.service.js';
+import Merchant from '../models/Merchant.js';
+import { uploadMedia } from '../services/media.service.js';
+import { sendDocumentMessage } from '../services/whatsapp.service.js';
+import {
+  generateInventoryReport,
+  generateLowStockReport,
+  generateExpiringReport,
+  generateSalesReport,
+  generateTopSellingReport
+} from '../services/report.service.js';
 
 // Escape regex metacharacters in item names — same reason as order.service.js.
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -116,5 +126,50 @@ export const createOrder = async (req, res) => {
         // Distinguish between bad user input (400) and server errors (500)
         const status = error.message.includes('ITEM_NOT_FOUND') || error.message.includes('INSUFFICIENT_STOCK') ? 400 : 500;
         res.status(status).json({ success: false, error: { message: error.message } });
+    }
+};
+
+export const sendReportToWhatsapp = async (req, res) => {
+    try {
+        const merchant = await Merchant.findById(req.merchantId);
+        if (!merchant) {
+            return res.status(404).json({ success: false, error: { message: 'Merchant not found' } });
+        }
+
+        const { reportType } = req.body;
+        let report;
+
+        switch (reportType) {
+            case 'low_stock':
+                report = await generateLowStockReport(merchant);
+                break;
+            case 'top_selling':
+                report = await generateTopSellingReport(merchant);
+                break;
+            case 'expiring':
+                report = await generateExpiringReport(merchant);
+                break;
+            case 'sales':
+                report = await generateSalesReport(merchant);
+                break;
+            case 'inventory':
+            default:
+                report = await generateInventoryReport(merchant);
+                break;
+        }
+
+        const { id: mediaId } = await uploadMedia(report.buffer, 'application/pdf', report.filename);
+        
+        await sendDocumentMessage(
+            merchant.whatsappNumber,
+            mediaId,
+            report.filename,
+            merchant.language === 'en' ? 'Here is your requested report! 📄' : 'یہ رہی آپ کی رپورٹ! 📄'
+        );
+
+        res.status(200).json({ success: true, message: 'Report sent to WhatsApp' });
+    } catch (error) {
+        console.error('sendReportToWhatsapp failed:', error);
+        res.status(500).json({ success: false, error: { message: error.message } });
     }
 };

@@ -32,7 +32,11 @@ JSON only. Pick ONE of these shapes:
 3. Greetings or casual opening (e.g. "assalam o alaikum", "suno", "hello", "hi", "bhai"):
 {"type":"greeting","rawText":"<original text>"}
 
-4. Anything else where an item or action cannot be understood:
+4. Requesting a report (e.g. "send me sales report", "inventory list", "mujhe inventory ki report bhejo", "sales ki report", "short stock", "کونسا سامان کم ہے"):
+{"type":"generate_report","reportType":"inventory"|"sales"|"low_stock"|"top_selling"|"expiring"}
+- Match ANY request in English, Roman Urdu, or Urdu script that asks for a report, list, or summary. Examples: "inventory report", "mujhe inventory bhejo", "sales dikhao", "stock check karna hai".
+
+5. Anything else where an item or action cannot be understood:
 {"type":"unknown","rawText":"<original text>"}`;
 
 const BUSINESS_DETAILS_PROMPT = `You extract business details from a merchant's
@@ -127,7 +131,7 @@ export async function parseIntent(text) {
 
   try {
     const parsed = JSON.parse(raw);
-    if (!['log_sale', 'create_workflow', 'greeting', 'unknown'].includes(parsed.type)) {
+    if (!['log_sale', 'create_workflow', 'greeting', 'generate_report', 'unknown'].includes(parsed.type)) {
       return { type: 'unknown', rawText: text };
     }
     if (parsed.type === 'log_sale' && parsed.paymentMethod) {
