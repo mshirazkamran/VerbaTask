@@ -11,6 +11,7 @@
 
 import axios from 'axios';
 import dotenv from 'dotenv';
+import lamejs from '@breezystack/lamejs';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import * as googleTTS from 'google-tts-api';
 
@@ -55,13 +56,38 @@ export function getDefaultVoice(language = 'ur') {
  */
 export function getActiveProvider(override = null) {
   if (override) return override;
-  if (!process.env.ELEVENLABS_API_KEY && !process.env.GEMINI_API_KEY) {
+  if (!process.env.GEMINI_API_KEY && !process.env.ELEVENLABS_API_KEY) {
     dotenv.config();
   }
   if (process.env.TTS_PROVIDER) return process.env.TTS_PROVIDER.toLowerCase();
-  if (process.env.ELEVENLABS_API_KEY) return 'elevenlabs';
   if (process.env.GEMINI_API_KEY) return 'gemini';
+  if (process.env.ELEVENLABS_API_KEY) return 'elevenlabs';
   return 'edge';
+}
+
+/**
+ * Converts 16-bit PCM buffer into standard MP3 buffer accepted by WhatsApp Cloud API.
+ */
+export function pcmToMp3(pcmBuffer, sampleRate = 24000, channels = 1) {
+  const samples = new Int16Array(pcmBuffer.buffer, pcmBuffer.byteOffset, pcmBuffer.length / 2);
+  const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, 128);
+  const mp3Data = [];
+
+  const sampleBlockSize = 1152;
+  for (let i = 0; i < samples.length; i += sampleBlockSize) {
+    const sampleChunk = samples.subarray(i, i + sampleBlockSize);
+    const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
+    if (mp3buf.length > 0) {
+      mp3Data.push(Buffer.from(mp3buf));
+    }
+  }
+
+  const mp3buf = mp3encoder.flush();
+  if (mp3buf.length > 0) {
+    mp3Data.push(Buffer.from(mp3buf));
+  }
+
+  return Buffer.concat(mp3Data);
 }
 
 /**
@@ -182,12 +208,14 @@ export async function synthesizeWithGemini(text, language = 'ur', voice = null) 
       }
 
       const rawBuffer = Buffer.from(inlineData.data, 'base64');
-      const wavBuffer = inlineData.mimeType?.includes('wav') ? rawBuffer : pcmToWav(rawBuffer);
+      // If the data is WAV, strip the 44-byte header before MP3 encoding; if raw PCM, encode directly
+      const pcmData = inlineData.mimeType?.includes('wav') ? rawBuffer.slice(44) : rawBuffer;
+      const mp3Buffer = pcmToMp3(pcmData, 24000, 1);
 
       return {
-        buffer: wavBuffer,
-        mimeType: 'audio/wav',
-        format: 'wav',
+        buffer: mp3Buffer,
+        mimeType: 'audio/mpeg',
+        format: 'mp3',
         voice: selectedVoice,
         provider: 'gemini',
       };
@@ -299,27 +327,30 @@ export async function synthesizeSpeech(rawText, options = {}) {
   }
 
   const language = options.language === 'en' ? 'en' : 'ur';
-  const provider = getActiveProvider(options.provider);
+  const explicitProvider = options.provider?.toLowerCase();
+  if (explicitProvider === 'google') return synthesizeWithGoogle(text, language);
+  if (explicitProvider === 'edge') return synthesizeWithEdge(text, language, voice);
+  if (explicitProvider === 'gemini') return synthesizeWithGemini(text, language, voice);
+  if (explicitProvider === 'elevenlabs') return synthesizeWithElevenLabs(text, language, voice);
+
+  const provider = getActiveProvider();
   const voice = options.voice || null;
 
-  // 1. ElevenLabs if selected or key is configured
-  if (provider === 'elevenlabs' || process.env.ELEVENLABS_API_KEY) {
-    try {
-      return await synthesizeWithElevenLabs(text, language, voice);
-    } catch (err) {
-      console.warn(`[tts] ElevenLabs failed (${err.message}), trying next provider...`);
-      if (provider === 'elevenlabs' && !process.env.GEMINI_API_KEY) {
-        // If explicitly chosen and no Gemini, continue down chain
-      }
-    }
-  }
-
-  // 2. Gemini if selected or key is configured
+  // 1. Gemini if selected or key is configured
   if (provider === 'gemini' || process.env.GEMINI_API_KEY) {
     try {
       return await synthesizeWithGemini(text, language, voice);
     } catch (err) {
       console.warn(`[tts] Gemini TTS failed (${err.message}), trying next provider...`);
+    }
+  }
+
+  // 2. ElevenLabs if selected or key is configured
+  if (provider === 'elevenlabs' || process.env.ELEVENLABS_API_KEY) {
+    try {
+      return await synthesizeWithElevenLabs(text, language, voice);
+    } catch (err) {
+      console.warn(`[tts] ElevenLabs failed (${err.message}), trying next provider...`);
     }
   }
 

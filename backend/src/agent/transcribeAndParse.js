@@ -71,15 +71,23 @@ export async function transcribe(buffer, mimeType, language) {
 
   const form = new FormData();
   form.append('file', buffer, { filename: filenameFor(mimeType), contentType: mimeType });
-  form.append('model', 'whisper-large-v3-turbo'); // fast + free-tier; swap to whisper-large-v3 if accuracy matters more than speed
-  form.append('language', language === 'en' ? 'en' : 'ur'); // hint improves accuracy; Groq still auto-detects reasonably if wrong
+  form.append('model', 'whisper-large-v3'); // high-accuracy Whisper model
+  if (language === 'en') {
+    form.append('language', 'en');
+  } else if (language === 'ur') {
+    form.append('language', 'ur');
+  }
+  form.append(
+    'prompt',
+    'Pakistani retail store kiryana: chawal, aata, daal, chini, ghee, oil, cash, easypaisa, jazzcash, sadapay, nayapay, raast, meezan, hbl, ubl, alfalah, 1, 2, 3, 5, 10, 20, 50, 100, 500, 1000, sale, order, do, teen, char, paanch, bori, kilo, packet'
+  );
 
   const { data } = await axios.post(GROQ_TRANSCRIPTION_URL, form, {
     headers: {
       ...form.getHeaders(),
       Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
     },
-    timeout: 20_000,
+    timeout: 25_000,
     maxBodyLength: Infinity,
   });
 

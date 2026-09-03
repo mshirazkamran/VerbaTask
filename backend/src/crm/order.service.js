@@ -3,6 +3,8 @@ import Order from '../models/Order.js';
 import { evaluateThresholdWorkflows } from '../workflows/workflow.service.js';
 import { createApproval, HIGH_VALUE_THRESHOLD } from '../approvals/approval.service.js';
 import { findSimilarInventoryItems } from './item-matching.js';
+import { resolveItemName } from '../services/qwen.service.js';
+import { normalizePaymentMethod } from '../constants/paymentMethods.js';
 import { emitDashboardUpdate } from '../socket.js';
 
 // Item names arrive from free-form WhatsApp text (Qwen NLP) — escape regex
@@ -11,25 +13,45 @@ const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * Resolve a single order line item to an inventory document.
- * Supports lookup by inventoryItemId (dashboard) or by name (WhatsApp NLP).
+ * Supports lookup by inventoryItemId (dashboard) or by name (WhatsApp NLP),
+ * with fuzzy, cross-lingual (Urdu/English), and semantic LLM resolution.
  */
 const resolveInventoryItem = async (merchantId, lineItem) => {
   if (lineItem.inventoryItemId) {
     return InventoryItem.findOne({ _id: lineItem.inventoryItemId, merchantId });
   }
+
+  // 1. Exact match (case-insensitive)
   const exact = await InventoryItem.findOne({
     merchantId,
     name: new RegExp(`^${escapeRegex(lineItem.name)}$`, 'i'),
   });
   if (exact) return exact;
 
-  // "dal mash" -> "Daal Maash": a clear near-miss spelling auto-corrects to
-  // the single closest stock item. Genuinely ambiguous names ("daal" — maash
-  // or channa?) fall through to ITEM_NOT_FOUND so the controller can ask
-  // "did you mean?" instead of guessing.
-  const ranked = await findSimilarInventoryItems(merchantId, lineItem.name, { limit: 2, minScore: 0.75 });
-  if (ranked.length === 1) return ranked[0].item;
-  if (ranked.length === 2 && ranked[0].score - ranked[1].score >= 0.15) return ranked[0].item;
+  // 2. High-confidence fuzzy & bilingual dictionary match (handles "rice" <-> "چاول", "riece" -> "Rice")
+  const ranked = await findSimilarInventoryItems(merchantId, lineItem.name, { limit: 2, minScore: 0.65 });
+  if (ranked.length === 1 && ranked[0].score >= 0.7) return ranked[0].item;
+  if (ranked.length >= 2 && ranked[0].score >= 0.75 && ranked[0].score - ranked[1].score >= 0.15) {
+    return ranked[0].item;
+  }
+
+  // 3. Fallback to LLM semantic matching (handles unique brand variants and complex Urdu/English phrasing)
+  try {
+    const allItems = await InventoryItem.find({ merchantId }).limit(100);
+    if (allItems.length > 0) {
+      const resolvedName = await resolveItemName(lineItem.name, allItems.map((i) => i.name));
+      if (resolvedName) {
+        const matched = allItems.find((i) => i.name.toLowerCase() === resolvedName.toLowerCase());
+        if (matched) return matched;
+      }
+    }
+  } catch (err) {
+    console.warn('resolveInventoryItem LLM fallback error:', err.message);
+  }
+
+  // 4. Accept single close candidate if score >= 0.55
+  if (ranked.length === 1 && ranked[0].score >= 0.55) return ranked[0].item;
+
   return null;
 };
 
@@ -111,12 +133,14 @@ export const createOrder = async (command) => {
   // 4. Determine order status — high-value orders require approval before completion
   const status = total >= HIGH_VALUE_THRESHOLD ? 'pending_approval' : 'completed';
 
+  const effectivePaymentMethod = normalizePaymentMethod(paymentMethod) || (paymentMethod ? String(paymentMethod).toLowerCase().trim() : 'cash');
+
   // 5. Construct and save the order
   const order = await Order.create({
     merchantId,
     items: orderItems,
     total,
-    paymentMethod,
+    paymentMethod: effectivePaymentMethod,
     source,
     status,
   });

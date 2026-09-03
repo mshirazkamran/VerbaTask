@@ -7,7 +7,7 @@ import { evaluateMessageWorkflows, createWorkflow } from '../workflows/workflow.
 import { respond as respondToApproval, findPendingByOrderId } from '../approvals/approval.service.js';
 import { generateLinkCode } from './auth.controller.js';
 import { parseIntent, extractBusinessDetails, extractInventoryItems, resolveItemName } from '../services/qwen.service.js';
-import { findSimilarInventoryItems } from '../crm/item-matching.js';
+import { findSimilarInventoryItems, cleanAndStandardizeItemName } from '../crm/item-matching.js';
 import { transcribeAndParse } from '../agent/transcribeAndParse.js';
 import { downloadMedia } from '../services/media.service.js';
 import {
@@ -18,6 +18,11 @@ import {
   paginateRows,
 } from '../services/whatsapp.service.js';
 import { spokenPhrases } from '../services/localization.service.js';
+import {
+  getPaymentMethodDetails,
+  normalizePaymentMethod,
+  DEFAULT_ACCEPTED_PAYMENT_METHODS,
+} from '../constants/paymentMethods.js';
 
 /**
  * WhatsApp webhook controller — routes every inbound message to the right
@@ -85,10 +90,12 @@ async function replyToMerchant(merchant, phrases, source = 'text', languageOverr
   const textReceipt = typeof phrases === 'string' ? phrases : phrases?.text;
 
   if (shouldReplyWithVoice(merchant, source)) {
+    const isReceipt = !!(textReceipt && (textReceipt.includes('✅') || textReceipt.includes('آرڈر #')));
     return sendVoiceReply(merchant.whatsappNumber, {
       spokenText,
-      textReceipt,
+      textReceipt: isReceipt ? textReceipt : null,
       language,
+      alsoSendText: isReceipt,
     });
   }
 
@@ -285,7 +292,7 @@ async function handleOnboarding(merchant, message) {
           await InventoryItem.insertMany(
             items.map((i) => ({
               merchantId: merchant._id,
-              name: i.name,
+              name: cleanAndStandardizeItemName(i.name),
               quantity: i.quantity,
               ...(i.price != null && { price: i.price }),
               ...(i.unit && { unit: i.unit }),
@@ -293,7 +300,11 @@ async function handleOnboarding(merchant, message) {
           );
           addedCount = items.length;
         } else {
-          await InventoryItem.create({ merchantId: merchant._id, name: text, quantity: 0 });
+          await InventoryItem.create({
+            merchantId: merchant._id,
+            name: cleanAndStandardizeItemName(text),
+            quantity: 0,
+          });
         }
       }
       merchant.onboardingComplete = true;
@@ -500,6 +511,19 @@ async function routeParsedCommand(merchant, intent, source) {
     });
   }
 
+  if (intent.type === 'greeting') {
+    const greetingPhrases = effectiveLanguage === 'en'
+      ? {
+          spoken: 'Hello! How can I help you today? What sale would you like to record?',
+          text: 'Hello! How can I help? You can speak or type your sale, for example "2 rice cash".',
+        }
+      : {
+          spoken: 'وعلیکم السلام! فرمائیے، کیا سیل درج کرنی ہے؟',
+          text: 'وعلیکم السلام! فرمائیے، کیا سیل درج کرنی ہے؟ آپ بول کر بھی سیل درج کروا سکتے ہیں، جیسے "دو چاول کیش"۔',
+        };
+    return replyToMerchant(merchant, greetingPhrases, source, effectiveLanguage);
+  }
+
   return replyToMerchant(merchant, spokenPhrases.unrecognizedIntent(effectiveLanguage), source, effectiveLanguage);
 }
 
@@ -645,28 +669,40 @@ async function continueGuidedOrder(merchant, message, state) {
       }
       state.data = { ...state.data, quantity };
       state.step = 'awaiting_payment_method';
-      await state.save();
-      return sendInteractiveButtons(merchant.whatsappNumber, 'How was it paid?', [
-        { id: 'pay_cash', title: 'Cash' },
-        { id: 'pay_easypaisa', title: 'EasyPaisa' },
-        { id: 'pay_jazzcash', title: 'JazzCash' },
-      ]);
-      // Note: WhatsApp caps reply buttons at 3 — "bank" is offered as a
-      // follow-up text option below rather than a 4th button.
+      return sendPaymentMethodPicker(merchant);
     }
 
     case 'awaiting_payment_method': {
-      const map = { pay_cash: 'cash', pay_easypaisa: 'easypaisa', pay_jazzcash: 'jazzcash' };
-      // "bank" can't be a 4th reply button (WhatsApp caps at 3), so the prompt
-      // offers it as typed text instead — honour that here.
-      const typed = message.text?.body?.trim().toLowerCase();
-      const paymentMethod = map[buttonId] || (typed === 'bank' ? 'bank' : null);
+      const allowedMethods = merchant.acceptedPaymentMethods?.length
+        ? merchant.acceptedPaymentMethods
+        : DEFAULT_ACCEPTED_PAYMENT_METHODS;
+
+      let paymentMethod = null;
+      if (buttonId && buttonId.startsWith('pay_')) {
+        const candidate = buttonId.replace('pay_', '');
+        if (allowedMethods.includes(candidate)) {
+          paymentMethod = candidate;
+        }
+      }
+
       if (!paymentMethod) {
+        const typed = message.text?.body?.trim();
+        const candidate = normalizePaymentMethod(typed);
+        if (candidate && allowedMethods.includes(candidate)) {
+          paymentMethod = candidate;
+        }
+      }
+
+      if (!paymentMethod) {
+        const optionsList = allowedMethods
+          .map((m) => getPaymentMethodDetails(m)?.name || m)
+          .join(', ');
         return sendTextMessage(
           merchant.whatsappNumber,
-          'Tap one of the buttons, or type "bank" if it was a bank transfer.'
+          `Please choose an accepted payment method: ${optionsList}`
         );
       }
+
       state.data = { ...state.data, paymentMethod };
       await state.save();
       return finalizeGuidedOrder(merchant, state);
@@ -677,6 +713,37 @@ async function continueGuidedOrder(merchant, message, state) {
       return sendTextMessage(merchant.whatsappNumber, 'Something went wrong — let\'s start over. Type "order" to try again.');
     }
   }
+/** Sends interactive buttons or options for merchant's accepted payment methods. */
+async function sendPaymentMethodPicker(merchant) {
+  const allowed = merchant.acceptedPaymentMethods?.length
+    ? merchant.acceptedPaymentMethods
+    : DEFAULT_ACCEPTED_PAYMENT_METHODS;
+
+  const buttons = allowed.slice(0, 3).map((id) => {
+    const details = getPaymentMethodDetails(id);
+    const title = (merchant.language === 'ur' ? details?.nameUrdu : details?.name) || id;
+    return {
+      id: `pay_${id}`,
+      title: title.slice(0, 20),
+    };
+  });
+
+  if (allowed.length <= 3) {
+    const prompt = merchant.language === 'ur' ? 'ادائیگی کس طریقے سے ہوئی؟' : 'How was it paid?';
+    return sendInteractiveButtons(merchant.whatsappNumber, prompt, buttons);
+  }
+
+  // More than 3: send top 3 as quick buttons, and note other accepted methods in prompt text
+  const otherNames = allowed.slice(3).map((id) => {
+    const details = getPaymentMethodDetails(id);
+    return (merchant.language === 'ur' ? details?.nameUrdu : details?.name) || id;
+  });
+
+  const prompt = merchant.language === 'ur'
+    ? `ادائیگی کا طریقہ منتخب کریں (یا لکھیں: ${otherNames.join('، ')})`
+    : `How was it paid? (Or type: ${otherNames.join(', ')})`;
+
+  return sendInteractiveButtons(merchant.whatsappNumber, prompt, buttons);
 }
 
 /** Logs the completed guided order via crm/ and clears the flow state. */
