@@ -10,6 +10,7 @@ export function useDashboard() {
   useEffect(() => {
     const handleUpdate = () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory() });
     };
 
     socket.on('dashboard_update', handleUpdate);
