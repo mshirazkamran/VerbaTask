@@ -12,6 +12,7 @@ import {
   IconLayoutSidebarLeftExpand,
   IconLogout,
   IconBuildingStore,
+  IconSettings,
 } from '@tabler/icons-react';
 
 
@@ -51,6 +52,13 @@ const NAV_ITEMS = [
     icon: IconClipboardCheck,
     activeClass: 'bg-amber-50/90 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-medium border-l-2 border-amber-600 dark:border-amber-400',
     iconActive: 'text-amber-600 dark:text-amber-400',
+  },
+  {
+    to: '/dashboard/settings',
+    label: 'Store Settings',
+    icon: IconSettings,
+    activeClass: 'bg-purple-50/90 dark:bg-purple-950/40 text-purple-900 dark:text-purple-200 font-medium border-l-2 border-purple-600 dark:border-purple-400',
+    iconActive: 'text-purple-600 dark:text-purple-400',
   },
 ];
 
@@ -121,7 +129,12 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
       <div className="p-2 border-t border-hairline space-y-1">
         {/* Merchant Info */}
         {(!sidebarCollapsed || mobileOpen) ? (
-          <div className="px-3 py-2 flex items-center gap-2.5 rounded-md bg-canvas-soft/80 border border-hairline">
+          <NavLink
+            to="/dashboard/settings"
+            onClick={onMobileClose}
+            className="px-3 py-2 flex items-center gap-2.5 rounded-md bg-canvas-soft/80 border border-hairline hover:border-primary/40 hover:bg-canvas-soft transition-colors cursor-pointer"
+            title="Open Store Settings"
+          >
             <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 text-xs font-medium">
               <IconBuildingStore className="w-4 h-4" />
             </div>
@@ -133,16 +146,17 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
                 <p className="text-[10px] text-ink-mute truncate">{merchantEmail}</p>
               )}
             </div>
-          </div>
+          </NavLink>
         ) : (
-          <div
-            className="w-full flex justify-center py-2 text-ink-secondary"
+          <NavLink
+            to="/dashboard/settings"
+            className="w-full flex justify-center py-2 text-ink-secondary hover:text-primary transition-colors cursor-pointer"
             title={businessName}
           >
             <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-medium">
               <IconBuildingStore className="w-4 h-4" />
             </div>
-          </div>
+          </NavLink>
         )}
 
         {/* Sidebar Collapse Toggle (Desktop only) */}
