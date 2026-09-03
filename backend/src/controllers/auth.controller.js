@@ -179,6 +179,37 @@ export const getMe = async (req, res) => {
     }
 };
 
+// PATCH /api/auth/me
+export const updateMe = async (req, res) => {
+    try {
+        const allowedUpdates = ['language', 'voiceReplies', 'replyPreference', 'businessName', 'location', 'sells'];
+        const updates = {};
+        for (const key of allowedUpdates) {
+            if (req.body[key] !== undefined) {
+                updates[key] = req.body[key];
+            }
+        }
+
+        const merchant = await Merchant.findByIdAndUpdate(
+            req.merchantId,
+            { $set: updates },
+            { new: true, runValidators: true }
+        ).select('-passwordHash');
+
+        if (!merchant) {
+            return res.status(404).json({ success: false, error: { message: "Merchant not found" } });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: merchant
+        });
+    } catch (error) {
+        console.error("UpdateMe error:", error);
+        return res.status(500).json({ success: false, error: { message: "Server error updating profile" } });
+    }
+};
+
 // INTERNAL FUNCTION: Not an Express route. Called in-process by the WhatsApp
 // module (per the design guide) whenever a number needs a dashboard linking
 // code. Reuses an unexpired, unused code if one exists rather than issuing

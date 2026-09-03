@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { signup, login, confirmLinkCode, getMe } from '../controllers/auth.controller.js';
+import { signup, login, confirmLinkCode, getMe, updateMe } from '../controllers/auth.controller.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 const router = Router();
@@ -9,7 +9,8 @@ router.post('/signup', signup);
 router.post('/login', login);
 router.post('/link-code/confirm', confirmLinkCode);
 
-// Protected route
+// Protected routes
 router.get('/me', requireAuth, getMe);
+router.patch('/me', requireAuth, updateMe);
 
 export default router;

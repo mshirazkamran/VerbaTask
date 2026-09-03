@@ -37,9 +37,10 @@ export async function transcribeAndParse(buffer, mimeType, language = 'ur') {
     return { type: 'unknown', rawText: '' };
   }
 
-  console.log(`[voice] transcript (${language}): ${transcript}`);
+  const detectedLanguage = /[\u0600-\u06FF]/.test(transcript) ? 'ur' : (language || 'ur');
+  console.log(`[voice] transcript (${detectedLanguage}): ${transcript}`);
   const intent = await parseIntent(transcript);
-  return { ...intent, transcript };
+  return { ...intent, transcript, detectedLanguage };
 }
 
 async function transcribeWithRetry(buffer, mimeType, language, attempt = 1) {

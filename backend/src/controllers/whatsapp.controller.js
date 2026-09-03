@@ -14,8 +14,10 @@ import {
   sendTextMessage as sendTextMessageRaw,
   sendInteractiveButtons as sendInteractiveButtonsRaw,
   sendInteractiveList as sendInteractiveListRaw,
+  sendVoiceReply as sendVoiceReplyRaw,
   paginateRows,
 } from '../services/whatsapp.service.js';
+import { spokenPhrases } from '../services/localization.service.js';
 
 /**
  * WhatsApp webhook controller — routes every inbound message to the right
@@ -37,6 +39,14 @@ async function sendTextMessage(to, text) {
   }
 }
 
+async function sendVoiceReply(to, options) {
+  try {
+    return await sendVoiceReplyRaw(to, options);
+  } catch (err) {
+    console.error('sendVoiceReply failed:', err.message);
+  }
+}
+
 async function sendInteractiveButtons(to, body, buttons) {
   try {
     return await sendInteractiveButtonsRaw(to, body, buttons);
@@ -53,8 +63,40 @@ async function sendInteractiveList(to, body, buttonText, sections) {
   }
 }
 
-function friendlyFallback() {
-  return "Sorry, something went wrong on my end. Please try again in a moment, or use the dashboard.";
+/**
+ * Determines whether the bot should reply with a spoken voice note.
+ * Respects merchant preferences (replyPreference) and environment configuration.
+ */
+function shouldReplyWithVoice(merchant, source) {
+  if (process.env.VOICE_REPLY_MODE === 'text_only') return false;
+  if (merchant?.replyPreference === 'text_only') return false;
+  if (merchant?.replyPreference === 'always_voice' || process.env.VOICE_REPLY_MODE === 'always_voice') return true;
+  // Default: voice_on_voice — voice reply when merchant sent voice
+  return source === 'voice';
+}
+
+/**
+ * Smart bilingual reply helper — sends a spoken voice note if voice was used,
+ * or text message if text was used.
+ */
+async function replyToMerchant(merchant, phrases, source = 'text', languageOverride = null) {
+  const language = languageOverride || merchant?.language || 'ur';
+  const spokenText = typeof phrases === 'string' ? phrases : phrases?.spoken || phrases?.text;
+  const textReceipt = typeof phrases === 'string' ? phrases : phrases?.text;
+
+  if (shouldReplyWithVoice(merchant, source)) {
+    return sendVoiceReply(merchant.whatsappNumber, {
+      spokenText,
+      textReceipt,
+      language,
+    });
+  }
+
+  return sendTextMessage(merchant.whatsappNumber, textReceipt);
+}
+
+function friendlyFallback(err, language = 'ur') {
+  return spokenPhrases.genericError(language).text;
 }
 
 /** Meta's one-time webhook verification handshake (GET /webhook/whatsapp). */
@@ -163,7 +205,19 @@ async function handleOnboarding(merchant, message) {
   }
 
   const replyId = message.interactive?.button_reply?.id;
-  const text = message.text?.body?.trim();
+  let text = message.text?.body?.trim();
+  const isVoice = message.type === 'audio';
+
+  // Support voice notes in onboarding: transcribe audio via Whisper
+  if (isVoice && message.audio?.id) {
+    try {
+      const { buffer, mimeType } = await downloadMedia(message.audio.id);
+      const res = await transcribeAndParse(buffer, mimeType, merchant.language);
+      text = res?.transcript?.trim() || '';
+    } catch (err) {
+      console.error('Onboarding voice note transcription failed:', err.message);
+    }
+  }
 
   // Allow users to request a dashboard link code at any point during onboarding.
   if (text && (text.toLowerCase() === 'link' || text.toLowerCase() === 'code')) {
@@ -177,16 +231,19 @@ async function handleOnboarding(merchant, message) {
       await merchant.save();
       state.step = 'awaiting_business_details';
       await state.save();
-      return sendTextMessage(
-        merchant.whatsappNumber,
-        language === 'ur'
-          ? 'Business ka naam, location, aur aap kya bechte hain, ek message mein bata dein.'
-          : 'Tell me your business name, location, and what you sell — all in one message is fine.'
-      );
+      return replyToMerchant(merchant, spokenPhrases.onboardingAskDetails(language), 'text');
     }
 
     case 'awaiting_business_details': {
-      if (!text) return sendTextMessage(merchant.whatsappNumber, 'Please send this as text.');
+      if (!text) {
+        return replyToMerchant(
+          merchant,
+          isVoice
+            ? spokenPhrases.voiceProcessingError(merchant.language)
+            : 'Please send this as text or a voice note.',
+          isVoice ? 'voice' : 'text'
+        );
+      }
       // Qwen extracts name/location/sells; if it can't (no key, timeout,
       // garbage JSON) keep the raw text on businessName so onboarding never
       // blocks on a flaky NLP call.
@@ -198,14 +255,26 @@ async function handleOnboarding(merchant, message) {
       await merchant.save();
       state.step = 'awaiting_inventory';
       await state.save();
-      return sendTextMessage(
-        merchant.whatsappNumber,
-        `Got it — ${merchant.businessName}${details?.businessType ? ` (${details.businessType})` : ''}. Now list your starting stock (item, quantity, price) — or reply "skip" to add it later from the dashboard.`
+      return replyToMerchant(
+        merchant,
+        {
+          spoken: `${merchant.businessName}. ${spokenPhrases.onboardingAskInventory(merchant.language).spoken}`,
+          text: `Got it — ${merchant.businessName}${details?.businessType ? ` (${details.businessType})` : ''}. ${spokenPhrases.onboardingAskInventory(merchant.language).text}`,
+        },
+        isVoice ? 'voice' : 'text'
       );
     }
 
     case 'awaiting_inventory': {
-      if (!text) return sendTextMessage(merchant.whatsappNumber, 'Please send your stock list as text.');
+      if (!text) {
+        return replyToMerchant(
+          merchant,
+          isVoice
+            ? spokenPhrases.voiceProcessingError(merchant.language)
+            : 'Please send your stock list as text or a voice note.',
+          isVoice ? 'voice' : 'text'
+        );
+      }
       let addedCount = 0;
       if (text.toLowerCase() !== 'skip') {
         // Qwen parses the free-form list into real line items; when it can't,
@@ -230,11 +299,10 @@ async function handleOnboarding(merchant, message) {
       merchant.onboardingComplete = true;
       await merchant.save();
       await ConversationState.deleteOne({ _id: state._id });
-      return sendTextMessage(
-        merchant.whatsappNumber,
-        addedCount > 0
-          ? `You're all set! I added ${addedCount} item${addedCount === 1 ? '' : 's'} to your stock. Message me anytime to log a sale or create an automation.`
-          : "You're all set! Message me anytime to log a sale or create an automation."
+      return replyToMerchant(
+        merchant,
+        spokenPhrases.onboardingComplete(merchant.language, addedCount),
+        isVoice ? 'voice' : 'text'
       );
     }
 
@@ -263,6 +331,24 @@ async function handleOnboardedMerchant(merchant, message) {
       // mid-flow guided order doesn't swallow the tap.
       if (buttonId?.startsWith('pick_')) {
         return await handleDisambiguationReply(merchant, buttonId);
+      }
+
+      // Language selection buttons
+      if (buttonId === 'set_lang_ur') {
+        merchant.language = 'ur';
+        await merchant.save();
+        return replyToMerchant(merchant, {
+          spoken: 'آپ کی زبان کامیابی سے اردو میں تبدیل کر دی گئی ہے۔ اب آپ کے تمام جوابات اردو میں دیے جائیں گے۔',
+          text: '✅ زبان تبدیل کر دی گئی ہے: اردو۔ اب تمام جوابات اردو میں ملیں گے۔'
+        }, 'voice', 'ur');
+      }
+      if (buttonId === 'set_lang_en') {
+        merchant.language = 'en';
+        await merchant.save();
+        return replyToMerchant(merchant, {
+          spoken: 'Language has been switched to English successfully. All responses will now be in English.',
+          text: '✅ Language changed to English. All replies will now be in English.'
+        }, 'voice', 'en');
       }
     }
 
@@ -318,6 +404,32 @@ async function handleTextMessage(merchant, text) {
   if (/^(order|sale|log)$/i.test(normalized)) return startGuidedOrder(merchant);
   if (normalized === 'link' || normalized === 'code') return sendLinkCodeToMerchant(merchant);
 
+  // Language switching commands
+  if (/^(urdu|اردو)$/i.test(normalized)) {
+    merchant.language = 'ur';
+    await merchant.save();
+    return replyToMerchant(merchant, {
+      spoken: 'آپ کی زبان کامیابی سے اردو میں تبدیل کر دی گئی ہے۔ اب آپ کے تمام جوابات اردو میں دیے جائیں گے۔',
+      text: '✅ زبان تبدیل کر دی گئی ہے: اردو۔ اب تمام جوابات اردو میں ملیں گے۔'
+    }, 'text', 'ur');
+  }
+
+  if (/^english$/i.test(normalized)) {
+    merchant.language = 'en';
+    await merchant.save();
+    return replyToMerchant(merchant, {
+      spoken: 'Language has been switched to English successfully. All responses will now be in English.',
+      text: '✅ Language changed to English. All replies will now be in English.'
+    }, 'text', 'en');
+  }
+
+  if (/^(language|زبان)$/i.test(normalized)) {
+    return sendInteractiveButtons(merchant.whatsappNumber, 'Please choose your language / اپنی زبان منتخب کریں:', [
+      { id: 'set_lang_ur', title: 'اردو' },
+      { id: 'set_lang_en', title: 'English' },
+    ]);
+  }
+
   // Check stored message workflows first — if any fire, skip NLP entirely
   try {
     const triggered = await evaluateMessageWorkflows(merchant._id, text);
@@ -328,7 +440,8 @@ async function handleTextMessage(merchant, text) {
 
   try {
     const intent = await parseIntent(text);
-    return await routeParsedCommand(merchant, intent, 'voice' /* typed text uses the same NLP path */);
+    const detectedLanguage = /[\u0600-\u06FF]/.test(text) ? 'ur' : (merchant.language || 'ur');
+    return await routeParsedCommand(merchant, { ...intent, language: detectedLanguage }, 'text');
   } catch (err) {
     console.error('parseIntent failed:', err.message);
     return sendTextMessage(
@@ -343,14 +456,15 @@ async function handleVoiceNote(merchant, mediaId) {
   try {
     const { buffer, mimeType } = await downloadMedia(mediaId);
     const intent = await transcribeAndParse(buffer, mimeType, merchant.language);
-    return routeParsedCommand(merchant, intent, 'voice');
+    const effectiveLanguage = intent.detectedLanguage || merchant.language || 'ur';
+    return routeParsedCommand(merchant, { ...intent, language: effectiveLanguage }, 'voice');
   } catch (err) {
     const status = err.response?.status;
     const body = err.response?.data ? JSON.stringify(err.response.data) : '';
     console.error(
       `voice note handling failed for ${merchant.whatsappNumber}: ${err.message}${status ? ` (status ${status})` : ''}${body ? ` ${body}` : ''}`
     );
-    return sendTextMessage(merchant.whatsappNumber, "Couldn't process that voice note — try typing it instead.");
+    return replyToMerchant(merchant, spokenPhrases.voiceProcessingError(merchant.language), 'voice');
   }
 }
 
@@ -360,6 +474,8 @@ async function handleVoiceNote(merchant, mediaId) {
  * handling never knows which path produced it (per the architecture guide).
  */
 async function routeParsedCommand(merchant, intent, source) {
+  const effectiveLanguage = intent.language || merchant.language || 'ur';
+
   if (intent.type === 'log_sale') {
     return createOrderViaCrm(merchant, {
       type: 'log_sale',
@@ -368,6 +484,7 @@ async function routeParsedCommand(merchant, intent, source) {
       paymentMethod: intent.paymentMethod,
       amount: intent.amount,
       source,
+      language: effectiveLanguage,
     });
   }
 
@@ -379,13 +496,11 @@ async function routeParsedCommand(merchant, intent, source) {
       action: intent.action,
       rawInstruction: intent.rawInstruction,
       source,
+      language: effectiveLanguage,
     });
   }
 
-  return sendTextMessage(
-    merchant.whatsappNumber,
-    "I didn't quite catch that — try 'order' to log a sale, or describe an automation you'd like."
-  );
+  return replyToMerchant(merchant, spokenPhrases.unrecognizedIntent(effectiveLanguage), source, effectiveLanguage);
 }
 
 // ---------------------------------------------------------------------------
@@ -593,13 +708,19 @@ async function finalizeGuidedOrder(merchant, state) {
  * unexpected gets a generic apology.
  */
 async function createOrderViaCrm(merchant, command) {
+  const source = command.source || 'text';
+  const language = command.language || merchant.language || 'ur';
+
   try {
     const order = await createOrder(command);
     const orderNo = order?._id ? order._id.toString().slice(-6) : '';
-    return sendTextMessage(
-      merchant.whatsappNumber,
-      `✅ Logged: ${command.item.quantity} x ${command.item.name} (${command.paymentMethod})${orderNo ? ` — Order #${orderNo}` : ''}.`
-    );
+    const phrases = spokenPhrases.orderLogged(language, {
+      quantity: command.item.quantity,
+      itemName: command.item.name,
+      paymentMethod: command.paymentMethod,
+      orderNo,
+    });
+    return replyToMerchant(merchant, phrases, source);
   } catch (err) {
     const message = err?.message ?? '';
 
@@ -609,17 +730,13 @@ async function createOrderViaCrm(merchant, command) {
 
     if (message.startsWith('INSUFFICIENT_STOCK:')) {
       const detail = message.slice('INSUFFICIENT_STOCK:'.length).trim();
-      return sendTextMessage(
-        merchant.whatsappNumber,
-        `Not enough stock for that sale${detail ? ` — ${detail}` : ''}.`
-      );
+      const phrases = spokenPhrases.insufficientStock(language, { detail, itemName: command.item?.name });
+      return replyToMerchant(merchant, phrases, source);
     }
 
     console.error('createOrder failed:', message);
-    return sendTextMessage(
-      merchant.whatsappNumber,
-      "Sorry — I couldn't log that sale. Please try again in a moment."
-    );
+    const phrases = spokenPhrases.genericError(language);
+    return replyToMerchant(merchant, phrases, source);
   }
 }
 
@@ -631,6 +748,8 @@ async function createOrderViaCrm(merchant, command) {
  * ConversationState so the button tap can finish the sale.
  */
 async function offerItemDisambiguation(merchant, command) {
+  const source = command.source || 'text';
+  const language = command.language || merchant.language || 'ur';
   const saidName = command.item?.name ?? '';
 
   let ranked = await findSimilarInventoryItems(merchant._id, saidName, { limit: 2, minScore: 0.5 });
@@ -646,10 +765,8 @@ async function offerItemDisambiguation(merchant, command) {
   }
 
   if (!ranked.length) {
-    return sendTextMessage(
-      merchant.whatsappNumber,
-      `I couldn't find "${saidName}" in your stock — add it from the dashboard first, or check the spelling.`
-    );
+    const phrases = spokenPhrases.itemNotFound(language, { saidName });
+    return replyToMerchant(merchant, phrases, source);
   }
 
   // WhatsApp caps reply buttons at 3: two candidates + an escape.
@@ -664,9 +781,21 @@ async function offerItemDisambiguation(merchant, command) {
     { upsert: true }
   );
 
+  const candidateNames = ranked.slice(0, 2).map((r) => r.item.name);
+  const phrases = spokenPhrases.itemDisambiguation(language, { saidName, candidates: candidateNames });
+
+  // If source was voice, send the spoken question first
+  if (shouldReplyWithVoice(merchant, source)) {
+    await sendVoiceReply(merchant.whatsappNumber, {
+      spokenText: phrases.spoken,
+      language,
+      alsoSendText: false,
+    });
+  }
+
   return sendInteractiveButtons(
     merchant.whatsappNumber,
-    `I couldn't find "${saidName}" in your stock — did you mean:`,
+    phrases.text,
     buttons
   );
 }
@@ -703,18 +832,17 @@ async function handleDisambiguationReply(merchant, buttonId) {
 
 /** Creates an automation through workflows/createWorkflow and confirms back to the merchant. */
 async function createWorkflowViaModule(merchant, command) {
+  const source = command.source || 'text';
+  const language = command.language || merchant.language || 'ur';
+
   try {
     const workflow = await createWorkflow(command);
-    return sendTextMessage(
-      merchant.whatsappNumber,
-      `✅ Automation created: "${workflow.rawInstruction}". I'll take it from here.`
-    );
+    const phrases = spokenPhrases.workflowCreated(language, { rawInstruction: workflow.rawInstruction });
+    return replyToMerchant(merchant, phrases, source);
   } catch (err) {
     console.error('createWorkflow failed:', err.message);
-    return sendTextMessage(
-      merchant.whatsappNumber,
-      "Sorry — I couldn't create that automation. Please try again, or set it up from the dashboard."
-    );
+    const phrases = spokenPhrases.genericError(language);
+    return replyToMerchant(merchant, phrases, source);
   }
 }
 
@@ -738,12 +866,8 @@ async function handleApprovalReply(merchant, buttonId) {
 
     await respondToApproval(approval._id, decision);
 
-    return sendTextMessage(
-      merchant.whatsappNumber,
-      isApprove
-        ? `✅ Order approved and marked as completed.`
-        : `❌ Order rejected. Stock has been restored.`
-    );
+    const phrases = spokenPhrases.approvalReply(merchant.language, isApprove);
+    return sendTextMessage(merchant.whatsappNumber, phrases.text);
   } catch (err) {
     if (err.message?.startsWith('APPROVAL_NOT_FOUND')) {
       return sendTextMessage(merchant.whatsappNumber, "That order has already been handled.");
