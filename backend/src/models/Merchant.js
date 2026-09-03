@@ -9,7 +9,9 @@ const merchantSchema = new mongoose.Schema({
   location:       { type: String },
   sells:          { type: String },
   language:       { type: String, enum: ['ur', 'en'], default: 'ur' },
-  onboardingComplete: { type: Boolean, default: false }
+  onboardingComplete: { type: Boolean, default: false },
+  voiceReplies:   { type: Boolean, default: true },
+  replyPreference: { type: String, enum: ['voice_on_voice', 'always_voice', 'text_only'], default: 'voice_on_voice' },
 }, { 
   timestamps: true 
 });

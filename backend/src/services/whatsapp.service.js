@@ -3,8 +3,11 @@
  * API for outbound messages. Pure service layer: no Express, no DB.
  */
 import axios from 'axios';
+import { synthesizeSpeech } from './tts.service.js';
+import { uploadMedia } from './media.service.js';
 
 const GRAPH_VERSION = 'v20.0';
+const DEFAULT_COMPANION_TEXT = process.env.VOICE_REPLY_SEND_COMPANION_TEXT !== 'false';
 
 /** Pre-configured axios instance for the /{phone-number-id}/messages endpoint. */
 function graph() {
@@ -33,6 +36,47 @@ async function send(payload) {
 /** Plain text message. */
 export async function sendTextMessage(to, body) {
   return send({ to, type: 'text', text: { body, preview_url: false } });
+}
+
+/** Audio / voice note message using an uploaded Meta media ID. */
+export async function sendAudioMessage(to, mediaId) {
+  return send({
+    to,
+    type: 'audio',
+    audio: { id: mediaId },
+  });
+}
+
+/**
+ * Sends a spoken voice reply to the merchant using TTS, with an optional
+ * companion text message. Gracefully falls back to plain text if TTS synthesis
+ * or media upload encounters any issue.
+ *
+ * @param {string} to - Recipient WhatsApp number
+ * @param {Object} options
+ * @param {string} options.spokenText - Natural text to synthesize and speak
+ * @param {string} [options.textReceipt] - Optional companion text receipt for the chat history
+ * @param {string} [options.language='ur'] - 'ur' or 'en'
+ * @param {boolean} [options.alsoSendText] - Whether to send companion text alongside voice
+ */
+export async function sendVoiceReply(to, { spokenText, textReceipt = null, language = 'ur', alsoSendText = DEFAULT_COMPANION_TEXT }) {
+  try {
+    const { buffer, mimeType } = await synthesizeSpeech(spokenText, { language });
+    const { id: mediaId } = await uploadMedia(buffer, mimeType, 'voice_reply.mp3');
+    const audioRes = await sendAudioMessage(to, mediaId);
+
+    if (alsoSendText && textReceipt) {
+      await sendTextMessage(to, textReceipt).catch((err) => {
+        console.warn('Companion text send failed (audio already delivered):', err.message);
+      });
+    }
+
+    return audioRes;
+  } catch (err) {
+    console.warn(`[voice-out] Voice reply failed for ${to} (${err.message}), falling back to text`);
+    const fallbackText = textReceipt || spokenText;
+    return sendTextMessage(to, fallbackText);
+  }
 }
 
 /**
