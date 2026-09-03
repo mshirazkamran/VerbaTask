@@ -14,6 +14,7 @@ import { InventoryPage } from '../pages/InventoryPage';
 import { OrdersPage } from '../pages/OrdersPage';
 import { ApprovalsPage } from '../pages/ApprovalsPage';
 import { WorkflowsPage } from '../pages/WorkflowsPage';
+import { SettingsPage } from '../pages/SettingsPage';
 
 export const router = createBrowserRouter([
   // Public landing pages
@@ -75,6 +76,10 @@ export const router = createBrowserRouter([
           {
             path: 'approvals',
             element: <ApprovalsPage />,
+          },
+          {
+            path: 'settings',
+            element: <SettingsPage />,
           },
         ],
       },
