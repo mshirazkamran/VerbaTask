@@ -9,27 +9,31 @@
  *   keys (sk-ws-...) only work on dashscope-intl.aliyuncs.com.
  */
 import axios from 'axios';
+import { normalizePaymentMethod } from '../constants/paymentMethods.js';
 
 // Alibaba Cloud DashScope — Qwen chat completions. China (dashscope.aliyuncs.com)
 // and International (dashscope-intl.aliyuncs.com) are SEPARATE services with
 // separate keys — the base URL must match the console the key came from.
 // Our key is from Model Studio (International), hence the intl default.
 
-const SYSTEM_PROMPT = `You convert a merchant's WhatsApp message (which may be in
+const SYSTEM_PROMPT = `You convert a Pakistani merchant's WhatsApp message (which may be in
 English, Urdu, or Roman Urdu) into exactly one JSON object — no prose, no markdown fences,
-JSON only. Pick ONE of these three shapes:
+JSON only. Pick ONE of these shapes:
 
 1. Logging a sale:
-{"type":"log_sale","item":{"name":"<item name as the merchant referred to it>","quantity":<number>},"paymentMethod":"easypaisa"|"jazzcash"|"bank"|"cash","amount":<number or null>}
+{"type":"log_sale","item":{"name":"<item name as the merchant referred to it>","quantity":<number>},"paymentMethod":"cash"|"easypaisa"|"jazzcash"|"sadapay"|"nayapay"|"raast"|"meezan"|"hbl"|"ubl"|"alfalah"|"mcb"|"faysal"|"allied"|"askari"|"bank","amount":<number or null>}
+- Supported payment methods include Pakistani wallets, EMIs, and banks (cash, easypaisa, jazzcash, sadapay, nayapay, raast, meezan, hbl, ubl, alfalah, mcb, faysal, allied, askari, or generic bank).
+- If paymentMethod is not explicitly stated, ALWAYS default to "cash".
+- If quantity is not explicitly stated, default to 1.
 
 2. Creating an automation:
 {"type":"create_workflow","trigger":"message"|"schedule"|"threshold","condition":{...},"action":{...},"rawInstruction":"<original text>"}
 
-3. Anything else (a question, a greeting, unclear intent):
-{"type":"unknown","rawText":"<original text>"}
+3. Greetings or casual opening (e.g. "assalam o alaikum", "suno", "hello", "hi", "bhai"):
+{"type":"greeting","rawText":"<original text>"}
 
-If required fields aren't confidently extractable, use "unknown" — never guess numbers or
-item names that weren't actually said.`;
+4. Anything else where an item or action cannot be understood:
+{"type":"unknown","rawText":"<original text>"}`;
 
 const BUSINESS_DETAILS_PROMPT = `You extract business details from a merchant's
 WhatsApp onboarding message (which may be in English, Urdu, or Roman Urdu). Reply with
@@ -39,16 +43,17 @@ Infer businessType from context (e.g. "pharmacy"/"medical store" -> medical, "bo
 Use null for anything the message doesn't clearly state. Never guess or invent details.`;
 
 const INVENTORY_PROMPT = `You parse a merchant's WhatsApp stock list (which may be
-in English, Urdu, or Roman Urdu) into line items. Reply with exactly one JSON object — no
-prose, no markdown fences, JSON only:
-{"items":[{"name":"<item name>","quantity":<number or 0>,"price":<number or null>,"unit":"<piece|box|kg|litre|bottle|packet|strip|meter etc, or null>"}]}
+in English, Urdu, or Roman Urdu) into line items. Many merchants make phonetic spelling errors (e.g. "rise" or "riece" for Rice, "sugr" or "cheni" for Sugar, "coking oel" for Cooking Oil, "atta" or "aata" for Flour/Atta, "dall" for Daal).
+Auto-correct misspelled item names to clean, properly capitalized standard product names (e.g. "Rice", "Sugar", "Cooking Oil", "Atta", "Daal Channa").
+Reply with exactly one JSON object — no prose, no markdown fences, JSON only:
+{"items":[{"name":"<clean corrected item name>","quantity":<number or 0>,"price":<number or null>,"unit":"<piece|box|kg|litre|bottle|packet|strip|meter etc, or null>"}]}
 One entry per distinct item the merchant listed. Quantity means how many units are in stock.
 Use quantity 0 and price null when not stated — never invent numbers.`;
 
 const ITEM_RESOLVE_PROMPT = `A merchant said they sold an item. Match it against their
-inventory list — names may be in English, Urdu script, or Roman Urdu, so match by MEANING
-(synonyms, translations, phonetic variants like "dal mash" = "daal maash"). Reply with exactly
-one line and nothing else: either the exact inventory name copied character-for-character, or
+inventory list — names may be in English, Urdu script, or Roman Urdu, and may contain phonetic misspellings (e.g. "rise" or "riece" for Rice, "chawal" or "چاول" for Rice, "cheni" or "sugr" for Sugar, "dal mash" for "Daal Maash").
+Match by MEANING, translations, synonyms, and phonetic variants. Reply with exactly
+one line and nothing else: either the exact matching inventory name copied character-for-character from the inventory list, or
 the word null if nothing in the inventory is a plausible match. Never invent a name.`;
 
 /** Which host the LLM calls go to — env-overridable, defaults to the free path. */
@@ -122,8 +127,11 @@ export async function parseIntent(text) {
 
   try {
     const parsed = JSON.parse(raw);
-    if (!['log_sale', 'create_workflow', 'unknown'].includes(parsed.type)) {
+    if (!['log_sale', 'create_workflow', 'greeting', 'unknown'].includes(parsed.type)) {
       return { type: 'unknown', rawText: text };
+    }
+    if (parsed.type === 'log_sale' && parsed.paymentMethod) {
+      parsed.paymentMethod = normalizePaymentMethod(parsed.paymentMethod) || parsed.paymentMethod.toLowerCase();
     }
     return parsed;
   } catch {

@@ -12,6 +12,7 @@ import crmRoutes from './src/routes/crm.routes.js';
 import approvalRoutes from './src/routes/approval.routes.js';
 import dashboardRoutes from './src/routes/dashboard.routes.js';
 import workflowRoutes from './src/routes/workflow.routes.js';
+import merchantRoutes from './src/routes/merchant.routes.js';
 import { startScheduleRunner } from './src/workflows/workflow.service.js';
 
 const app = express();
@@ -43,6 +44,7 @@ app.use('/api', crmRoutes); // Handles both /api/inventory and /api/orders
 app.use('/api/approvals', approvalRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/workflows', workflowRoutes);
+app.use('/api/merchant', merchantRoutes);
 
 const PORT = process.env.PORT || 8080;
 const server = http.createServer(app);

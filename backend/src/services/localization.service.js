@@ -6,20 +6,35 @@
  * optimized for pronunciation by neural TTS models (e.g. ur-PK-UzmaNeural).
  */
 
+import { getPaymentMethodDetails, normalizePaymentMethod } from '../constants/paymentMethods.js';
+
 const PAYMENT_METHODS_UR = {
   cash: 'نقد',
   easypaisa: 'ایزی پیسہ',
   jazzcash: 'جاز کیش',
+  sadapay: 'سادا پے',
+  nayapay: 'نیا پے',
+  raast: 'راست',
   bank: 'بینک',
+  meezan: 'میزان بینک',
+  hbl: 'ایچ بی ایل',
+  ubl: 'یو بی ایل',
+  alfalah: 'بینک الفلاح',
+  mcb: 'ایم سی بی',
+  faysal: 'فیصل بینک',
+  allied: 'الائیڈ بینک',
+  askari: 'عسکری بینک',
 };
 
-function formatPaymentMethod(pm, language = 'ur') {
+export function formatPaymentMethod(pm, language = 'ur') {
   if (!pm) return '';
-  const key = pm.toLowerCase();
+  const canonical = normalizePaymentMethod(pm) || pm.toLowerCase();
+  const details = getPaymentMethodDetails(canonical);
+
   if (language === 'ur') {
-    return PAYMENT_METHODS_UR[key] || pm;
+    return details?.nameUrdu || PAYMENT_METHODS_UR[canonical] || pm;
   }
-  return pm;
+  return details?.name || pm;
 }
 
 export const spokenPhrases = {
@@ -98,13 +113,13 @@ export const spokenPhrases = {
   unrecognizedIntent(language = 'ur') {
     if (language === 'ur') {
       return {
-        spoken: `معاف کیجیے گا، مجھے بات سمجھ نہیں آئی۔ سیل درج کرنے کے لیے تفصیل بتائیں، جیسے دو چاول کیش۔`,
-        text: `معاف کیجیے گا، بات سمجھ نہیں آئی — سیل درج کرنے کے لیے "order" کہیں یا لکھیں، یا آٹومیشن بتائیں۔`,
+        spoken: `معاف کیجیے گا، مجھے پوری طرح سمجھ نہیں آیا۔ برائے مہربانی چیز کا نام اور تعداد بتائیں، جیسے دو چاول کیش۔`,
+        text: `معاف کیجیے گا، بات سمجھ نہیں آئی۔ براہ کرم چیز اور تعداد بتائیں (مثلاً: "دو چاول کیش")، یا "order" کہیں۔`,
       };
     }
     return {
-      spoken: `I didn't quite catch that. Try saying something like "2 rice bags, cash", or describe an automation.`,
-      text: `I didn't quite catch that — try 'order' to log a sale, or describe an automation you'd like.`,
+      spoken: `I didn't quite catch that. Please tell me the item and quantity, like "2 rice bags, cash".`,
+      text: `I didn't quite catch that — try saying "2 rice, cash" or 'order' to log a sale.`,
     };
   },
 
