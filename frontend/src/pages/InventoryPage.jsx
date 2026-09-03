@@ -12,6 +12,7 @@ import {
   IconTrash,
   IconAlertCircle,
   IconBoxSeam,
+  IconBrandWhatsapp,
 } from '@tabler/icons-react';
 import { toast } from 'sonner';
 
@@ -31,6 +32,7 @@ import {
 } from '../hooks/useInventory';
 import { useAuthStore } from '../lib/store';
 import { formatPKR, formatQuantity } from '../lib/format';
+import { ReportDropdown } from '../components/ReportDropdown';
 
 const emptyItem = { name: '', quantity: '', price: '', unit: '', expiryDates: [] };
 
@@ -428,13 +430,16 @@ export function InventoryPage() {
           <h2 className="font-heading text-2xl font-light tracking-[-0.5px] text-ink">Inventory</h2>
           <p className="font-body text-sm text-ink-mute">Manage stock, pricing, and catalog</p>
         </div>
-        <Button
-          leftIcon={<IconPlus className="w-4 h-4" />}
-          onClick={handleAdd}
-          className="shadow-sm shadow-primary/25"
-        >
-          Add item
-        </Button>
+        <div className="flex items-center gap-2">
+          <ReportDropdown />
+          <Button
+            leftIcon={<IconPlus className="w-4 h-4" />}
+            onClick={handleAdd}
+            className="shadow-sm shadow-primary/25 text-xs py-1"
+          >
+            Add item
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards for Inventory - Solid Colors, Glassmorphism & High Contrast */}

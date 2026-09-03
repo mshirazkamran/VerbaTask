@@ -13,7 +13,9 @@ import {
   IconBox,
   IconCalendarEvent,
   IconBrandWhatsapp,
+  IconFileReport,
 } from '@tabler/icons-react';
+import { toast } from 'sonner';
 import { useReactTable, getCoreRowModel, getSortedRowModel } from '@tanstack/react-table';
 import {
   AreaChart,
@@ -34,6 +36,8 @@ import { Table } from '../components/ui/Table';
 import { Skeleton } from '../components/ui/Skeleton';
 import { useDashboard, useNotifyExpiries } from '../hooks/useDashboard';
 import { useUpdateInventoryItem } from '../hooks/useInventory';
+import { Button } from '../components/ui/Button';
+import { ReportDropdown } from '../components/ReportDropdown';
 import { formatPKR, formatDate, formatQuantity } from '../lib/format';
 
 import cashLogo from '../assets/cash-logo.jpeg';
@@ -325,12 +329,15 @@ export function OverviewPage() {
           <h2 className="font-heading text-2xl font-light tracking-[-0.5px] text-ink">Overview</h2>
           <p className="font-body text-sm text-ink-mute">Sales, stock, and approvals for today</p>
         </div>
-        <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-emerald-50/80 dark:bg-emerald-950/40 backdrop-blur-md border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300 text-xs font-medium">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          <span>Real-time Updates</span>
+        <div className="flex items-center gap-2">
+          <ReportDropdown />
+          <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-emerald-50/80 dark:bg-emerald-950/40 backdrop-blur-md border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300 text-xs font-medium">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>Real-time Updates</span>
+          </div>
         </div>
       </div>
 
