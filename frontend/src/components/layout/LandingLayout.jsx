@@ -210,9 +210,16 @@ export function LandingLayout({ children }) {
               href="mailto:verbatask.business@gmail.com"
               className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-lg border border-hairline bg-surface/40 hover:border-primary/40 transition-colors group"
             >
-              <span className="w-6 h-6 rounded-full bg-[#004D40] text-white font-bold text-xs flex items-center justify-center shrink-0">
-                V
-              </span>
+              <img
+                src="/favicon_io-light/android-chrome-192x192.png"
+                alt="VerbaTask"
+                className="w-6 h-6 rounded-full object-cover shrink-0 dark:hidden"
+              />
+              <img
+                src="/favicon_io-dark/android-chrome-192x192.png"
+                alt="VerbaTask"
+                className="w-6 h-6 rounded-full object-cover shrink-0 hidden dark:block"
+              />
               <div className="text-left">
                 <p className="text-[11px] font-semibold text-ink leading-tight">VerbaTask</p>
                 <p className="text-[11px] text-ink-mute group-hover:text-primary transition-colors font-mono leading-tight">

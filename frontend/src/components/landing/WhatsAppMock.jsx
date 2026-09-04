@@ -16,9 +16,16 @@ export function WhatsAppMock({
     <div className={`rounded-2xl border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#12151C] overflow-hidden shadow-xl dark:shadow-2xl ${className}`}>
       {/* WhatsApp Header */}
       <div className="flex items-center gap-3 border-b border-zinc-200 bg-zinc-100 dark:border-white/10 dark:bg-[#181C26] px-4 py-3">
-        <div className="flex size-9 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-sm">
-          VT
-        </div>
+        <img
+          src="/favicon_io-light/android-chrome-192x192.png"
+          alt="VerbaTask AI"
+          className="size-9 rounded-full object-cover shrink-0 shadow-xs dark:hidden"
+        />
+        <img
+          src="/favicon_io-dark/android-chrome-192x192.png"
+          alt="VerbaTask AI"
+          className="size-9 rounded-full object-cover shrink-0 shadow-xs hidden dark:block"
+        />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-zinc-900 dark:text-white">{title}</p>
           <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">

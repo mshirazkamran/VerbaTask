@@ -28,6 +28,27 @@ export const useAuthStore = create((set) => ({
   },
 }));
 
+function updateDynamicFavicon(isDark) {
+  if (typeof document === 'undefined') return;
+  const folder = isDark ? '/favicon_io-dark' : '/favicon_io-light';
+
+  // Update primary favicon target
+  let dynamicLink = document.getElementById('dynamic-favicon');
+  if (!dynamicLink) {
+    dynamicLink = document.createElement('link');
+    dynamicLink.id = 'dynamic-favicon';
+    dynamicLink.rel = 'icon';
+    document.head.appendChild(dynamicLink);
+  }
+  dynamicLink.href = `${folder}/favicon-32x32.png`;
+
+  // Update mobile web app theme color meta
+  const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeColorMeta) {
+    themeColorMeta.content = isDark ? '#0B0D11' : '#ffffff';
+  }
+}
+
 function applyTheme(theme) {
   if (typeof window === 'undefined') return;
   const isDark =
@@ -37,6 +58,21 @@ function applyTheme(theme) {
     document.documentElement.classList.add('dark');
   } else {
     document.documentElement.classList.remove('dark');
+  }
+  updateDynamicFavicon(isDark);
+}
+
+// React if user is using system preference and OS toggles between dark/light
+if (typeof window !== 'undefined' && window.matchMedia) {
+  try {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      const current = localStorage.getItem(THEME_KEY) || 'dark';
+      if (current === 'system') {
+        applyTheme('system');
+      }
+    });
+  } catch {
+    // Safari fallback
   }
 }
 
