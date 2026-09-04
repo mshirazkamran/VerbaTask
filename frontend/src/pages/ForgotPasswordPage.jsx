@@ -2,15 +2,15 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import {
- IconMail,
- IconLock,
- IconArrowRight,
- IconArrowLeft,
- IconBrandWhatsapp,
- IconRefresh,
- IconKey,
- IconCheck,
-} from '@tabler/icons-react';
+  Mail,
+  Lock,
+  ArrowRight,
+  ArrowLeft,
+  RefreshCw,
+  Key,
+  Check,
+} from 'lucide-react';
+import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { AuthLayout } from '../components/layout/AuthLayout';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -127,137 +127,137 @@ export function ForgotPasswordPage() {
  }
  >
  {step === 'request' ? (
- <form onSubmit={handleRequestCode} className="space-y-4">
- <Input
- label="Email or WhatsApp number"
- id="reset-identifier"
- type="text"
- placeholder="name@business.com or 03001234567"
- leftIcon={<IconMail className="w-4 h-4" />}
- value={identifier}
- onChange={(e) => setIdentifier(e.target.value)}
- required
- autoFocus
- />
+      <form onSubmit={handleRequestCode} className="space-y-4">
+        <Input
+          label="Email or WhatsApp number"
+          id="reset-identifier"
+          type="text"
+          placeholder="name@business.com or 03001234567"
+          leftIcon={<Mail className="w-4 h-4" />}
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
+          required
+          autoFocus
+        />
 
- <div className="rounded-lg bg-surface/50 border border-hairline p-3 flex items-start gap-2.5 text-xs text-ink-secondary">
- <IconBrandWhatsapp className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
- <div>
- <p className="font-medium text-ink">WhatsApp Delivery</p>
- <p className="text-ink-mute mt-0.5">
- The verification code will be sent to the WhatsApp number registered with your account.
- </p>
- <p className="text-ink-mute mt-1 text-[11px]">
- Rate limit: Up to 3 code requests per hour.
- </p>
- </div>
- </div>
+        <div className="rounded-lg bg-surface/50 border border-hairline p-3 flex items-start gap-2.5 text-xs text-ink-secondary">
+          <WhatsAppIcon className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium text-ink">WhatsApp Delivery</p>
+            <p className="text-ink-mute mt-0.5">
+              The verification code will be sent to the WhatsApp number registered with your account.
+            </p>
+            <p className="text-ink-mute mt-1 text-[11px]">
+              Rate limit: Up to 3 code requests per hour.
+            </p>
+          </div>
+        </div>
 
- <div className="pt-2">
- <Button
- type="submit"
- className="w-full"
- loading={loading}
- rightIcon={<IconArrowRight className="w-4 h-4" />}
- >
- Send WhatsApp Code
- </Button>
- </div>
+        <div className="pt-2">
+          <Button
+            type="submit"
+            className="w-full"
+            loading={loading}
+            rightIcon={<ArrowRight className="w-4 h-4" />}
+          >
+            Send WhatsApp Code
+          </Button>
+        </div>
 
- <div className="pt-4 border-t border-hairline flex justify-center text-xs text-ink-mute">
- <Link
- to="/login"
- className="flex items-center gap-1.5 text-ink-secondary hover:text-primary transition-colors"
- >
- <IconArrowLeft className="w-3.5 h-3.5" />
- Back to sign in
- </Link>
- </div>
- </form>
- ) : (
- <form onSubmit={handleResetPassword} className="space-y-4">
- <Input
- label="6-Digit WhatsApp Code"
- id="reset-code"
- type="text"
- placeholder="123456"
- maxLength={6}
- leftIcon={<IconKey className="w-4 h-4" />}
- value={code}
- onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
- required
- autoFocus
- />
+        <div className="pt-4 border-t border-hairline flex justify-center text-xs text-ink-mute">
+          <Link
+            to="/login"
+            className="flex items-center gap-1.5 text-ink-secondary hover:text-primary transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back to sign in
+          </Link>
+        </div>
+      </form>
+    ) : (
+      <form onSubmit={handleResetPassword} className="space-y-4">
+        <Input
+          label="6-Digit WhatsApp Code"
+          id="reset-code"
+          type="text"
+          placeholder="123456"
+          maxLength={6}
+          leftIcon={<Key className="w-4 h-4" />}
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+          required
+          autoFocus
+        />
 
- <Input
- label="New password"
- id="reset-new-password"
- type="password"
- placeholder="At least 6 characters"
- leftIcon={<IconLock className="w-4 h-4" />}
- value={newPassword}
- onChange={(e) => setNewPassword(e.target.value)}
- required
- />
+        <Input
+          label="New password"
+          id="reset-new-password"
+          type="password"
+          placeholder="At least 6 characters"
+          leftIcon={<Lock className="w-4 h-4" />}
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          required
+        />
 
- <Input
- label="Confirm new password"
- id="reset-confirm-password"
- type="password"
- placeholder="Repeat new password"
- leftIcon={<IconLock className="w-4 h-4" />}
- value={confirmPassword}
- onChange={(e) => setConfirmPassword(e.target.value)}
- required
- />
+        <Input
+          label="Confirm new password"
+          id="reset-confirm-password"
+          type="password"
+          placeholder="Repeat new password"
+          leftIcon={<Lock className="w-4 h-4" />}
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+        />
 
- <div className="flex items-center justify-between text-xs pt-1">
- <span className="text-ink-mute">
- {remainingAttempts > 0 ? (
- `${remainingAttempts} request${remainingAttempts === 1 ? '' : 's'} remaining this hour`
- ) : (
- <span className="text-amber-500">Hourly limit reached</span>
- )}
- </span>
+        <div className="flex items-center justify-between text-xs pt-1">
+          <span className="text-ink-mute">
+            {remainingAttempts > 0 ? (
+              `${remainingAttempts} request${remainingAttempts === 1 ? '' : 's'} remaining this hour`
+            ) : (
+              <span className="text-amber-500">Hourly limit reached</span>
+            )}
+          </span>
 
- <button
- type="button"
- onClick={handleResendCode}
- disabled={cooldown > 0 || resending || remainingAttempts <= 0}
- className={`flex items-center gap-1 font-medium transition-colors ${
- cooldown > 0 || remainingAttempts <= 0
- ? 'text-ink-mute cursor-not-allowed'
- : 'text-primary hover:underline cursor-pointer'
- }`}
- >
- <IconRefresh className={`w-3.5 h-3.5 ${resending ? 'animate-spin' : ''}`} />
- {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
- </button>
- </div>
+          <button
+            type="button"
+            onClick={handleResendCode}
+            disabled={cooldown > 0 || resending || remainingAttempts <= 0}
+            className={`flex items-center gap-1 font-medium transition-colors ${
+              cooldown > 0 || remainingAttempts <= 0
+                ? 'text-ink-mute cursor-not-allowed'
+                : 'text-primary hover:underline cursor-pointer'
+            }`}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${resending ? 'animate-spin' : ''}`} />
+            {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
+          </button>
+        </div>
 
- <div className="pt-2">
- <Button
- type="submit"
- className="w-full"
- loading={loading}
- rightIcon={<IconCheck className="w-4 h-4" />}
- >
- Reset Password
- </Button>
- </div>
+        <div className="pt-2">
+          <Button
+            type="submit"
+            className="w-full"
+            loading={loading}
+            rightIcon={<Check className="w-4 h-4" />}
+          >
+            Reset Password
+          </Button>
+        </div>
 
- <div className="pt-4 border-t border-hairline flex items-center justify-between text-xs text-ink-mute">
- <button
- type="button"
- onClick={() => {
- setStep('request');
- setCode('');
- }}
- className="flex items-center gap-1.5 text-ink-secondary hover:text-primary transition-colors cursor-pointer"
- >
- <IconArrowLeft className="w-3.5 h-3.5" />
- Change email / phone
- </button>
+        <div className="pt-4 border-t border-hairline flex items-center justify-between text-xs text-ink-mute">
+          <button
+            type="button"
+            onClick={() => {
+              setStep('request');
+              setCode('');
+            }}
+            className="flex items-center gap-1.5 text-ink-secondary hover:text-primary transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Change email / phone
+          </button>
 
  <Link
  to="/login"

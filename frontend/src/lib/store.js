@@ -45,7 +45,7 @@ if (typeof localStorage !== 'undefined') {
   localStorage.removeItem('verbatask_landing_theme');
 }
 
-const initialTheme = typeof localStorage !== 'undefined' ? (localStorage.getItem(THEME_KEY) || 'light') : 'light';
+const initialTheme = typeof localStorage !== 'undefined' ? (localStorage.getItem(THEME_KEY) || 'dark') : 'dark';
 applyTheme(initialTheme);
 
 export const useUiStore = create((set) => ({

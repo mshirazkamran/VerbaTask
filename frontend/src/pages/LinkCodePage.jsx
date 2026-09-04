@@ -5,7 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { IconMail, IconKey, IconCheck, IconBrandWhatsapp } from '@tabler/icons-react';
+import { Mail, Key, Check } from 'lucide-react';
+import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { AuthLayout } from '../components/layout/AuthLayout';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -66,7 +67,7 @@ export function LinkCodePage() {
  {linked ? (
  <div className="text-center py-4 space-y-4">
  <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center">
- <IconCheck className="w-6 h-6" />
+ <Check className="w-6 h-6" />
  </div>
  <div className="space-y-1">
  <h2 className="text-base font-medium text-ink">
@@ -85,7 +86,7 @@ export function LinkCodePage() {
  ) : (
  <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
  <div className="p-3 rounded-lg bg-primary-subdued/20 border border-primary/20 flex items-start gap-2.5 text-xs text-ink-secondary">
- <IconBrandWhatsapp className="w-4 h-4 text-[#25D366] shrink-0 mt-0.5" />
+ <WhatsAppIcon className="w-4 h-4 text-[#25D366] shrink-0 mt-0.5" />
  <span>
  Send a message to the bot to receive a 15-minute code. If you already messaged the bot before signing up, reply <strong>link</strong> to get a fresh code.
  </span>
@@ -97,7 +98,7 @@ export function LinkCodePage() {
  type="email"
  autoComplete="email"
  placeholder="name@business.com"
- leftIcon={<IconMail className="w-4 h-4" />}
+ leftIcon={<Mail className="w-4 h-4" />}
  error={errors.email?.message}
  required
  {...register('email')}
@@ -108,7 +109,7 @@ export function LinkCodePage() {
  id="link-code"
  type="text"
  placeholder="e.g. 849201"
- leftIcon={<IconKey className="w-4 h-4" />}
+ leftIcon={<Key className="w-4 h-4" />}
  error={errors.code?.message}
  helperText="Codes expire after 15 minutes."
  required
@@ -120,7 +121,7 @@ export function LinkCodePage() {
  type="submit"
  className="w-full"
  loading={loading}
- rightIcon={<IconCheck className="w-4 h-4" />}
+ rightIcon={<Check className="w-4 h-4" />}
  >
  Verify & link number
  </Button>
