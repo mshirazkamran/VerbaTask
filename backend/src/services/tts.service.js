@@ -17,11 +17,12 @@ import * as googleTTS from 'google-tts-api';
 
 dotenv.config();
 
-const DEFAULT_URDU_VOICE = process.env.TTS_VOICE_URDU || 'ur-PK-UzmaNeural';
-const DEFAULT_ENGLISH_VOICE = process.env.TTS_VOICE_ENGLISH || 'en-US-JennyNeural';
+// Hardcoded Male Voices (no env dependency required)
+const DEFAULT_URDU_VOICE = 'ur-PK-AsadNeural'; // Pakistani Urdu male voice
+const DEFAULT_ENGLISH_VOICE = 'en-US-GuyNeural'; // Natural conversational US English male voice
 
-// ElevenLabs default voice IDs (available on all accounts)
-const DEFAULT_ELEVENLABS_VOICE = process.env.ELEVENLABS_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb'; // George (warm conversational)
+// ElevenLabs default voice ID: George (warm conversational male)
+const DEFAULT_ELEVENLABS_VOICE = 'JBFqnCBsd6RMkjVDRZzb';
 
 /**
  * Strips markdown symbols, emojis, and artifacts that shouldn't be read out by TTS.
@@ -166,7 +167,7 @@ export async function synthesizeWithGemini(text, language = 'ur', voice = null) 
     throw new Error('GEMINI_API_KEY not configured');
   }
 
-  const selectedVoice = voice || (language === 'ur' ? 'Puck' : 'Kore');
+  const selectedVoice = voice || (language === 'ur' ? 'Puck' : 'Charon');
   const prompt =
     language === 'ur'
       ? `Read aloud the following text naturally in authentic Pakistani Urdu. Do not add any greeting or preamble, only read the text:\n\n${text}`
