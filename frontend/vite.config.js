@@ -13,6 +13,8 @@ export default defineConfig({
       injectRegister: 'auto',
       manifestFilename: 'site.webmanifest',
       includeAssets: [
+        'favicon_io-dark/**/*',
+        'favicon_io-light/**/*',
         'favicon.ico',
         'favicon-16x16.png',
         'favicon-32x32.png',
@@ -29,18 +31,18 @@ export default defineConfig({
         display: 'standalone',
         display_override: ['window-controls-overlay', 'standalone', 'browser'],
         orientation: 'portrait-primary',
-        theme_color: '#533afd',
-        background_color: '#f6f9fc',
+        theme_color: '#10B981',
+        background_color: '#0B0D11',
         categories: ['business', 'productivity'],
         icons: [
           {
-            src: '/android-chrome-192x192.png',
+            src: '/favicon_io-dark/android-chrome-192x192.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any maskable',
           },
           {
-            src: '/android-chrome-512x512.png',
+            src: '/favicon_io-dark/android-chrome-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable',

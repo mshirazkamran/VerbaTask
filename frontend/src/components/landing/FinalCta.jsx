@@ -72,9 +72,16 @@ export function FinalCta() {
               href="mailto:verbatask.business@gmail.com"
               className="inline-flex items-center gap-3 px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.03] hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all group shadow-xs max-w-full"
             >
-              <span className="w-8 h-8 rounded-full bg-[#004D40] text-white font-bold text-sm flex items-center justify-center shrink-0 shadow-xs">
-                V
-              </span>
+              <img
+                src="/favicon_io-light/android-chrome-192x192.png"
+                alt="VerbaTask"
+                className="w-8 h-8 rounded-full object-cover shrink-0 shadow-xs dark:hidden"
+              />
+              <img
+                src="/favicon_io-dark/android-chrome-192x192.png"
+                alt="VerbaTask"
+                className="w-8 h-8 rounded-full object-cover shrink-0 shadow-xs hidden dark:block"
+              />
               <div className="text-left min-w-0">
                 <p className="text-xs font-bold text-zinc-900 dark:text-white leading-tight">VerbaTask</p>
                 <p className="text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors font-mono leading-tight truncate">
