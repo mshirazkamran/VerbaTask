@@ -1,20 +1,17 @@
 import { useMemo, useState, useEffect } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
 import {
- IconLayoutDashboard,
- IconTrendingUp,
- IconPackage,
- IconClipboardCheck,
- IconBolt,
- IconShoppingCart,
- IconAlertCircle,
- IconChartBar,
- IconCreditCard,
- IconBox,
- IconCalendarEvent,
- IconBrandWhatsapp,
- IconFileReport,
-} from '@tabler/icons-react';
+  TrendingUp,
+  Package,
+  ClipboardCheck,
+  Zap,
+  ShoppingCart,
+  AlertCircle,
+  BarChart3,
+  CreditCard,
+  Calendar,
+} from 'lucide-react';
+import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { toast } from 'sonner';
 import { useReactTable, getCoreRowModel, getSortedRowModel } from '@tanstack/react-table';
 import {
@@ -250,7 +247,7 @@ export function OverviewPage() {
  const count = items.length;
  const summary = items.map((i) => `${i.name} x${i.quantity}`).join(', ');
  return (
- <div className="flex items-center gap-2 max-w-[240px]">
+ <div className="flex items-center gap-2 max-w-[150px] sm:max-w-[240px]">
  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-medium shrink-0">
  {count} {count === 1 ? 'item' : 'items'}
  </span>
@@ -300,7 +297,7 @@ export function OverviewPage() {
  <p className="text-xs text-ink-mute">Sales, stock, and approvals for today</p>
  </div>
  <Card padding="lg" className="text-center py-12">
- <IconAlertCircle className="w-10 h-10 text-ruby mx-auto mb-3" />
+ <AlertCircle className="w-10 h-10 text-ruby mx-auto mb-3" />
  <h3 className="text-base font-medium text-ink">Failed to load dashboard</h3>
  <p className="text-xs text-ink-mute mt-1">{error.message}</p>
  </Card>
@@ -310,12 +307,12 @@ export function OverviewPage() {
 
  return (
  <div className="space-y-6">
- <div className="flex items-center justify-between">
+ <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
  <div>
  <h2 className="font-heading text-2xl font-light tracking-[-0.5px] text-ink">Overview</h2>
  <p className="font-body text-sm text-ink-mute">Sales, stock, and approvals for today</p>
  </div>
- <div className="flex items-center gap-2">
+ <div className="flex flex-wrap items-center gap-2">
  <ReportDropdown />
  <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-canvas border border-hairline text-emerald-800 dark:text-emerald-300 text-xs font-medium">
  <span className="relative flex h-2 w-2">
@@ -328,13 +325,13 @@ export function OverviewPage() {
  </div>
 
  {/* KPI Cards */}
- <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+ <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
  <StatCard
  label="Today's Sales"
  value={stats?.todaySales ?? 0}
  formatter={formatPKR}
  sub={isLoading ? '' : `${data?.todayOrdersCount ?? 0} orders today`}
- icon={IconTrendingUp}
+ icon={TrendingUp}
  loading={isLoading}
  variant="success"
  index={0}
@@ -343,7 +340,7 @@ export function OverviewPage() {
  label="Items Sold Today"
  value={stats?.itemsSoldToday ?? 0}
  sub={isLoading ? '' : `Across ${data?.todayOrdersCount ?? 0} orders`}
- icon={IconBox}
+ icon={Package}
  loading={isLoading}
  variant="primary"
  index={1}
@@ -352,7 +349,7 @@ export function OverviewPage() {
  label="Low Stock Items"
  value={stats?.lowStockCount ?? 0}
  sub={isLoading ? '' : 'Need attention'}
- icon={IconPackage}
+ icon={Package}
  loading={isLoading}
  variant={stats?.lowStockCount > 0 ? 'warning' : 'primary'}
  index={2}
@@ -361,7 +358,7 @@ export function OverviewPage() {
  label="Pending Approvals"
  value={stats?.pendingApprovals ?? 0}
  sub={isLoading ? '' : 'Awaiting review'}
- icon={IconClipboardCheck}
+ icon={ClipboardCheck}
  loading={isLoading}
  variant={stats?.pendingApprovals > 0 ? 'danger' : 'primary'}
  index={3}
@@ -371,11 +368,11 @@ export function OverviewPage() {
  {/* Visualizations Row */}
  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
  {/* Revenue Trend AreaChart */}
- <Card padding="none" className="lg:col-span-2 overflow-hidden flex flex-col border border-emerald-200 dark:border-emerald-800">
+ <Card padding="none" className="lg:col-span-2 overflow-hidden flex flex-col border border-hairline">
  <div className="px-5 py-3.5 border-b border-hairline flex items-center justify-between bg-canvas-soft">
  <div className="flex items-center gap-2">
- <div className="w-7 h-7 rounded-md bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center">
- <IconChartBar className="w-4 h-4" />
+ <div className="w-7 h-7 rounded-md bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-hairline flex items-center justify-center">
+ <BarChart3 className="w-4 h-4" />
  </div>
  <h3 className="text-sm font-medium text-ink">Revenue Activity</h3>
  </div>
@@ -421,7 +418,7 @@ export function OverviewPage() {
  <div className="px-5 py-3.5 border-b border-hairline flex items-center justify-between bg-canvas-soft">
  <div className="flex items-center gap-2">
  <div className="w-7 h-7 rounded-md bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center">
- <IconCreditCard className="w-4 h-4" />
+ <CreditCard className="w-4 h-4" />
  </div>
  <h3 className="text-sm font-medium text-ink">Payment Methods</h3>
  </div>
@@ -488,13 +485,13 @@ export function OverviewPage() {
  <div className="px-5 py-4 border-b border-hairline flex items-center justify-between">
  <div className="flex items-center gap-2">
  <div className="w-7 h-7 rounded-md bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center">
- <IconShoppingCart className="w-4 h-4" />
+ <ShoppingCart className="w-4 h-4" />
  </div>
  <h3 className="text-sm font-medium text-ink">Recent Orders</h3>
  </div>
  {stats?.activeWorkflows != null && (
  <div className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 font-medium">
- <IconBolt className="w-3.5 h-3.5" />
+ <Zap className="w-3.5 h-3.5" />
  {stats.activeWorkflows} active workflow{stats.activeWorkflows === 1 ? '' : 's'}
  </div>
  )}
@@ -516,7 +513,7 @@ export function OverviewPage() {
  <div className="px-5 py-4 border-b border-hairline flex items-center justify-between">
  <div className="flex items-center gap-2">
  <div className="w-7 h-7 rounded-md bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center justify-center">
- <IconPackage className="w-4 h-4" />
+ <Package className="w-4 h-4" />
  </div>
  <h3 className="text-sm font-medium text-ink">Low Stock Alerts</h3>
  </div>
@@ -537,7 +534,7 @@ export function OverviewPage() {
  <li key={item._id} className="px-4 py-3 flex items-center justify-between hover:bg-canvas-soft transition-colors">
  <div className="flex items-center gap-3 min-w-0">
  <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
- <IconPackage className="w-4 h-4" />
+ <Package className="w-4 h-4" />
  </div>
  <div className="min-w-0">
  <p className="text-sm font-medium text-ink truncate">{item.name}</p>
@@ -555,7 +552,7 @@ export function OverviewPage() {
  ) : (
  <div className="py-12 text-center">
  <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-2">
- <IconPackage className="w-5 h-5" />
+ <Package className="w-5 h-5" />
  </div>
  <p className="text-sm font-medium text-ink">All stock is healthy</p>
  <p className="text-xs text-ink-mute mt-0.5">No items are below threshold</p>
@@ -569,7 +566,7 @@ export function OverviewPage() {
  <div className="px-5 py-4 border-b border-hairline flex items-center justify-between">
  <div className="flex items-center gap-2">
  <div className="w-6 h-6 rounded-md bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center">
- <IconCalendarEvent className="w-3.5 h-3.5" />
+ <Calendar className="w-3.5 h-3.5" />
  </div>
  <h3 className="text-sm font-medium text-ink">Expiring Soon</h3>
  </div>
@@ -580,7 +577,7 @@ export function OverviewPage() {
  className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20 transition-colors disabled:opacity-50"
  title="Send alert to WhatsApp"
  >
- <IconBrandWhatsapp className="w-3.5 h-3.5" />
+ <WhatsAppIcon className="w-3.5 h-3.5" />
  {notifyExpiries.isPending ? 'Sending...' : 'Send Alert'}
  </button>
  <Badge variant="danger" size="sm" dot>{data.expiringItems.length} alert{data.expiringItems.length === 1 ? '' : 's'}</Badge>
@@ -601,7 +598,7 @@ export function OverviewPage() {
  <li key={item._id} className="px-4 py-3 flex items-center justify-between hover:bg-canvas-soft transition-colors">
  <div className="flex items-center gap-3 min-w-0">
  <div className="w-8 h-8 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
- <IconCalendarEvent className="w-4 h-4" />
+ <Calendar className="w-4 h-4" />
  </div>
  <div className="min-w-0">
  <p className="text-sm font-medium text-ink truncate">{item.name}</p>

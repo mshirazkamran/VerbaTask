@@ -1,5 +1,5 @@
 import { forwardRef } from 'react';
-import { IconLoader2 } from '@tabler/icons-react';
+import { Loader2 } from 'lucide-react';
 
 /**
  * Stripe-inspired pill button component with tactile feedback and crisp typography.
@@ -51,7 +51,7 @@ export const Button = forwardRef(function Button(
  {...props}
  >
  {loading ? (
- <IconLoader2 className="w-4 h-4 animate-spin text-current" />
+ <Loader2 className="w-4 h-4 animate-spin text-current" />
  ) : leftIcon ? (
  <span className="shrink-0">{leftIcon}</span>
  ) : null}

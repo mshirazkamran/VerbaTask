@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { IconChevronDown, IconCheck } from '@tabler/icons-react';
+import { ChevronDown, Check } from 'lucide-react';
 
 /**
  * Ultra-aesthetic custom Select dropdown matching Stripe/Tailwind dark & light design system.
@@ -73,7 +73,7 @@ export function Select({
           )}
         </div>
 
-        <IconChevronDown
+        <ChevronDown
           className={`w-4 h-4 text-ink-mute shrink-0 transition-transform duration-200 ${
             open ? 'rotate-180 text-primary' : ''
           }`}
@@ -107,7 +107,7 @@ export function Select({
                 </div>
 
                 {isSelected && (
-                  <IconCheck className="w-3.5 h-3.5 text-primary shrink-0 stroke-[2.5]" />
+                  <Check className="w-3.5 h-3.5 text-primary shrink-0 stroke-[2.5]" />
                 )}
               </button>
             );

@@ -1,64 +1,75 @@
-import { useLocation } from 'react-router';
+import { useLocation, Link } from 'react-router';
 import { useUiStore } from '../../lib/store';
-import { IconSun, IconMoon, IconMenu2, IconCircleFilled } from '@tabler/icons-react';
+import { Sun, Moon, Menu, Circle, Home } from 'lucide-react';
 
 const ROUTE_TITLES = {
- '/dashboard': 'Overview',
- '/dashboard/inventory': 'Inventory',
- '/dashboard/orders': 'Orders',
- '/dashboard/workflows': 'Workflows',
- '/dashboard/approvals': 'Approvals',
+  '/dashboard': 'Overview',
+  '/dashboard/inventory': 'Inventory',
+  '/dashboard/orders': 'Orders',
+  '/dashboard/workflows': 'Workflows',
+  '/dashboard/approvals': 'Approvals',
+  '/dashboard/settings': 'Store Settings',
 };
 
 export function TopBar({ onOpenMobileMenu }) {
- const location = useLocation();
- const { theme, setTheme } = useUiStore();
+  const location = useLocation();
+  const { theme, setTheme } = useUiStore();
 
+  const title = ROUTE_TITLES[location.pathname] || 'Dashboard';
 
- const title = ROUTE_TITLES[location.pathname] || 'Dashboard';
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
 
- const toggleTheme = () => {
- setTheme(theme === 'dark' ? 'light' : 'dark');
- };
+  return (
+    <header className="h-16 sticky top-0 z-20 w-full glass-nav px-3 sm:px-6 flex items-center justify-between transition-colors duration-200">
+      {/* Left: Mobile hamburger + Page Title */}
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <button
+          type="button"
+          onClick={onOpenMobileMenu}
+          className="md:hidden p-2 min-w-[38px] min-h-[38px] flex items-center justify-center text-zinc-700 dark:text-ink-secondary hover:text-zinc-950 dark:hover:text-ink rounded-lg hover:bg-zinc-100 dark:hover:bg-canvas-soft transition-colors cursor-pointer"
+          aria-label="Open navigation menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
 
- return (
- <header className="h-16 sticky top-0 z-20 w-full glass-nav px-4 sm:px-6 flex items-center justify-between">
- {/* Left: Mobile hamburger + Page Title */}
- <div className="flex items-center gap-3">
- <button
- type="button"
- onClick={onOpenMobileMenu}
- className="md:hidden p-2 text-ink-secondary hover:text-ink rounded-md hover:bg-canvas-soft transition-colors cursor-pointer"
- aria-label="Open navigation menu"
- >
- <IconMenu2 className="w-5 h-5" />
- </button>
+        <h1 className="text-base sm:text-lg font-bold tracking-tight text-zinc-950 dark:text-white font-heading truncate">
+          {title}
+        </h1>
+      </div>
 
- <h1 className="text-base sm:text-lg font-light tracking-tight text-ink">
- {title}
- </h1>
- </div>
+      {/* Right: Landing page link + Live System indicator + Theme Toggle */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-700 hover:text-zinc-950 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 dark:text-zinc-300 dark:hover:text-white dark:bg-white/[0.04] dark:border-white/10 dark:hover:bg-white/[0.08] transition-colors"
+          title="Return to Public Landing Page"
+        >
+          <Home className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <span className="hidden sm:inline">Landing Page</span>
+        </Link>
 
- {/* Right: Live System indicator + Theme Toggle */}
- <div className="flex items-center gap-3">
- <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-medium">
- <IconCircleFilled className="w-2 h-2 animate-pulse text-emerald-500" />
- <span>System Live</span>
- </div>
+        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
+          <Circle className="w-2 h-2 fill-current animate-pulse text-emerald-500 dark:text-emerald-400" />
+          <span>System Live</span>
+        </div>
 
- <button
- type="button"
- onClick={toggleTheme}
- className="p-2 text-ink-secondary hover:text-ink bg-canvas-soft border border-hairline rounded-md hover:bg-canvas transition-colors cursor-pointer"
- aria-label="Toggle dark mode"
- >
- {theme === 'dark' ? (
- <IconSun className="w-4 h-4 text-amber-400" />
- ) : (
- <IconMoon className="w-4 h-4 text-ink-secondary" />
- )}
- </button>
- </div>
- </header>
- );
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="p-2 min-w-[38px] min-h-[38px] flex items-center justify-center text-zinc-700 hover:text-zinc-950 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 dark:text-zinc-400 dark:hover:text-white dark:bg-white/[0.04] dark:border-white/10 dark:hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer"
+          aria-label="Toggle theme"
+        >
+          {theme === 'dark' ? (
+            <Sun className="w-4 h-4 text-amber-400" />
+          ) : (
+            <Moon className="w-4 h-4 text-zinc-700" />
+          )}
+        </button>
+      </div>
+    </header>
+  );
 }
+
+export default TopBar;

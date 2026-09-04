@@ -5,13 +5,13 @@ import {
  getSortedRowModel,
 } from '@tanstack/react-table';
 import {
- IconPlus,
- IconTrash,
- IconAlertCircle,
- IconBell,
- IconBolt,
- IconInfoCircle,
-} from '@tabler/icons-react';
+  Plus,
+  Trash2,
+  AlertCircle,
+  Bell,
+  Zap,
+  Info,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Card } from '../components/ui/Card';
@@ -72,7 +72,7 @@ function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel
 
  return (
  <form onSubmit={handleSubmit} className="space-y-4">
- <div className="grid grid-cols-2 gap-3">
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
  <div className="flex flex-col gap-1.5">
  <label className="text-xs font-medium text-ink-secondary">Trigger</label>
  <select
@@ -153,7 +153,7 @@ function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel
  </div>
 
  <div className="p-3 mt-4 bg-canvas-soft border border-hairline rounded-sm flex items-start gap-2 text-xs text-ink-mute">
- <IconInfoCircle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+ <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
  <span>
  {form.trigger === 'threshold'
  ? 'WhatsApp alert messages are automatically composed with the item name and remaining stock.'
@@ -223,7 +223,7 @@ export function WorkflowsPage() {
  cell: ({ getValue }) => (
  <div className="flex items-center gap-2">
  <span className="w-7 h-7 rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 flex items-center justify-center shrink-0">
- <IconBolt className="w-3.5 h-3.5" />
+ <Zap className="w-3.5 h-3.5" />
  </span>
  <span className="capitalize text-ink font-medium text-xs">{getValue()}</span>
  </div>
@@ -263,7 +263,7 @@ export function WorkflowsPage() {
  return (
  <div className="flex items-center gap-2 max-w-[260px]">
  <span className="w-7 h-7 rounded-md bg-fuchsia-50 dark:bg-fuchsia-950 border border-fuchsia-200 dark:border-fuchsia-800 text-fuchsia-800 dark:text-fuchsia-300 flex items-center justify-center shrink-0">
- <IconBell className="w-3.5 h-3.5" />
+ <Bell className="w-3.5 h-3.5" />
  </span>
  <span className="text-xs font-medium text-ink truncate" title={label}>
  {label}
@@ -308,7 +308,7 @@ export function WorkflowsPage() {
  variant="ghost"
  size="sm"
  className="text-ruby hover:text-ruby hover:bg-ruby/10 border border-ruby/20"
- leftIcon={<IconTrash className="w-4 h-4" />}
+ leftIcon={<Trash2 className="w-4 h-4" />}
  onClick={(e) => {
  e.stopPropagation();
  setDeletingId(row.original._id);
@@ -341,7 +341,7 @@ export function WorkflowsPage() {
  </div>
  </div>
  <Card padding="lg" className="text-center py-12">
- <IconAlertCircle className="w-10 h-10 text-ruby mx-auto mb-3" />
+ <AlertCircle className="w-10 h-10 text-ruby mx-auto mb-3" />
  <h3 className="text-base font-medium text-ink">Failed to load workflows</h3>
  <p className="text-xs text-ink-mute mt-1">{error.message}</p>
  </Card>
@@ -357,9 +357,9 @@ export function WorkflowsPage() {
  <p className="font-body text-sm text-ink-mute">Automate threshold warnings and WhatsApp alerts</p>
  </div>
  <Button
- leftIcon={<IconPlus className="w-4 h-4" />}
+ leftIcon={<Plus className="w-4 h-4" />}
  onClick={() => setModalOpen(true)}
- className="shadow-sm shadow-primary/25"
+ className="shadow-sm shadow-primary/25 w-full sm:w-auto"
  >
  New workflow
  </Button>
@@ -369,7 +369,7 @@ export function WorkflowsPage() {
  <div className="p-4 rounded-xl border-l-4 border-l-emerald-500 border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-card hover:shadow-md transition-all duration-200">
  <div className="flex items-start gap-3">
  <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 flex items-center justify-center shrink-0 shadow-xs ">
- <IconBolt className="w-5 h-5" />
+ <Zap className="w-5 h-5" />
  </div>
  <div>
  <div className="flex items-center gap-2">
@@ -400,11 +400,11 @@ export function WorkflowsPage() {
  ) : workflows?.length === 0 ? (
  <Card padding="lg">
  <EmptyState
- icon={<IconBolt className="w-6 h-6" />}
+ icon={<Zap className="w-6 h-6" />}
  title="No workflows configured"
  description="Create an automation rule to receive WhatsApp notifications whenever stock falls below threshold."
  actionLabel="New workflow"
- actionIcon={<IconPlus className="w-4 h-4" />}
+ actionIcon={<Plus className="w-4 h-4" />}
  onAction={() => setModalOpen(true)}
  />
  </Card>

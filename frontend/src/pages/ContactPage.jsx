@@ -1,46 +1,54 @@
 import { motion } from 'motion/react';
 import { Link } from 'react-router';
 import {
- IconBrandGithub,
- IconArrowRight,
- IconCode,
- IconBug,
- IconStar,
- IconGitFork,
-} from '@tabler/icons-react';
+  ArrowRight,
+  Code,
+  Bug,
+  Star,
+  GitFork,
+  Mail,
+} from 'lucide-react';
+import { GithubIcon } from '../components/ui/GithubIcon';
 import { LandingLayout } from '../components/layout/LandingLayout';
 
 const ease = [0.16, 1, 0.3, 1];
 
 const links = [
- {
- icon: IconBrandGithub,
- title: 'Source code',
- desc: 'View the full codebase, report issues, or contribute to VerbaTask.',
- href: 'https://github.com/soban-iftikhar/VerbaTask',
- action: 'View on GitHub',
- },
- {
- icon: IconBug,
- title: 'Report a bug',
- desc: 'Found something broken? Open an issue and we\'ll look into it.',
- href: 'https://github.com/soban-iftikhar/VerbaTask/issues',
- action: 'Open an issue',
- },
- {
- icon: IconStar,
- title: 'Feature request',
- desc: 'Have an idea for VerbaTask? Open a feature request on GitHub.',
- href: 'https://github.com/soban-iftikhar/VerbaTask/issues',
- action: 'Request feature',
- },
- {
- icon: IconGitFork,
- title: 'Contribute',
- desc: 'Fork the repo, make your changes, and submit a pull request.',
- href: 'https://github.com/soban-iftikhar/VerbaTask/fork',
- action: 'Fork repository',
- },
+  {
+    icon: Mail,
+    title: 'Email support',
+    desc: 'Reach out directly for business inquiries, feedback, or support.',
+    href: 'mailto:verbatask.business@gmail.com',
+    action: 'Send email',
+  },
+  {
+    icon: GithubIcon,
+    title: 'Source code',
+    desc: 'View the full codebase, report issues, or contribute to VerbaTask.',
+    href: 'https://github.com/soban-iftikhar/VerbaTask',
+    action: 'View on GitHub',
+  },
+  {
+    icon: Bug,
+    title: 'Report a bug',
+    desc: 'Found something broken? Open an issue and we\'ll look into it.',
+    href: 'https://github.com/soban-iftikhar/VerbaTask/issues',
+    action: 'Open an issue',
+  },
+  {
+    icon: Star,
+    title: 'Feature request',
+    desc: 'Have an idea for VerbaTask? Open a feature request on GitHub.',
+    href: 'https://github.com/soban-iftikhar/VerbaTask/issues',
+    action: 'Request feature',
+  },
+  {
+    icon: GitFork,
+    title: 'Contribute',
+    desc: 'Fork the repo, make your changes, and submit a pull request.',
+    href: 'https://github.com/soban-iftikhar/VerbaTask/fork',
+    action: 'Fork repository',
+  },
 ];
 
 export function ContactPage() {
@@ -73,7 +81,7 @@ export function ContactPage() {
  transition={{ duration: 0.5, delay: 0.1, ease }}
  >
  <div className="w-14 h-14 rounded-xl bg-ink/5 flex items-center justify-center mx-auto mb-4">
- <IconCode className="w-7 h-7 text-ink" />
+ <Code className="w-7 h-7 text-ink" />
  </div>
  <h2 className="font-heading text-xl font-light tracking-[-0.26px] text-ink">
  github.com/soban-iftikhar/VerbaTask
@@ -88,7 +96,7 @@ export function ContactPage() {
  rel="noopener noreferrer"
  className="inline-flex items-center gap-2 bg-ink text-canvas px-6 py-2.5 rounded-pill text-sm font-medium hover:bg-ink/90 transition-colors"
  >
- <IconBrandGithub className="w-4 h-4" />
+ <GithubIcon className="w-4 h-4" />
  View repository
  </a>
  <Link
@@ -96,7 +104,7 @@ export function ContactPage() {
  className="inline-flex items-center gap-2 text-ink-secondary px-6 py-2.5 rounded-pill text-sm font-medium border border-hairline hover:bg-canvas-soft transition-colors"
  >
  Try VerbaTask
- <IconArrowRight className="w-4 h-4" />
+ <ArrowRight className="w-4 h-4" />
  </Link>
  </div>
  </motion.div>
@@ -120,7 +128,7 @@ export function ContactPage() {
  <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-3">
  <Icon className="w-5 h-5" />
  </div>
- <IconArrowRight className="w-4 h-4 text-ink-mute group-hover:text-primary transition-colors" />
+ <ArrowRight className="w-4 h-4 text-ink-mute group-hover:text-primary transition-colors" />
  </div>
  <h3 className="font-heading text-base font-light text-ink">{link.title}</h3>
  <p className="font-body text-sm text-ink-mute mt-1 leading-relaxed">{link.desc}</p>

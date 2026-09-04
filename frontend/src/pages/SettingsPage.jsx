@@ -1,22 +1,22 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
-  IconBuildingStore,
-  IconCreditCard,
-  IconMicrophone,
-  IconLanguage,
-  IconCheck,
-  IconShieldCheck,
-  IconWallet,
-  IconInfoCircle,
-  IconDeviceMobile,
-  IconRefresh,
-  IconEdit,
-  IconKey,
-  IconX,
-  IconArrowRight,
-  IconBrandWhatsapp,
-} from '@tabler/icons-react';
+  Store,
+  CreditCard,
+  Mic,
+  Languages,
+  Check,
+  ShieldCheck,
+  Wallet,
+  Info,
+  Smartphone,
+  RefreshCw,
+  Pencil,
+  Key,
+  X,
+  ArrowRight,
+} from 'lucide-react';
+import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -260,7 +260,7 @@ export function SettingsPage() {
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="neutral" className="gap-1.5 py-1 px-2.5">
-            <IconShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
             <span>Active Store: {profile?.businessName || 'My Business'}</span>
           </Badge>
         </div>
@@ -277,7 +277,7 @@ export function SettingsPage() {
               : 'border-transparent text-ink-mute hover:text-ink'
           }`}
         >
-          <IconBuildingStore className="w-4 h-4" />
+          <Store className="w-4 h-4" />
           Store Profile
         </button>
 
@@ -290,7 +290,7 @@ export function SettingsPage() {
               : 'border-transparent text-ink-mute hover:text-ink'
           }`}
         >
-          <IconCreditCard className="w-4 h-4" />
+          <CreditCard className="w-4 h-4" />
           Pakistani Banks & Payments
           <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-primary/10 text-primary font-bold">
             {activePaymentIds.length}
@@ -306,7 +306,7 @@ export function SettingsPage() {
               : 'border-transparent text-ink-mute hover:text-ink'
           }`}
         >
-          <IconMicrophone className="w-4 h-4" />
+          <Mic className="w-4 h-4" />
           Voice & Language AI
         </button>
       </div>
@@ -317,7 +317,7 @@ export function SettingsPage() {
           <Card>
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-hairline">
               <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                <IconBuildingStore className="w-5 h-5" />
+                <Store className="w-5 h-5" />
               </div>
               <div>
                 <h2 className="text-base font-medium text-ink">Store Identity</h2>
@@ -374,7 +374,7 @@ export function SettingsPage() {
           {/* Contact & Linking Info with Change Phone Number Flow */}
           <Card>
             <div className="flex items-center gap-3 mb-4">
-              <IconDeviceMobile className="w-5 h-5 text-ink-secondary" />
+              <Smartphone className="w-5 h-5 text-ink-secondary" />
               <div>
                 <h3 className="text-sm font-medium text-ink">Linked WhatsApp & Account</h3>
                 <p className="text-xs text-ink-mute">Identity details used for WhatsApp orders and automated alerts.</p>
@@ -406,7 +406,7 @@ export function SettingsPage() {
                         setNewPhoneNumber('');
                         setPhoneOtp('');
                       }}
-                      leftIcon={<IconEdit className="w-3 h-3" />}
+                      leftIcon={<Pencil className="w-3 h-3" />}
                       className="text-[11px] h-7 px-2.5"
                     >
                       Change Number
@@ -431,7 +431,7 @@ export function SettingsPage() {
               <div className="mt-4 p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-hairline">
                   <div className="flex items-center gap-2">
-                    <IconBrandWhatsapp className="w-4 h-4 text-emerald-500" />
+                    <WhatsAppIcon className="w-4 h-4 text-emerald-500" />
                     <span className="text-xs font-medium text-ink">
                       {phoneStep === 'input' ? 'Change Store WhatsApp Number' : 'Verify New Phone Number'}
                     </span>
@@ -445,7 +445,7 @@ export function SettingsPage() {
                     }}
                     className="text-ink-mute hover:text-ink cursor-pointer"
                   >
-                    <IconX className="w-4 h-4" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
 
@@ -462,7 +462,7 @@ export function SettingsPage() {
                           placeholder="e.g. 03001234567 or +923001234567"
                           value={newPhoneNumber}
                           onChange={(e) => setNewPhoneNumber(e.target.value)}
-                          leftIcon={<IconDeviceMobile className="w-4 h-4" />}
+                          leftIcon={<Smartphone className="w-4 h-4" />}
                           autoFocus
                         />
                       </div>
@@ -470,7 +470,7 @@ export function SettingsPage() {
                         type="button"
                         onClick={handleRequestPhoneChange}
                         loading={requestPhoneChangeMutation.isPending}
-                        rightIcon={<IconArrowRight className="w-4 h-4" />}
+                        rightIcon={<ArrowRight className="w-4 h-4" />}
                         className="text-xs shrink-0"
                       >
                         Send Verification OTP
@@ -508,7 +508,7 @@ export function SettingsPage() {
                           maxLength={6}
                           value={phoneOtp}
                           onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, ''))}
-                          leftIcon={<IconKey className="w-4 h-4" />}
+                          leftIcon={<Key className="w-4 h-4" />}
                           autoFocus
                         />
                       </div>
@@ -516,7 +516,7 @@ export function SettingsPage() {
                         type="button"
                         onClick={handleVerifyPhoneChange}
                         loading={verifyPhoneChangeMutation.isPending}
-                        rightIcon={<IconCheck className="w-4 h-4" />}
+                        rightIcon={<Check className="w-4 h-4" />}
                         className="text-xs shrink-0"
                       >
                         Verify & Activate Number
@@ -539,7 +539,7 @@ export function SettingsPage() {
                             : 'text-primary hover:underline'
                         }`}
                       >
-                        <IconRefresh className={`w-3 h-3 ${resendPhoneCodeMutation.isPending ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={`w-3 h-3 ${resendPhoneCodeMutation.isPending ? 'animate-spin' : ''}`} />
                         {phoneCooldown > 0 ? `Resend in ${phoneCooldown}s` : 'Resend OTP'}
                       </button>
                     </div>
@@ -553,7 +553,7 @@ export function SettingsPage() {
             <Button
               type="submit"
               loading={updateProfileMutation.isPending}
-              rightIcon={<IconCheck className="w-4 h-4" />}
+              rightIcon={<Check className="w-4 h-4" />}
             >
               Save Store Changes
             </Button>
@@ -568,7 +568,7 @@ export function SettingsPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 pb-4 border-b border-hairline">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                  <IconCreditCard className="w-5 h-5" />
+                  <CreditCard className="w-5 h-5" />
                 </div>
                 <div>
                   <h2 className="text-base font-medium text-ink">Accepted Pakistani Payment Methods</h2>
@@ -640,7 +640,7 @@ export function SettingsPage() {
                               isActive ? 'bg-primary text-white' : 'border border-hairline bg-canvas'
                             }`}
                           >
-                            {isActive && <IconCheck className="w-3.5 h-3.5 stroke-[3]" />}
+                            {isActive && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                           </div>
                         </div>
 
@@ -702,7 +702,7 @@ export function SettingsPage() {
                               isActive ? 'bg-primary text-white' : 'border border-hairline bg-canvas'
                             }`}
                           >
-                            {isActive && <IconCheck className="w-3.5 h-3.5 stroke-[3]" />}
+                            {isActive && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                           </div>
                         </div>
 
@@ -735,7 +735,7 @@ export function SettingsPage() {
               type="button"
               onClick={handleSavePayments}
               loading={updatePaymentsMutation.isPending}
-              rightIcon={<IconCheck className="w-4 h-4" />}
+              rightIcon={<Check className="w-4 h-4" />}
             >
               Save Payment Channels
             </Button>
@@ -749,7 +749,7 @@ export function SettingsPage() {
           <Card>
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-hairline">
               <div className="w-10 h-10 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                <IconMicrophone className="w-5 h-5" />
+                <Mic className="w-5 h-5" />
               </div>
               <div>
                 <h2 className="text-base font-medium text-ink">Conversational AI Voice Configuration</h2>
@@ -846,7 +846,7 @@ export function SettingsPage() {
             <Button
               type="submit"
               loading={updateProfileMutation.isPending}
-              rightIcon={<IconCheck className="w-4 h-4" />}
+              rightIcon={<Check className="w-4 h-4" />}
             >
               Save Voice Preferences
             </Button>

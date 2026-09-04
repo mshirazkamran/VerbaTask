@@ -6,13 +6,13 @@ import {
  getFilteredRowModel,
 } from '@tanstack/react-table';
 import {
- IconSearch,
- IconAlertCircle,
- IconX,
- IconPlus,
- IconTrash,
- IconReceipt,
-} from '@tabler/icons-react';
+  Search,
+  AlertCircle,
+  X,
+  Plus,
+  Trash2,
+  Receipt,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Card } from '../components/ui/Card';
@@ -155,7 +155,7 @@ function NewOrderModal({ isOpen, onClose }) {
  className="text-ruby hover:text-ruby hover:bg-ruby/10 px-2"
  onClick={() => removeLine(idx)}
  >
- <IconTrash className="w-4 h-4" />
+ <Trash2 className="w-4 h-4" />
  </Button>
  )}
  </div>
@@ -166,7 +166,7 @@ function NewOrderModal({ isOpen, onClose }) {
  type="button"
  variant="outline"
  size="sm"
- leftIcon={<IconPlus className="w-4 h-4" />}
+ leftIcon={<Plus className="w-4 h-4" />}
  onClick={addLine}
  >
  Add item
@@ -328,7 +328,7 @@ export function OrdersPage() {
  <p className="text-xs text-ink-mute">Review transactions and order history</p>
  </div>
  <Card padding="lg" className="text-center py-12">
- <IconAlertCircle className="w-10 h-10 text-ruby mx-auto mb-3" />
+ <AlertCircle className="w-10 h-10 text-ruby mx-auto mb-3" />
  <h3 className="text-base font-medium text-ink">Failed to load orders</h3>
  <p className="text-xs text-ink-mute mt-1">{error.message}</p>
  </Card>
@@ -351,7 +351,7 @@ export function OrdersPage() {
  <p className="font-body text-sm text-ink-mute">Review transactions and order history</p>
  </div>
  <Button
- leftIcon={<IconPlus className="w-4 h-4" />}
+ leftIcon={<Plus className="w-4 h-4" />}
  onClick={() => setNewOrderOpen(true)}
  className="shadow-sm shadow-primary/25"
  >
@@ -360,14 +360,14 @@ export function OrdersPage() {
  </div>
 
  {/* KPI Cards for Orders - Solid Colors, Glassmorphism & High Contrast */}
- <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+ <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
  <div className="p-4 rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950 flex items-center justify-between shadow-card hover:shadow-md transition-all duration-200">
  <div>
  <p className="text-xs uppercase tracking-wider font-medium text-sky-700 dark:text-sky-300">Total Volume</p>
  <p className="text-2xl font-light text-sky-950 dark:text-sky-50 font-tabular mt-1">{formatPKR(totalRevenue)}</p>
  </div>
  <div className="w-10 h-10 rounded-lg bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-700 flex items-center justify-center ">
- <IconReceipt className="w-5 h-5" />
+ <Receipt className="w-5 h-5" />
  </div>
  </div>
  <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 flex items-center justify-between shadow-card hover:shadow-md transition-all duration-200">
@@ -376,7 +376,7 @@ export function OrdersPage() {
  <p className="text-2xl font-light text-emerald-950 dark:text-emerald-50 font-tabular mt-1">{counts.all}</p>
  </div>
  <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 flex items-center justify-center ">
- <IconReceipt className="w-5 h-5" />
+ <Receipt className="w-5 h-5" />
  </div>
  </div>
  <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 flex items-center justify-between shadow-card hover:shadow-md transition-all duration-200">
@@ -385,7 +385,7 @@ export function OrdersPage() {
  <p className="text-2xl font-light font-tabular mt-1 text-emerald-950 dark:text-emerald-50">{counts.completed}</p>
  </div>
  <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 flex items-center justify-center ">
- <IconReceipt className="w-5 h-5" />
+ <Receipt className="w-5 h-5" />
  </div>
  </div>
  <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 flex items-center justify-between shadow-card hover:shadow-md transition-all duration-200">
@@ -394,7 +394,7 @@ export function OrdersPage() {
  <p className="text-2xl font-light font-tabular mt-1 text-amber-950 dark:text-amber-50">{counts.pending_approval}</p>
  </div>
  <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700 flex items-center justify-center ">
- <IconAlertCircle className="w-5 h-5" />
+ <AlertCircle className="w-5 h-5" />
  </div>
  </div>
  </div>
@@ -430,8 +430,8 @@ export function OrdersPage() {
  </div>
 
  {/* Search */}
- <div className="relative min-w-[220px]">
- <IconSearch className="w-4 h-4 text-ink-mute absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+ <div className="relative w-full sm:w-auto sm:min-w-[220px]">
+ <Search className="w-4 h-4 text-ink-mute absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
  <input
  type="text"
  placeholder="Search orders..."
@@ -451,7 +451,7 @@ export function OrdersPage() {
  ) : filteredOrders.length === 0 && !search ? (
  <Card padding="lg">
  <EmptyState
- icon={<IconReceipt className="w-6 h-6" />}
+ icon={<Receipt className="w-6 h-6" />}
  title={statusFilter === 'all' ? 'No orders recorded yet' : `No ${statusFilter.replace('_', ' ')} orders`}
  description={
  statusFilter === 'all'
@@ -459,7 +459,7 @@ export function OrdersPage() {
  : `There are currently no orders in ${statusFilter.replace('_', ' ')} status.`
  }
  actionLabel={statusFilter === 'all' ? 'New order' : undefined}
- actionIcon={statusFilter === 'all' ? <IconPlus className="w-4 h-4" /> : undefined}
+ actionIcon={statusFilter === 'all' ? <Plus className="w-4 h-4" /> : undefined}
  onAction={statusFilter === 'all' ? () => setNewOrderOpen(true) : undefined}
  />
  </Card>
@@ -532,7 +532,7 @@ export function OrdersPage() {
  </div>
 
  <div className="flex justify-end pt-2">
- <Button variant="outline" onClick={() => setSelectedOrder(null)} leftIcon={<IconX className="w-4 h-4" />}>
+ <Button variant="outline" onClick={() => setSelectedOrder(null)} leftIcon={<X className="w-4 h-4" />}>
  Close
  </Button>
  </div>

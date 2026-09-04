@@ -1,19 +1,18 @@
 import { useMemo, useState, useRef, useCallback } from 'react';
 import {
- useReactTable,
- getCoreRowModel,
- getSortedRowModel,
- getFilteredRowModel,
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
 } from '@tanstack/react-table';
 import {
- IconPlus,
- IconSearch,
- IconPencil,
- IconTrash,
- IconAlertCircle,
- IconBoxSeam,
- IconBrandWhatsapp,
-} from '@tabler/icons-react';
+  Plus,
+  Search,
+  Pencil,
+  Trash2,
+  AlertCircle,
+  Package,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Card } from '../components/ui/Card';
@@ -347,7 +346,7 @@ export function InventoryPage() {
  <Button
  variant="ghost"
  size="sm"
- leftIcon={<IconPencil className="w-4 h-4" />}
+ leftIcon={<Pencil className="w-4 h-4" />}
  onClick={(e) => {
  e.stopPropagation();
  handleEdit(row.original);
@@ -359,7 +358,7 @@ export function InventoryPage() {
  variant="ghost"
  size="sm"
  className="text-ruby hover:text-ruby hover:bg-ruby/10"
- leftIcon={<IconTrash className="w-4 h-4" />}
+ leftIcon={<Trash2 className="w-4 h-4" />}
  onClick={(e) => {
  e.stopPropagation();
  setDeletingItem(row.original);
@@ -415,7 +414,7 @@ export function InventoryPage() {
  </div>
  </div>
  <Card padding="lg" className="text-center py-12">
- <IconAlertCircle className="w-10 h-10 text-ruby mx-auto mb-3" />
+ <AlertCircle className="w-10 h-10 text-ruby mx-auto mb-3" />
  <h3 className="text-base font-medium text-ink">Failed to load inventory</h3>
  <p className="text-xs text-ink-mute mt-1">{error.message}</p>
  </Card>
@@ -433,7 +432,7 @@ export function InventoryPage() {
  <div className="flex items-center gap-2">
  <ReportDropdown />
  <Button
- leftIcon={<IconPlus className="w-4 h-4" />}
+ leftIcon={<Plus className="w-4 h-4" />}
  onClick={handleAdd}
  className="shadow-sm shadow-primary/25 text-xs py-1"
  >
@@ -450,7 +449,7 @@ export function InventoryPage() {
  <p className="text-2xl font-light text-emerald-950 dark:text-emerald-50 font-tabular mt-1">{counts.all}</p>
  </div>
  <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 flex items-center justify-center ">
- <IconBoxSeam className="w-5 h-5" />
+ <Package className="w-5 h-5" />
  </div>
  </div>
  <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 flex items-center justify-between shadow-card hover:shadow-md transition-all duration-200">
@@ -459,7 +458,7 @@ export function InventoryPage() {
  <p className="text-2xl font-light font-tabular mt-1 text-emerald-950 dark:text-emerald-50">{counts.healthy}</p>
  </div>
  <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 flex items-center justify-center ">
- <IconBoxSeam className="w-5 h-5" />
+ <Package className="w-5 h-5" />
  </div>
  </div>
  <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 flex items-center justify-between shadow-card hover:shadow-md transition-all duration-200">
@@ -468,7 +467,7 @@ export function InventoryPage() {
  <p className="text-2xl font-light font-tabular mt-1 text-amber-950 dark:text-amber-50">{counts.low}</p>
  </div>
  <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700 flex items-center justify-center ">
- <IconAlertCircle className="w-5 h-5" />
+ <AlertCircle className="w-5 h-5" />
  </div>
  </div>
  <div className="p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950 flex items-center justify-between shadow-card hover:shadow-md transition-all duration-200">
@@ -477,17 +476,17 @@ export function InventoryPage() {
  <p className="text-2xl font-light font-tabular mt-1 text-red-950 dark:text-red-50">{counts.out}</p>
  </div>
  <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-700 flex items-center justify-center ">
- <IconAlertCircle className="w-5 h-5" />
+ <AlertCircle className="w-5 h-5" />
  </div>
  </div>
  </div>
 
  {/* Stock Health Distribution Bar */}
  {counts.all > 0 && (
- <div className="p-3.5 bg-canvas dark:bg-canvas border border-hairline dark:border-white rounded-xl shadow-card">
+ <div className="p-3.5 bg-canvas dark:bg-canvas border border-hairline dark:border-hairline rounded-xl shadow-card">
  <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-ink-mute gap-2 mb-2">
  <span className="font-medium text-ink">Catalog Stock Health</span>
- <div className="flex items-center gap-4 text-[11px]">
+ <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-[11px]">
  <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
  <span className="w-2.5 h-2.5 rounded-xs bg-emerald-500" />
  Healthy ({counts.healthy})
@@ -559,8 +558,8 @@ export function InventoryPage() {
  </button>
  </div>
 
- <div className="relative min-w-[220px]">
- <IconSearch className="w-4 h-4 text-ink-mute absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+ <div className="relative w-full sm:w-auto sm:min-w-[220px]">
+ <Search className="w-4 h-4 text-ink-mute absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
  <input
  type="text"
  placeholder="Search items..."
@@ -580,11 +579,11 @@ export function InventoryPage() {
  ) : items?.length === 0 && !search ? (
  <Card padding="lg">
  <EmptyState
- icon={<IconBoxSeam className="w-6 h-6" />}
+ icon={<Package className="w-6 h-6" />}
  title="No inventory items yet"
  description="Start tracking your inventory by adding your first product."
  actionLabel="Add item"
- actionIcon={<IconPlus className="w-4 h-4" />}
+ actionIcon={<Plus className="w-4 h-4" />}
  onAction={handleAdd}
  />
  </Card>

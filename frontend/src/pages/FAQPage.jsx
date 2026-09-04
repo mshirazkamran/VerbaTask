@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router';
-import { IconChevronDown, IconArrowRight } from '@tabler/icons-react';
+import { ChevronDown, ArrowRight } from 'lucide-react';
 import { LandingLayout } from '../components/layout/LandingLayout';
 
 const ease = [0.16, 1, 0.3, 1];
@@ -71,7 +71,7 @@ function FAQItem({ question, answer, defaultOpen = false }) {
  transition={{ duration: 0.2, ease }}
  className="shrink-0 text-ink-mute"
  >
- <IconChevronDown className="w-4 h-4" />
+ <ChevronDown className="w-4 h-4" />
  </motion.span>
  </button>
  <AnimatePresence initial={false}>
@@ -135,7 +135,7 @@ export function FAQPage() {
  className="inline-flex items-center gap-1.5 text-sm text-primary font-medium hover:underline mt-2"
  >
  Get in touch
- <IconArrowRight className="w-3.5 h-3.5" />
+ <ArrowRight className="w-3.5 h-3.5" />
  </Link>
  </motion.div>
  </div>

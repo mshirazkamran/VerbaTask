@@ -5,11 +5,11 @@ import {
  getSortedRowModel,
 } from '@tanstack/react-table';
 import {
- IconCheck,
- IconX,
- IconAlertCircle,
- IconClipboardCheck,
-} from '@tabler/icons-react';
+  Check,
+  X,
+  AlertCircle,
+  ClipboardCheck,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Card } from '../components/ui/Card';
@@ -61,7 +61,7 @@ export function ApprovalsPage() {
  {getValue() || '-'}
  </span>
  <span className="text-[11px] text-amber-800 dark:text-amber-300 font-medium flex items-center gap-1 mt-0.5">
- <IconAlertCircle className="w-3.5 h-3.5" />
+ <AlertCircle className="w-3.5 h-3.5" />
  Exceeds Rs. 10,000 threshold
  </span>
  </div>
@@ -97,7 +97,7 @@ export function ApprovalsPage() {
  className="bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-600 shadow-xs shadow-emerald-500/25"
  disabled={disabled}
  loading={isActing && acting.decision === 'approved'}
- leftIcon={<IconCheck className="w-4 h-4" />}
+ leftIcon={<Check className="w-4 h-4" />}
  onClick={() => handleRespond(id, 'approved')}
  >
  Approve
@@ -108,7 +108,7 @@ export function ApprovalsPage() {
  className="text-ruby hover:text-ruby hover:bg-ruby/10 border border-ruby/20"
  disabled={disabled}
  loading={isActing && acting.decision === 'rejected'}
- leftIcon={<IconX className="w-4 h-4" />}
+ leftIcon={<X className="w-4 h-4" />}
  onClick={() => handleRespond(id, 'rejected')}
  >
  Reject
@@ -137,7 +137,7 @@ export function ApprovalsPage() {
  <p className="text-xs text-ink-mute">Review flagged orders and workflow actions</p>
  </div>
  <Card padding="lg" className="text-center py-12">
- <IconAlertCircle className="w-10 h-10 text-ruby mx-auto mb-3" />
+ <AlertCircle className="w-10 h-10 text-ruby mx-auto mb-3" />
  <h3 className="text-base font-medium text-ink">Failed to load approvals</h3>
  <p className="text-xs text-ink-mute mt-1">{error.message}</p>
  </Card>
@@ -147,7 +147,7 @@ export function ApprovalsPage() {
 
  return (
  <div className="space-y-6">
- <div className="flex items-center justify-between">
+ <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
  <div>
  <h2 className="font-heading text-2xl font-light tracking-[-0.5px] text-ink">Approvals</h2>
  <p className="font-body text-sm text-ink-mute">Review flagged orders and high-value transactions</p>
@@ -165,7 +165,7 @@ export function ApprovalsPage() {
  <div className="p-4 rounded-xl border-l-4 border-l-amber-500 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-card hover:shadow-md transition-all duration-200">
  <div className="flex items-start gap-3">
  <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700 flex items-center justify-center shrink-0 shadow-xs ">
- <IconClipboardCheck className="w-5 h-5" />
+ <ClipboardCheck className="w-5 h-5" />
  </div>
  <div>
  <div className="flex items-center gap-2">
@@ -194,7 +194,7 @@ export function ApprovalsPage() {
  ) : approvals?.length === 0 ? (
  <Card padding="lg">
  <EmptyState
- icon={<IconClipboardCheck className="w-6 h-6" />}
+ icon={<ClipboardCheck className="w-6 h-6" />}
  title="No approvals pending"
  description="You're all caught up! Orders and automated actions requiring merchant review will appear here."
  />

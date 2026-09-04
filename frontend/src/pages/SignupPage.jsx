@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { IconMail, IconLock, IconArrowRight } from '@tabler/icons-react';
+import { Mail, Lock, ArrowRight } from 'lucide-react';
 import { AuthLayout } from '../components/layout/AuthLayout';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -70,7 +70,7 @@ export function SignupPage() {
  type="email"
  autoComplete="email"
  placeholder="name@business.com"
- leftIcon={<IconMail className="w-4 h-4" />}
+ leftIcon={<Mail className="w-4 h-4" />}
  error={errors.email?.message}
  required
  {...register('email')}
@@ -82,7 +82,7 @@ export function SignupPage() {
  type="password"
  autoComplete="new-password"
  placeholder="At least 6 characters"
- leftIcon={<IconLock className="w-4 h-4" />}
+ leftIcon={<Lock className="w-4 h-4" />}
  error={errors.password?.message}
  required
  {...register('password')}
@@ -94,7 +94,7 @@ export function SignupPage() {
  type="password"
  autoComplete="new-password"
  placeholder="Re-enter your password"
- leftIcon={<IconLock className="w-4 h-4" />}
+ leftIcon={<Lock className="w-4 h-4" />}
  error={errors.confirmPassword?.message}
  required
  {...register('confirmPassword')}
@@ -105,7 +105,7 @@ export function SignupPage() {
  type="submit"
  className="w-full"
  loading={loading}
- rightIcon={<IconArrowRight className="w-4 h-4" />}
+ rightIcon={<ArrowRight className="w-4 h-4" />}
  >
  Create account
  </Button>
