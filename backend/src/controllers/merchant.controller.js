@@ -73,6 +73,7 @@ export async function updateProfile(req, res) {
       'replyPreference',
       'acceptedPaymentMethods',
       'paymentDetails',
+      'defaultPaymentMethod',
     ];
 
     const updates = {};
@@ -154,7 +155,7 @@ export async function updateProfile(req, res) {
  */
 export async function getPaymentMethods(req, res) {
   try {
-    const merchant = await Merchant.findById(req.merchantId).select('acceptedPaymentMethods paymentDetails');
+    const merchant = await Merchant.findById(req.merchantId).select('acceptedPaymentMethods paymentDetails defaultPaymentMethod');
     if (!merchant) {
       return res.status(404).json({ success: false, error: { message: 'Merchant not found' } });
     }
@@ -175,6 +176,7 @@ export async function getPaymentMethods(req, res) {
         totalSupported: allMethods.length,
         totalActive: activeList.length,
         activeMethods: activeList,
+        defaultPaymentMethod: merchant.defaultPaymentMethod,
         methods: allMethods,
       },
     });
@@ -191,7 +193,7 @@ export async function getPaymentMethods(req, res) {
  */
 export async function updatePaymentMethods(req, res) {
   try {
-    const { acceptedPaymentMethods, paymentDetails } = req.body;
+    const { acceptedPaymentMethods, paymentDetails, defaultPaymentMethod } = req.body;
 
     if (!Array.isArray(acceptedPaymentMethods) || !acceptedPaymentMethods.length) {
       return res.status(400).json({
@@ -217,6 +219,9 @@ export async function updatePaymentMethods(req, res) {
     const updates = { acceptedPaymentMethods: validList };
     if (paymentDetails && typeof paymentDetails === 'object') {
       updates.paymentDetails = paymentDetails;
+    }
+    if (defaultPaymentMethod !== undefined) {
+      updates.defaultPaymentMethod = defaultPaymentMethod;
     }
 
     const merchant = await Merchant.findByIdAndUpdate(

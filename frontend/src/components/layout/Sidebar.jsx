@@ -122,6 +122,32 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
         </nav>
       </div>
 
+      {/* Trial Banner */}
+      <div className="px-3 py-2">
+        {(!sidebarCollapsed || mobileOpen) ? (
+          <div className="p-3 rounded-lg bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 text-center space-y-2">
+            <h4 className="text-xs font-semibold text-indigo-700 dark:text-indigo-400">Upgrade to Pro</h4>
+            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-tight">
+              Get unlimited WhatsApp orders, multi-item receipts, and priority support.
+            </p>
+            <button
+              onClick={() => alert('Start Free Trial is currently in development.')}
+              className="w-full mt-2 py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-medium rounded transition-colors shadow-sm cursor-pointer"
+            >
+              Start 14-Day Free Trial
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => alert('Start Free Trial is currently in development.')}
+            className="w-full flex justify-center py-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-md transition-colors cursor-pointer"
+            title="Start Free Trial"
+          >
+            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+          </button>
+        )}
+      </div>
+
       {/* Footer / Account / Collapse */}
       <div className="p-2 border-t border-zinc-200 dark:border-white/10 space-y-1">
         {/* Merchant Info */}
