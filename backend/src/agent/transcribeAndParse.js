@@ -12,21 +12,35 @@ const GROQ_TRANSCRIPTION_URL = 'https://api.groq.com/openai/v1/audio/transcripti
 // costs you rate-limit budget and latency for no reason — cap it.
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024; // ~8MB, comfortably covers a normal 1-2 min voice note
 
+import { getMerchantCatalog } from '../services/catalogCache.service.js';
+
 /**
- * Voice note -> transcript -> the same command-contract JSON the typed-text
- * path produces. Called from whatsapp.controller.js once media.service.js
- * has already downloaded the audio buffer.
- *
- * Deliberately does NOT romanize the transcript. Whisper transcribes spoken
- * Urdu into native Urdu (Perso-Arabic) script — Qwen-2.5 reads that natively,
- * so the native-script transcript goes straight into the same parseIntent()
- * the text path uses.
+ * Builds dynamic transcription vocabulary prompt tailored to the merchant's real catalog.
+ */
+export function buildVocabularyPrompt(merchant, catalog) {
+  const businessName = catalog?.businessName || merchant?.businessName || '';
+  const businessType = catalog?.businessType || merchant?.businessType || 'Retail';
+  const commonTerms = 'cash, easypaisa, jazzcash, sadapay, nayapay, raast, meezan, hbl, ubl, bill, sale, total, rupay, rupees, روپے, kg, piece, packet, box, bottle, dozen';
+
+  if (catalog?.names?.length) {
+    const header = businessName ? `[${businessName} - ${businessType}]` : `[${businessType}]`;
+    return `${header} Catalog: ${catalog.names.slice(0, 45).join(', ')}. Terms: ${commonTerms}`;
+  }
+
+  const header = businessName ? `[${businessName} - ${businessType}] ` : '';
+  return `${header}Pakistani retail commerce & payment terms: ${commonTerms}`;
+}
+
+/**
+ * Voice note -> transcript -> structured command.
+ * Dynamically adapts Whisper vocabulary to the merchant's inventory catalog.
  *
  * @param {Buffer} buffer
  * @param {string} mimeType
  * @param {string} [language='ur'] merchant language ('en' or 'ur')
+ * @param {Object} [merchant=null] merchant document
  */
-export async function transcribeAndParse(buffer, mimeType, language = 'ur') {
+export async function transcribeAndParse(buffer, mimeType, language = 'ur', merchant = null) {
   if (!buffer || !buffer.length) {
     return { type: 'unknown', rawText: '', error: 'empty_audio' };
   }
@@ -36,7 +50,10 @@ export async function transcribeAndParse(buffer, mimeType, language = 'ur') {
   }
 
   const cleanMimeType = (mimeType?.split(';')[0]?.trim() || 'audio/ogg').toLowerCase();
-  const transcript = await transcribeWithRetry(buffer, cleanMimeType, language);
+  const catalog = merchant?._id ? await getMerchantCatalog(merchant._id) : null;
+  const prompt = buildVocabularyPrompt(merchant, catalog);
+
+  const transcript = await transcribeWithRetry(buffer, cleanMimeType, language, prompt);
 
   if (!transcript?.trim()) {
     console.warn('[voice] Empty transcription received');
@@ -45,40 +62,34 @@ export async function transcribeAndParse(buffer, mimeType, language = 'ur') {
 
   const detectedLanguage = /[\u0600-\u06FF]/.test(transcript) ? 'ur' : (language || 'ur');
   console.log(`[voice] transcript (${detectedLanguage}): "${transcript}"`);
-  const intent = await parseIntent(transcript);
+  const intent = await parseIntent(transcript, merchant);
   return { ...intent, transcript, detectedLanguage };
 }
 
-async function transcribeWithRetry(buffer, cleanMimeType, language) {
-  // For Urdu speech, whisper-large-v3 provides authentic Perso-Arabic script accuracy.
-  // whisper-large-v3-turbo serves as high-throughput fallback.
+async function transcribeWithRetry(buffer, cleanMimeType, language, prompt = '') {
   const primaryModel = language === 'ur' ? 'whisper-large-v3' : 'whisper-large-v3-turbo';
   const fallbackModel = language === 'ur' ? 'whisper-large-v3-turbo' : 'whisper-large-v3';
 
   try {
-    return await transcribe(buffer, cleanMimeType, language, primaryModel);
+    return await transcribe(buffer, cleanMimeType, language, primaryModel, prompt);
   } catch (err1) {
     const status1 = err1.response?.status;
     console.warn(`[voice] ${primaryModel} (${language}) failed (${status1 || err1.message}). Retrying with auto-detect...`);
 
-    // Strategy 2: Retry with auto-detect language (handles mixed Urdu-English speech)
     try {
-      return await transcribe(buffer, cleanMimeType, null, primaryModel);
+      return await transcribe(buffer, cleanMimeType, null, primaryModel, prompt);
     } catch (err2) {
       const status2 = err2.response?.status;
       console.warn(`[voice] ${primaryModel} (auto) failed (${status2 || err2.message}). Falling back to ${fallbackModel}...`);
-
-      // Strategy 3: Fallback model
-      return await transcribe(buffer, cleanMimeType, language, fallbackModel);
+      return await transcribe(buffer, cleanMimeType, language, fallbackModel, prompt);
     }
   }
 }
 
 /**
- * Raw Whisper transcription — exported so the voice half can be tested
- * directly against a local audio file, without the Qwen parse step.
+ * Raw Whisper transcription with dynamic vocabulary prompt.
  */
-export async function transcribe(buffer, mimeType, language, model = 'whisper-large-v3-turbo') {
+export async function transcribe(buffer, mimeType, language, model = 'whisper-large-v3-turbo', prompt = '') {
   if (!process.env.GROQ_API_KEY) {
     throw new Error('GROQ_API_KEY not set');
   }
@@ -92,10 +103,9 @@ export async function transcribe(buffer, mimeType, language, model = 'whisper-la
   } else if (language === 'ur') {
     form.append('language', 'ur');
   }
-  form.append(
-    'prompt',
-    'پاکستانی پرچون کریانہ اسٹور: چاول، آٹا، دال، چینی، گھی، تیل، دودھ، چائے، لیپٹن، صابن، کیش، ایزی پیسہ، جاز کیش، کلو، درجن، بوری، پیکٹ، بوتل، روپے، chawal, aata, daal, chini, ghee, oil, doodh, chai, lipton, tapal, surf, cash, easypaisa, jazzcash, sadapay, nayapay, raast, meezan, hbl, ubl, alfalah, 1, 2, 3, 5, 10, 20, 50, 100, 500, 1000'
-  );
+  if (prompt) {
+    form.append('prompt', prompt);
+  }
 
   const { data } = await axios.post(GROQ_TRANSCRIPTION_URL, form, {
     headers: {

@@ -8,6 +8,7 @@ const orderSchema = new mongoose.Schema({
     quantity: { type: Number },
     price: { type: Number }
   }],
+  orderNumber: { type: String, required: true, index: true },
   total: { type: Number },
   paymentMethod: { 
     type: String, 
@@ -17,7 +18,7 @@ const orderSchema = new mongoose.Schema({
   },
   source: { 
     type: String, 
-    enum: ['guided', 'voice', 'dashboard'], 
+    enum: ['guided', 'voice', 'dashboard', 'text'], 
     required: true 
   },
   status: { 
@@ -28,5 +29,7 @@ const orderSchema = new mongoose.Schema({
 }, { 
   timestamps: true 
 });
+
+orderSchema.index({ merchantId: 1, orderNumber: 1 }, { unique: true });
 
 export default mongoose.model('Order', orderSchema);

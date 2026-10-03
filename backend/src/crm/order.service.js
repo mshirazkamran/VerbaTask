@@ -7,6 +7,8 @@ import { resolveItemName } from '../services/qwen.service.js';
 import { normalizePaymentMethod } from '../constants/paymentMethods.js';
 import { emitDashboardUpdate } from '../socket.js';
 
+import { recordMerchantAlias } from '../services/catalogCache.service.js';
+
 // Item names arrive from free-form WhatsApp text (Qwen NLP) — escape regex
 // metacharacters so "Milk (1L)" matches literally instead of failing silently.
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -14,7 +16,7 @@ const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /**
  * Resolve a single order line item to an inventory document.
  * Supports lookup by inventoryItemId (dashboard) or by name (WhatsApp NLP),
- * with fuzzy, cross-lingual (Urdu/English), and semantic LLM resolution.
+ * with exact, learned-alias, fuzzy, and self-learning LLM resolution.
  */
 const resolveInventoryItem = async (merchantId, lineItem) => {
   if (lineItem.inventoryItemId) {
@@ -23,11 +25,15 @@ const resolveInventoryItem = async (merchantId, lineItem) => {
 
   const spokenName = (lineItem.name || '').trim();
   if (!spokenName) return null;
+  const cleanSpoken = spokenName.toLowerCase();
 
-  // 1. Exact match (case-insensitive)
+  // 1. Exact name or learned alias match (O(1) indexed)
   const exact = await InventoryItem.findOne({
     merchantId,
-    name: new RegExp(`^${escapeRegex(spokenName)}$`, 'i'),
+    $or: [
+      { name: new RegExp(`^${escapeRegex(spokenName)}$`, 'i') },
+      { aliases: cleanSpoken },
+    ],
   });
   if (exact) return exact;
 
@@ -36,10 +42,9 @@ const resolveInventoryItem = async (merchantId, lineItem) => {
   if (ranked.length > 0) {
     const top = ranked[0];
     const topNameLower = top.item.name.toLowerCase();
-    const spokenLower = spokenName.toLowerCase();
 
     // High confidence: score >= 0.80, or full substring containment
-    if (top.score >= 0.80 || topNameLower.includes(spokenLower) || spokenLower.includes(topNameLower)) {
+    if (top.score >= 0.80 || topNameLower.includes(cleanSpoken) || cleanSpoken.includes(topNameLower)) {
       return top.item;
     }
 
@@ -54,14 +59,17 @@ const resolveInventoryItem = async (merchantId, lineItem) => {
     }
   }
 
-  // 3. Fallback to LLM semantic matching (handles unique brand variants and complex Urdu/English phrasing)
+  // 3. Fallback to LLM semantic matching with automated self-learning alias persistence
   try {
     const allItems = await InventoryItem.find({ merchantId }).limit(100);
     if (allItems.length > 0) {
       const resolvedName = await resolveItemName(spokenName, allItems.map((i) => i.name));
       if (resolvedName) {
         const matched = allItems.find((i) => i.name.toLowerCase() === resolvedName.toLowerCase());
-        if (matched) return matched;
+        if (matched) {
+          recordMerchantAlias(merchantId, matched.name, spokenName).catch(console.error);
+          return matched;
+        }
       }
     }
   } catch (err) {
@@ -119,7 +127,7 @@ export const createOrder = async (command) => {
     const quantity = Number(lineItem.quantity) || 0;
     if (inventoryItem.quantity < quantity) {
       throw new Error(
-        `INSUFFICIENT_STOCK: Tried to deduct ${quantity}, but only ${inventoryItem.quantity} left.`
+        `INSUFFICIENT_STOCK: ${inventoryItem.name} Tried to deduct ${quantity}, but only ${inventoryItem.quantity} left.`
       );
     }
 
@@ -156,9 +164,12 @@ export const createOrder = async (command) => {
 
   const effectivePaymentMethod = normalizePaymentMethod(paymentMethod) || (paymentMethod ? String(paymentMethod).toLowerCase().trim() : 'cash');
 
+  const orderNumber = `VT-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+
   // 5. Construct and save the order
   const order = await Order.create({
     merchantId,
+    orderNumber,
     items: orderItems,
     total,
     paymentMethod: effectivePaymentMethod,

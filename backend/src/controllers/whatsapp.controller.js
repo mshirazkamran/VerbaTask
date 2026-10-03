@@ -13,6 +13,7 @@ import { parseIntent, extractBusinessDetails, extractInventoryItems, resolveItem
 import { findSimilarInventoryItems, cleanAndStandardizeItemName } from '../crm/item-matching.js';
 import { transcribeAndParse } from '../agent/transcribeAndParse.js';
 import { downloadMedia } from '../services/media.service.js';
+import { invalidateMerchantCatalog } from '../services/catalogCache.service.js';
 import {
   generateInventoryReport,
   generateLowStockReport,
@@ -94,11 +95,8 @@ async function sendDocumentMessage(to, mediaId, filename, caption) {
  * Respects merchant preferences (replyPreference) and environment configuration.
  */
 function shouldReplyWithVoice(merchant, source) {
-  if (process.env.VOICE_REPLY_MODE === 'text_only') return false;
-  if (merchant?.replyPreference === 'text_only') return false;
-  if (merchant?.replyPreference === 'always_voice' || process.env.VOICE_REPLY_MODE === 'always_voice') return true;
-  // Default: voice_on_voice — voice reply when merchant sent voice
-  return source === 'voice';
+  // Hard-disabled to save WhatsApp credits. Text-only bot responses.
+  return false;
 }
 
 /**
@@ -240,7 +238,7 @@ async function handleOnboarding(merchant, message) {
   if (isVoice && message.audio?.id) {
     try {
       const { buffer, mimeType } = await downloadMedia(message.audio.id);
-      const res = await transcribeAndParse(buffer, mimeType, merchant.language);
+      const res = await transcribeAndParse(buffer, mimeType, merchant.language, merchant);
       text = res?.transcript?.trim() || '';
     } catch (err) {
       console.error('Onboarding voice note transcription failed:', err.message);
@@ -304,29 +302,46 @@ async function handleOnboarding(merchant, message) {
         );
       }
       let addedCount = 0;
+      let itemsToInsert = [];
+      
       if (text.toLowerCase() !== 'skip') {
-        // Qwen parses the free-form list into real line items; when it can't,
-        // store the raw text as a single unparsed item (the old behaviour)
-        // rather than losing the merchant's input.
         const items = await extractInventoryItems(text);
         if (items?.length) {
-          await InventoryItem.insertMany(
-            items.map((i) => ({
-              merchantId: merchant._id,
-              name: cleanAndStandardizeItemName(i.name),
-              quantity: i.quantity,
-              ...(i.price != null && { price: i.price }),
-              ...(i.unit && { unit: i.unit }),
-            }))
-          );
-          addedCount = items.length;
+          itemsToInsert = items.map((i) => ({
+            merchantId: merchant._id,
+            name: cleanAndStandardizeItemName(i.name),
+            quantity: i.quantity,
+            ...(i.price != null && { price: i.price }),
+            ...(i.unit && { unit: i.unit }),
+          }));
         } else {
-          await InventoryItem.create({
+          itemsToInsert = [{
             merchantId: merchant._id,
             name: cleanAndStandardizeItemName(text),
             quantity: 0,
-          });
+          }];
         }
+      }
+
+      // Add starter catalog items if available for the business type
+      const { starterCatalogs } = await import('../constants/retailStarterCatalog.js');
+      const bType = merchant.businessType || 'general';
+      const starterItems = starterCatalogs[bType] || starterCatalogs['general'];
+      
+      for (const si of starterItems) {
+        itemsToInsert.push({
+          merchantId: merchant._id,
+          name: si.name,
+          quantity: si.quantity,
+          unit: si.unit,
+          price: 0, // default 0 until merchant updates it
+        });
+      }
+
+      if (itemsToInsert.length > 0) {
+        await InventoryItem.insertMany(itemsToInsert);
+        addedCount = itemsToInsert.length;
+        invalidateMerchantCatalog(merchant._id);
       }
       merchant.onboardingComplete = true;
       await merchant.save();
@@ -482,6 +497,23 @@ async function handleOnboardedMerchant(merchant, message) {
 
     if (message.type === 'interactive') {
       const listId = message.interactive?.list_reply?.id;
+      
+      if (listId?.startsWith('pay_')) {
+        const existingState = await ConversationState.findOne({
+          whatsappNumber: merchant.whatsappNumber,
+          flow: 'guided_order',
+        });
+        if (existingState) {
+          const method = listId.replace('pay_', '');
+          existingState.data = {
+            ...(existingState.data || {}),
+            paymentMethod: method,
+            quantity: existingState.data?.quantity || 1,
+          };
+          return await finalizeGuidedOrder(merchant, existingState);
+        }
+      }
+      
       if (listId === 'start_guided_order') return await startGuidedOrder(merchant);
       return sendTextMessage(merchant.whatsappNumber, "Sorry, I didn't expect that reply — try again?");
     }
@@ -648,7 +680,7 @@ async function handleTextMessage(merchant, text) {
   }
 
   try {
-    const intent = await parseIntent(text);
+    const intent = await parseIntent(text, merchant);
     const detectedLanguage = /[\u0600-\u06FF]/.test(text) ? 'ur' : (merchant.language || 'ur');
     return await routeParsedCommand(merchant, { ...intent, language: detectedLanguage }, 'text');
   } catch (err) {
@@ -664,7 +696,7 @@ async function handleTextMessage(merchant, text) {
 async function handleVoiceNote(merchant, mediaId) {
   try {
     const { buffer, mimeType } = await downloadMedia(mediaId);
-    const intent = await transcribeAndParse(buffer, mimeType, merchant.language);
+    const intent = await transcribeAndParse(buffer, mimeType, merchant.language, merchant);
     const effectiveLanguage = intent.detectedLanguage || merchant.language || 'ur';
     return routeParsedCommand(merchant, { ...intent, language: effectiveLanguage }, 'voice');
   } catch (err) {
@@ -685,12 +717,67 @@ async function handleVoiceNote(merchant, mediaId) {
 async function routeParsedCommand(merchant, intent, source) {
   const effectiveLanguage = intent.language || merchant.language || 'ur';
 
+  // Check if we are resuming a cut-off voice note
+  const cutState = await ConversationState.findOne({
+    whatsappNumber: merchant.whatsappNumber,
+    flow: 'cut_voice_note'
+  });
+
+  if (cutState && intent.type === 'log_sale') {
+    const pendingItems = cutState.data.pendingItems || [];
+    const newItems = intent.items || [];
+    
+    // Merge logic: deduplicate overlapping tail items or just concatenate
+    // Simple approach: add new items. If the first new item matches the last pending item,
+    // assume it's a correction/completion of that item (e.g. "and 5..." -> "5 sugar")
+    for (const newItem of newItems) {
+      const matchIdx = pendingItems.findIndex(p => p.name.toLowerCase() === newItem.name.toLowerCase());
+      if (matchIdx !== -1) {
+        pendingItems[matchIdx].quantity = newItem.quantity; // Overwrite quantity for duplicates
+      } else {
+        pendingItems.push(newItem);
+      }
+    }
+    
+    intent.items = pendingItems;
+    intent.paymentMethod = intent.paymentMethod || cutState.data.paymentMethod || merchant.defaultPaymentMethod || 'cash';
+    intent.amount = intent.amount || cutState.data.amount;
+    
+    await ConversationState.deleteOne({ _id: cutState._id });
+    
+    // If the new message is ALSO incomplete, we stash the updated merged list!
+    // This will be caught by the standard isIncomplete check below.
+  } else if (cutState) {
+    // If they sent something else (e.g. check stock) while we were waiting, abort the cut-off flow
+    await ConversationState.deleteOne({ _id: cutState._id });
+  }
+
   if (intent.type === 'log_sale') {
+    if (intent.isIncomplete && intent.items?.length > 0) {
+      await ConversationState.findOneAndUpdate(
+        { whatsappNumber: merchant.whatsappNumber },
+        { 
+          merchantId: merchant._id, 
+          flow: 'cut_voice_note', 
+          step: 'awaiting_completion', 
+          data: { pendingItems: intent.items, paymentMethod: intent.paymentMethod || merchant.defaultPaymentMethod || 'cash', amount: intent.amount }
+        },
+        { upsert: true }
+      );
+      
+      const itemsList = intent.items.map(i => `• ${i.name} x ${i.quantity}`).join('\n');
+      const text = effectiveLanguage === 'ur'
+        ? `یہ یہ آئٹمز سمجھ آ گئے ہیں:\n${itemsList}\n\nآواز کٹ گئی تھی، برائے مہربانی بقیہ سامان دوبارہ بول دیں یا لکھ دیں۔`
+        : `I got these items so far:\n${itemsList}\n\nThe audio cut off, please repeat or type the rest of the items.`;
+        
+      return sendTextMessage(merchant.whatsappNumber, text);
+    }
+
     return createOrderViaCrm(merchant, {
       type: 'log_sale',
       merchantId: merchant._id,
-      item: intent.item,
-      paymentMethod: intent.paymentMethod,
+      items: intent.items,
+      paymentMethod: intent.paymentMethod || merchant.defaultPaymentMethod || 'cash',
       amount: intent.amount,
       source,
       language: effectiveLanguage,
@@ -823,7 +910,15 @@ async function startGuidedOrder(merchant) {
  */
 async function sendItemPickerPage(merchant, page) {
   const items = await InventoryItem.find({ merchantId: merchant._id }).limit(50);
-  const rows = items.map((i) => ({ id: `item_${i._id}`, title: i.name.slice(0, 24) }));
+  const rows = items.map((i) => {
+    let description = '';
+    if (i.quantity <= 0) {
+      description = `⚠️ Out of Stock (0)`;
+    } else {
+      description = `Stock: ${i.quantity} ${i.unit || ''} | Rs. ${i.price ?? 0}`;
+    }
+    return { id: `item_${i._id}`, title: i.name.slice(0, 24), description: description.slice(0, 72) };
+  });
   const pages = paginateRows(rows);
   const safePage = Math.max(0, Math.min(page, pages.length - 1));
   const hasMore = safePage < pages.length - 1;
@@ -883,6 +978,13 @@ async function continueGuidedOrder(merchant, message, state) {
         const clearMatch = ranked.length === 1 || (ranked.length === 2 && ranked[0].score - ranked[1].score >= 0.15);
 
         if (best && clearMatch) {
+          if (best.item.quantity <= 0) {
+            const msg = merchant.language === 'ur'
+              ? `⚠️ معذرت، "${best.item.name}" کا اسٹاک ختم ہے (دستیاب: 0)۔ برائے مہربانی کوئی اور چیز منتخب کریں یا "cancel" لکھیں۔`
+              : `⚠️ Sorry, "${best.item.name}" is out of stock (Available: 0). Please pick something else or send "cancel".`;
+            return sendTextMessage(merchant.whatsappNumber, msg);
+          }
+          
           const typedQty = qtyMatch ? parseInt(qtyMatch[1], 10) : null;
           const updatedData = {
             ...state.data,
@@ -917,8 +1019,16 @@ async function continueGuidedOrder(merchant, message, state) {
           `I couldn't match "${saidName}" — tap an item from the list, or type its exact name. Send "cancel" to exit.`
         );
       }
+      
       const item = await InventoryItem.findById(listId.replace('item_', ''));
       if (!item) return sendTextMessage(merchant.whatsappNumber, "Couldn't find that item — try again.");
+
+      if (item.quantity <= 0) {
+        const msg = merchant.language === 'ur'
+          ? `⚠️ معذرت، "${item.name}" کا اسٹاک ختم ہے (دستیاب: 0)۔ برائے مہربانی کوئی اور چیز منتخب کریں یا "cancel" لکھیں۔`
+          : `⚠️ Sorry, "${item.name}" is out of stock (Available: 0). Please pick something else or send "cancel".`;
+        return sendTextMessage(merchant.whatsappNumber, msg);
+      }
 
       const updatedData = {
         ...state.data,
@@ -937,8 +1047,9 @@ async function continueGuidedOrder(merchant, message, state) {
 
     case 'awaiting_quantity': {
       // 1. Direct payment button or payment method name provided
-      const paymentAttempt = buttonId?.startsWith('pay_')
-        ? buttonId.replace('pay_', '')
+      const payButtonId = buttonId?.startsWith('pay_') ? buttonId : (listId?.startsWith('pay_') ? listId : null);
+      const paymentAttempt = payButtonId
+        ? payButtonId.replace('pay_', '')
         : normalizePaymentMethod(message.text?.body?.trim() || message.interactive?.button_reply?.title?.trim());
 
       if (paymentAttempt) {
@@ -989,8 +1100,9 @@ async function continueGuidedOrder(merchant, message, state) {
         : DEFAULT_ACCEPTED_PAYMENT_METHODS;
 
       let paymentMethod = null;
-      if (buttonId && buttonId.startsWith('pay_')) {
-        paymentMethod = buttonId.replace('pay_', '');
+      const payButtonId = buttonId?.startsWith('pay_') ? buttonId : (listId?.startsWith('pay_') ? listId : null);
+      if (payButtonId) {
+        paymentMethod = payButtonId.replace('pay_', '');
       }
 
       if (!paymentMethod) {
@@ -1059,17 +1171,17 @@ async function sendPaymentMethodPicker(merchant) {
     return sendInteractiveButtons(merchant.whatsappNumber, prompt, buttons);
   }
 
-  // More than 3: send top 3 as quick buttons, and note other accepted methods in prompt text
-  const otherNames = allowed.slice(3).map((id) => {
+  const listRows = allowed.map((id) => {
     const details = getPaymentMethodDetails(id);
-    return (merchant.language === 'ur' ? details?.nameUrdu : details?.name) || id;
+    const title = (merchant.language === 'ur' ? details?.nameUrdu : details?.name) || id;
+    return {
+      id: `pay_${id}`,
+      title: title.slice(0, 20)
+    };
   });
 
-  const prompt = merchant.language === 'ur'
-    ? `ادائیگی کا طریقہ منتخب کریں (یا لکھیں: ${otherNames.join('، ')})`
-    : `How was it paid? (Or type: ${otherNames.join(', ')})`;
-
-  return sendInteractiveButtons(merchant.whatsappNumber, prompt, buttons);
+  const prompt = merchant.language === 'ur' ? 'ادائیگی کس طریقے سے ہوئی؟' : 'How was it paid?';
+  return sendInteractiveList(merchant.whatsappNumber, prompt, 'Select payment method', [{ title: 'Payment Methods', rows: listRows }]);
 }
 
 /** Logs the completed guided order via crm/ and clears the flow state. */
@@ -1124,10 +1236,9 @@ async function createOrderViaCrm(merchant, command) {
 
   try {
     const order = await createOrder(command);
-    const orderNo = order?._id ? order._id.toString().slice(-6) : '';
+    const orderNo = order?.orderNumber || '';
     const phrases = spokenPhrases.orderLogged(language, {
-      quantity: command.item.quantity,
-      itemName: command.item.name,
+      items: command.items,
       paymentMethod: command.paymentMethod,
       orderNo,
     });
@@ -1136,12 +1247,16 @@ async function createOrderViaCrm(merchant, command) {
     const message = err?.message ?? '';
 
     if (message.startsWith('ITEM_NOT_FOUND:')) {
-      return offerItemDisambiguation(merchant, command);
+      const match = message.match(/ITEM_NOT_FOUND: Cannot find '(.*)' in inventory\./);
+      const missingName = match ? match[1] : command.items?.[0]?.name;
+      return offerItemDisambiguation(merchant, command, missingName);
     }
 
     if (message.startsWith('INSUFFICIENT_STOCK:')) {
       const detail = message.slice('INSUFFICIENT_STOCK:'.length).trim();
-      const phrases = spokenPhrases.insufficientStock(language, { detail, itemName: command.item?.name });
+      const match = message.match(/INSUFFICIENT_STOCK: (.*) Tried to deduct/);
+      const itemName = match ? match[1] : command.items?.[0]?.name;
+      const phrases = spokenPhrases.insufficientStock(language, { detail, itemName });
       return replyToMerchant(merchant, phrases, source);
     }
 
@@ -1158,10 +1273,10 @@ async function createOrderViaCrm(merchant, command) {
  * chawal/rice/چاول and Urdu-script names). The pending command is stashed in
  * ConversationState so the button tap can finish the sale.
  */
-async function offerItemDisambiguation(merchant, command) {
+async function offerItemDisambiguation(merchant, command, missingItemName = '') {
   const source = command.source || 'text';
   const language = command.language || merchant.language || 'ur';
-  const saidName = command.item?.name ?? '';
+  const saidName = missingItemName || command.items?.[0]?.name || '';
 
   let ranked = await findSimilarInventoryItems(merchant._id, saidName, { limit: 2, minScore: 0.35 });
 
@@ -1188,7 +1303,7 @@ async function offerItemDisambiguation(merchant, command) {
 
   await ConversationState.findOneAndUpdate(
     { whatsappNumber: merchant.whatsappNumber },
-    { merchantId: merchant._id, flow: 'item_disambiguation', step: 'awaiting_choice', data: { command } },
+    { merchantId: merchant._id, flow: 'item_disambiguation', step: 'awaiting_choice', data: { command, missingItemName: saidName } },
     { upsert: true }
   );
 
@@ -1235,9 +1350,24 @@ async function handleDisambiguationReply(merchant, buttonId) {
   }
 
   const command = state.data?.command ?? {};
+  const missingName = state.data?.missingItemName;
+
+  let items = [...(command.items || [])];
+  
+  if (items.length > 0) {
+    const idx = items.findIndex(i => i.name === missingName);
+    if (idx !== -1) {
+      items[idx] = { ...items[idx], name: item.name, inventoryItemId: item._id.toString() };
+    } else {
+      items[0] = { ...items[0], name: item.name, inventoryItemId: item._id.toString() };
+    }
+  } else {
+    items = [{ ...(command.item ?? {}), name: item.name, inventoryItemId: item._id.toString() }];
+  }
+
   return createOrderViaCrm(merchant, {
     ...command,
-    item: { ...(command.item ?? {}), name: item.name, inventoryItemId: item._id.toString() },
+    items,
   });
 }
 

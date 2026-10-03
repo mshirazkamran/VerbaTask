@@ -16,29 +16,32 @@ import { normalizePaymentMethod } from '../constants/paymentMethods.js';
 // separate keys — the base URL must match the console the key came from.
 // Our key is from Model Studio (International), hence the intl default.
 
+import { getMerchantCatalog } from './catalogCache.service.js';
+
 const SYSTEM_PROMPT = `You convert a Pakistani merchant's WhatsApp message (which may be in
-English, Urdu script, or Roman Urdu) into exactly one JSON object — no prose, no markdown fences,
-JSON only. Pick ONE of these shapes:
+English, Urdu script, or Roman Urdu) for ANY retail trade (general store, grocery/kiryana, medical/pharmacy, clothing/boutique, auto parts, electronics, restaurant/bakery, hardware) into exactly one JSON object — no prose, no markdown fences, JSON only. Pick ONE of these shapes:
 
 1. Logging a sale (customer purchased goods, selling items):
-{"type":"log_sale","item":{"name":"<item name as the merchant referred to it>","quantity":<number>},"paymentMethod":"cash"|"easypaisa"|"jazzcash"|"sadapay"|"nayapay"|"raast"|"meezan"|"hbl"|"ubl"|"alfalah"|"mcb"|"faysal"|"allied"|"askari"|"bank","amount":<number or null>}
-- Used when an item is SOLD (e.g. "2 chawal cash", "becha", "sold", "furokht", "bechi", "beche", "دیے", "سیل", "2 sugar").
-- If the merchant mentions ANY product name without restock words (e.g. "lipton", "chawal", "daal chana", "2 chini", "ek dudh"), it is a sale.
-- If quantity is not explicitly stated (e.g. "lipton", "chawal"), default quantity to 1.
+{"type":"log_sale","items":[{"name":"<item name as the merchant referred to it>","quantity":<number>}],"paymentMethod":"cash"|"easypaisa"|"jazzcash"|"sadapay"|"nayapay"|"raast"|"meezan"|"hbl"|"ubl"|"alfalah"|"mcb"|"faysal"|"allied"|"askari"|"bank","amount":<number or null>,"isIncomplete":<boolean>}
+- Used when items are SOLD (e.g. "2 panadol cash", "1 lawn suit 3500", "3 spark plug jazzcash", "2 chawal cash", "becha", "sold", "furokht", "bechi", "beche", "دیے", "سیل").
+- Can contain one or multiple items.
+- Set isIncomplete: true if the message appears cut-off or trailing (e.g. ends with "aur...", "and...", "phir...", trailing numbers, or ellipsis "..."). Otherwise false.
+- If the merchant mentions ANY product name without restock words, it is a sale.
+- If quantity is not explicitly stated, default quantity to 1.
 - Supported payment methods: cash, easypaisa, jazzcash, sadapay, nayapay, raast, meezan, hbl, ubl, alfalah, mcb, faysal, allied, askari, or generic bank. Default to "cash".
 
 2. Updating inventory / Adding incoming stock (restock/delivery):
 {"type":"update_stock","item":{"name":"<item name>","quantity":<number>,"price":<number or null>,"unit":"<unit or null>"},"action":"add"|"set"}
 - Used when new stock ARRIVES, goods are received, inventory is added, or stock is updated.
-- Common keywords: "maal aya", "aaya", "aayi", "restock", "add stock", "stock update", "added", "delivered", "وصول", "مال آیا", "آئے ہیں", "اسٹاک میں شامل کریں", "نیا مال", "add 50 rice".
-- Examples: "maal aya 20 chini" -> {"type":"update_stock","item":{"name":"chini","quantity":20},"action":"add"}
-- "add 50 rice price 300" -> {"type":"update_stock","item":{"name":"rice","quantity":50,"price":300},"action":"add"}
+- Common keywords: "maal aya", "aaya", "aayi", "restock", "add stock", "stock update", "added", "delivered", "وصول", "مال آیا", "آئے ہیں", "اسٹاک میں شامل کریں", "نیا مال".
+- Examples: "maal aya 50 panadol 300" -> {"type":"update_stock","item":{"name":"panadol","quantity":50,"price":300},"action":"add"}
+- "add 20 spark plug 450" -> {"type":"update_stock","item":{"name":"spark plug","quantity":20,"price":450},"action":"add"}
 - "20 کلو چاول آئے ہیں" -> {"type":"update_stock","item":{"name":"چاول","quantity":20,"unit":"کلو"},"action":"add"}
 
 3. Checking stock of a specific item:
 {"type":"check_stock","item":{"name":"<item name>"}}
 - Used when the merchant asks how much stock is left of a product.
-- Examples: "rice kitna hai", "check stock sugar", "chini ka stock kitna hai", "how much oil left", "چاول کا اسٹاک کتنا ہے".
+- Examples: "panadol kitna hai", "check stock sugar", "lawn suit kitne bache hain", "spark plug stock", "how much oil left", "چاول کا اسٹاک کتنا ہے".
 
 4. Creating an automation:
 {"type":"create_workflow","trigger":"message"|"schedule"|"threshold","condition":{...},"action":{...},"rawInstruction":"<original text>"}
@@ -207,7 +210,7 @@ const NUMBER_WORDS_REGEX = new RegExp(
   'gi'
 );
 
-const UNIT_REGEX = /(?:^|\s)(kg|kilo|kilos|litre|liter|litres|liters|packet|packets|box|boxes|bottle|bottles|darjan|dozen|bori|sack|کلو|لیٹر|درجن|پیکٹ|بوری|بوتل|ڈبہ)(?:\s|$)/i;
+const UNIT_REGEX = /(?:^|\s)(kg|kilo|kilos|g|gram|grams|gm|litre|liter|litres|liters|ml|packet|packets|pkt|box|boxes|bottle|bottles|strip|strips|piece|pieces|pcs|pc|darjan|dozen|bori|sack|suit|meter|meters|کلو|گرام|لیٹر|درجن|پیکٹ|بوری|بوتل|ڈبہ|پتہ|میٹر)(?:\s|$)/i;
 
 /**
  * Fast-path heuristic parser for stock restocks and stock inquiries.
@@ -303,10 +306,10 @@ export function parseStockHeuristic(text) {
 
 /**
  * Returns one of the command-contract shapes. Shared by the
- * typed-text path and (via the agent module) the voice-transcript path, so
- * both inputs converge on identical downstream handling.
+ * typed-text path and (via the agent module) the voice-transcript path.
+ * Injects dynamic merchant catalog context when available.
  */
-export async function parseIntent(text) {
+export async function parseIntent(text, merchant = null) {
   if (!text || typeof text !== 'string') {
     return { type: 'unknown', rawText: '' };
   }
@@ -320,8 +323,20 @@ export async function parseIntent(text) {
     return { type: 'unknown', rawText: text };
   }
 
+  let prompt = SYSTEM_PROMPT;
+  if (merchant?._id) {
+    try {
+      const catalog = await getMerchantCatalog(merchant._id);
+      if (catalog?.names?.length > 0) {
+        prompt += `\n\nStore Context:\nBusiness: ${catalog.businessName || 'Retail'} (${catalog.businessType})\nKnown Inventory Catalog: ${catalog.names.slice(0, 50).join(', ')}`;
+      }
+    } catch {
+      // Non-fatal, continue with base prompt
+    }
+  }
+
   try {
-    const raw = await chatCompletion(SYSTEM_PROMPT, text);
+    const raw = await chatCompletion(prompt, text);
     const parsed = extractJson(raw);
 
     if (parsed && ['log_sale', 'update_stock', 'check_stock', 'create_workflow', 'greeting', 'generate_report', 'unknown'].includes(parsed.type)) {
@@ -336,12 +351,23 @@ export async function parseIntent(text) {
         } else {
           parsed.paymentMethod = 'cash';
         }
-        if (!parsed.item || !parsed.item.name) {
-          parsed.item = { name: text.trim(), quantity: 1 };
+
+        // Migrate single item to items array if LLM hallucinated the old schema
+        if (parsed.item && !parsed.items) {
+          parsed.items = [parsed.item];
+          delete parsed.item;
         }
-        if (!parsed.item.quantity || isNaN(parsed.item.quantity)) {
-          parsed.item.quantity = 1;
+
+        if (!parsed.items || !Array.isArray(parsed.items) || parsed.items.length === 0) {
+          parsed.items = [{ name: text.trim(), quantity: 1 }];
         }
+
+        parsed.items.forEach((item) => {
+          if (!item.name) item.name = text.trim();
+          if (!item.quantity || isNaN(item.quantity)) item.quantity = 1;
+        });
+
+        parsed.isIncomplete = !!parsed.isIncomplete;
       }
 
       if (parsed.type === 'update_stock') {

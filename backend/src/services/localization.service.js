@@ -38,22 +38,26 @@ export function formatPaymentMethod(pm, language = 'ur') {
 }
 
 export const spokenPhrases = {
-  orderLogged(language = 'ur', { quantity, itemName, paymentMethod, orderNo }) {
+  orderLogged(language = 'ur', { items = [], paymentMethod, orderNo }) {
     const isUrdu = language === 'ur';
     const payFormatted = formatPaymentMethod(paymentMethod, language);
+    
+    // Format items list
+    const itemsSpoken = items.map(i => `${i.quantity} ${i.name}`).join('، ');
+    const itemsText = items.map(i => `${i.quantity} x ${i.name}`).join(', ');
 
     if (isUrdu) {
       const orderPart = orderNo ? `۔ آرڈر نمبر ${orderNo}۔` : '۔';
       return {
-        spoken: `آپ کی سیل درج کر لی گئی ہے: ${quantity} ${itemName}، ${payFormatted} پر${orderPart}`,
-        text: `✅ سیل درج ہو گئی: ${quantity} x ${itemName} (${paymentMethod})${orderNo ? ` — آرڈر #${orderNo}` : ''}.`,
+        spoken: `آپ کی سیل درج کر لی گئی ہے: ${itemsSpoken}، ${payFormatted} پر${orderPart}`,
+        text: `✅ سیل درج ہو گئی: ${itemsText} (${paymentMethod})${orderNo ? ` — آرڈر #${orderNo}` : ''}.`,
       };
     }
 
     const orderPart = orderNo ? ` — Order #${orderNo}` : '';
     return {
-      spoken: `Your sale has been logged: ${quantity} ${itemName}, paid with ${paymentMethod}${orderNo ? `. Order number ${orderNo}.` : '.'}`,
-      text: `✅ Logged: ${quantity} x ${itemName} (${paymentMethod})${orderPart}.`,
+      spoken: `Your sale has been logged: ${itemsSpoken}, paid with ${paymentMethod}${orderNo ? `. Order number ${orderNo}.` : '.'}`,
+      text: `✅ Logged: ${itemsText} (${paymentMethod})${orderPart}.`,
     };
   },
 

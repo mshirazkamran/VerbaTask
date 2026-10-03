@@ -2,6 +2,7 @@ import InventoryItem from '../models/InventoryItem.js';
 import { findSimilarInventoryItems, cleanAndStandardizeItemName } from './item-matching.js';
 import { emitDashboardUpdate } from '../socket.js';
 import { spokenPhrases } from '../services/localization.service.js';
+import { invalidateMerchantCatalog } from '../services/catalogCache.service.js';
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -37,6 +38,7 @@ export async function restockItemViaCrm(merchant, command) {
     if (unit) item.unit = unit;
     await item.save();
 
+    invalidateMerchantCatalog(merchant._id);
     emitDashboardUpdate(merchant._id, {
       type: 'inventory',
       action: 'update',
@@ -64,6 +66,7 @@ export async function restockItemViaCrm(merchant, command) {
     ...(unit && { unit }),
   });
 
+  invalidateMerchantCatalog(merchant._id);
   emitDashboardUpdate(merchant._id, {
     type: 'inventory',
     action: 'create',
@@ -187,6 +190,7 @@ export async function updateItemPriceViaCrm(merchant, rawItemName, newPrice) {
       price,
     });
 
+    invalidateMerchantCatalog(merchant._id);
     emitDashboardUpdate(merchant._id, {
       type: 'inventory',
       action: 'create',
@@ -198,6 +202,7 @@ export async function updateItemPriceViaCrm(merchant, rawItemName, newPrice) {
     item.price = price;
     await item.save();
 
+    invalidateMerchantCatalog(merchant._id);
     emitDashboardUpdate(merchant._id, {
       type: 'inventory',
       action: 'update',

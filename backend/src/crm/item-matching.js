@@ -288,13 +288,23 @@ export function similarity(a, b) {
 }
 
 /**
- * Ranks stock items against what the merchant said. Returns
- * [{ item, score }] sorted best-first, filtered to score >= minScore.
+ * Ranks stock items against what the merchant said.
+ * Evaluates learned aliases with instant 1.0 score, then falls back to fuzzy/phonetic similarity.
  */
 export async function findSimilarInventoryItems(merchantId, saidName, { limit = 3, minScore = 0.5 } = {}) {
-  const items = await InventoryItem.find({ merchantId }).limit(100);
+  const items = await InventoryItem.find({ merchantId }).limit(150);
+  const cleanSaid = (saidName || '').trim().toLowerCase();
+
   return items
-    .map((item) => ({ item, score: similarity(saidName, item.name) }))
+    .map((item) => {
+      if (item.name.toLowerCase() === cleanSaid) {
+        return { item, score: 1.0 };
+      }
+      if (Array.isArray(item.aliases) && item.aliases.some((a) => a.toLowerCase() === cleanSaid)) {
+        return { item, score: 1.0 };
+      }
+      return { item, score: similarity(saidName, item.name) };
+    })
     .filter((m) => m.score >= minScore)
     .sort((x, y) => y.score - x.score)
     .slice(0, limit);
