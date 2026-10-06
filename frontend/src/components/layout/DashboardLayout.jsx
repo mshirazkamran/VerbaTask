@@ -3,10 +3,12 @@ import { Outlet, useLocation } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { useRealtimeSync } from '../../hooks/useRealtimeSync';
 
 export function DashboardLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const realtime = useRealtimeSync();
 
   return (
     <div className="relative flex min-h-screen min-h-[100dvh] bg-paper text-ink">

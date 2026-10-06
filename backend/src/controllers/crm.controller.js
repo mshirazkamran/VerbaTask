@@ -4,6 +4,7 @@ import { createOrder as processOrderCommand } from '../crm/order.service.js';
 import Merchant from '../models/Merchant.js';
 import { uploadMedia } from '../services/media.service.js';
 import { sendDocumentMessage } from '../services/whatsapp.service.js';
+import { emitDashboardUpdate } from '../socket.js';
 import {
   generateInventoryReport,
   generateLowStockReport,
@@ -11,6 +12,7 @@ import {
   generateSalesReport,
   generateTopSellingReport
 } from '../services/report.service.js';
+import { invalidateMerchantCatalog } from '../services/catalogCache.service.js';
 
 // Escape regex metacharacters in item names — same reason as order.service.js.
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -48,6 +50,8 @@ export const createInventoryItem = async (req, res) => {
             }
             
             await item.save();
+            invalidateMerchantCatalog(req.merchantId);
+            emitDashboardUpdate(req.merchantId, { type: 'inventory', action: 'update', itemId: item._id, itemName: item.name });
             return res.status(200).json({ success: true, data: item });
         }
 
@@ -61,6 +65,8 @@ export const createInventoryItem = async (req, res) => {
             expiryDates: Array.isArray(expiryDates) ? expiryDates : []
         });
 
+        invalidateMerchantCatalog(req.merchantId);
+        emitDashboardUpdate(req.merchantId, { type: 'inventory', action: 'create', itemId: item._id, itemName: item.name });
         res.status(201).json({ success: true, data: item });
     } catch (error) {
         res.status(500).json({ success: false, error: { message: error.message } });
@@ -75,6 +81,8 @@ export const updateInventoryItem = async (req, res) => {
             { new: true }
         );
         if (!item) return res.status(404).json({ success: false, error: { message: 'Item not found' } });
+        invalidateMerchantCatalog(req.merchantId);
+        emitDashboardUpdate(req.merchantId, { type: 'inventory', action: 'update', itemId: item._id, itemName: item.name });
         res.status(200).json({ success: true, data: item });
     } catch (error) {
         res.status(500).json({ success: false, error: { message: error.message } });
@@ -85,6 +93,8 @@ export const deleteInventoryItem = async (req, res) => {
     try {
         const item = await InventoryItem.findOneAndDelete({ _id: req.params.id, merchantId: req.merchantId });
         if (!item) return res.status(404).json({ success: false, error: { message: 'Item not found' } });
+        invalidateMerchantCatalog(req.merchantId);
+        emitDashboardUpdate(req.merchantId, { type: 'inventory', action: 'delete', itemId: req.params.id });
         res.status(200).json({ success: true, data: { deleted: true } });
     } catch (error) {
         res.status(500).json({ success: false, error: { message: error.message } });

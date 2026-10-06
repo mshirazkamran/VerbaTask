@@ -8,33 +8,38 @@ import InventoryItem from '../models/InventoryItem.js';
 
 // Bilingual & phonetic equivalence groups for Pakistani retail
 const BILINGUAL_GROUPS = [
-  ['rice', 'rise', 'riece', 'ryce', 'chawal', 'chawl', 'chaawal', 'چاول'],
-  ['sugar', 'sugr', 'shugar', 'shugr', 'chini', 'cheeni', 'cheni', 'chiny', 'چینی'],
-  ['flour', 'flor', 'atta', 'aata', 'aatta', 'ata', 'gandum', 'آٹا', 'گندم'],
-  ['oil', 'oel', 'cooking oil', 'cookingoil', 'tail', 'tel', 'تیل', 'کوکنگ آئل'],
-  ['ghee', 'ghi', 'geeh', 'گھی', 'ڈالڈا', 'dalda', 'banaspati'],
-  ['tea', 'chai', 'chay', 'chaa', 'چائے', 'پتی', 'patti', 'tapal', 'lipton'],
-  ['milk', 'doodh', 'dodh', 'dudh', 'دودھ', 'olpers', 'milkpak'],
+  ['rice', 'rise', 'riece', 'ryce', 'chawal', 'chawl', 'chaawal', 'چاول', 'باسمتی', 'basmati', 'sela', 'سیلہ'],
+  ['sugar', 'sugr', 'shugar', 'shugr', 'chini', 'cheeni', 'cheni', 'chiny', 'چینی', 'shakar', 'شکر'],
+  ['flour', 'flor', 'atta', 'aata', 'aatta', 'ata', 'gandum', 'آٹا', 'گندم', 'میدہ', 'maida'],
+  ['oil', 'oel', 'cooking oil', 'cookingoil', 'tail', 'tel', 'تیل', 'کوکنگ آئل', 'sufi', 'habib', 'حبیب'],
+  ['ghee', 'ghi', 'geeh', 'گھی', 'ڈالڈا', 'dalda', 'banaspati', 'meezan'],
+  ['tea', 'chai', 'chay', 'chaa', 'چائے', 'پتی', 'patti', 'tapal', 'lipton', 'لیپٹن', 'ٹیپال', 'danedar', 'دانے دار'],
+  ['milk', 'doodh', 'dodh', 'dudh', 'دودھ', 'olpers', 'milkpak', 'اولپرز', 'ملک پیک', 'tarang', 'ترنگ', 'dairy pure'],
   ['lentil', 'daal', 'dal', 'dall', 'دال'],
   ['maash', 'mash', 'ماش'],
   ['channa', 'chana', 'چنا'],
   ['moong', 'mong', 'مونگ'],
   ['masoor', 'masur', 'مسور'],
   ['salt', 'namak', 'nimak', 'نمک'],
-  ['soap', 'sop', 'sabun', 'saabun', 'صابن', 'surf', 'detergent', 'سرف'],
-  ['spices', 'masala', 'masale', 'masalah', 'مصالحہ'],
+  ['soap', 'sop', 'sabun', 'saabun', 'صابن', 'surf', 'detergent', 'سرف', 'ariel', 'برائٹ', 'bright', 'bonus', 'بونس', 'lifebuoy', 'lux', 'لکس'],
+  ['spices', 'masala', 'masale', 'masalah', 'مصالحہ', 'national', 'shan', 'شان', 'haldi', 'ہلدی', 'mirch', 'مرچ'],
   ['eggs', 'egs', 'anday', 'ande', 'anda', 'انڈے', 'انڈا'],
-  ['bread', 'bred', 'double roti', 'doubleroti', 'ڈبل روٹی'],
-  ['biscuits', 'biscuit', 'biscut', 'biskut', 'بسکوٹ', 'بسکٹ', 'cookies'],
-  ['chips', 'chps', 'lays', 'پاپڑ', 'پاپڑیاں', 'چپس'],
-  ['water', 'pani', 'paani', 'پانی'],
-  ['drinks', 'cold drink', 'drink', 'cola', 'pepsi', 'coke', 'بوتل', 'کولڈ ڈرنک'],
+  ['bread', 'bred', 'double roti', 'doubleroti', 'ڈبل روٹی', 'dawn bread'],
+  ['biscuits', 'biscuit', 'biscut', 'biskut', 'بسکوٹ', 'بسکٹ', 'cookies', 'سوپر', 'super', 'sooper', 'rio', 'ریو', 'gala', 'گالا', 'prince', 'پرنس'],
+  ['chips', 'chps', 'lays', 'پاپڑ', 'پاپڑیاں', 'چپس', 'kurkure', 'کرکرے'],
+  ['water', 'pani', 'paani', 'پانی', 'aquafina', 'nestle'],
+  ['drinks', 'cold drink', 'drink', 'cola', 'pepsi', 'coke', 'بوتل', 'کولڈ ڈرنک', 'پیپسی', 'کوک', 'سیون اپ', '7up', 'sprite', 'سپرائٹ', 'dew', 'ڈیو', 'sting', 'سٹنگ', 'marinda', 'مرنڈا'],
   ['chicken', 'chiken', 'chikn', 'murghi', 'murgi', 'مرغی', 'چکن'],
   ['beef', 'mutton', 'gosht', 'goshat', 'گوشت'],
   ['onion', 'pyaz', 'piyaz', 'پیاز'],
   ['potato', 'aalu', 'aloo', 'alu', 'آلو'],
   ['tomato', 'tamatar', 'tamater', 'ٹماٹر'],
   ['matches', 'machis', 'ماچس'],
+  ['shampoo', 'شیمپو', 'sunsilk', 'سن سلک', 'head and shoulders'],
+  ['toothpaste', 'tooth paste', 'ٹوتھ پیسٹ', 'colgate', 'کولگیٹ'],
+  ['mithai', 'methai', 'sweets', 'sweet', 'مٹھائی', 'mix mithai', 'مکس مٹھائی', 'halwa', 'حلوا', 'gulab jamun', 'گلاب جامن', 'rasgulla', 'رس گلہ', 'jalebi', 'جلیبی', 'barfi', 'برفی', 'laddu', 'لڈو'],
+  ['samosa', 'samosay', 'smosa', 'سموسہ', 'سموسے', 'pakora', 'pakoray', 'پکوڑے', 'roll', 'رول', 'patties', 'پیٹیز'],
+  ['biryani', 'beryani', 'بریانی', 'pulao', 'پلاؤ'],
 ];
 
 const CONCEPT_MAP = new Map();
@@ -191,6 +196,25 @@ export function crossLingualScore(na, nb) {
   return 0;
 }
 
+const URDU_TO_ROMAN_CHAR_MAP = {
+  'ا': 'a', 'آ': 'a', 'ب': 'b', 'پ': 'p', 'ت': 't', 'ٹ': 't', 'ث': 's',
+  'ج': 'j', 'چ': 'ch', 'ح': 'h', 'خ': 'kh', 'د': 'd', 'ڈ': 'd', 'ذ': 'z',
+  'ر': 'r', 'ڑ': 'r', 'ز': 'z', 'ژ': 'z', 'س': 's', 'ش': 'sh', 'ص': 's',
+  'ض': 'z', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'gh', 'ف': 'f', 'ق': 'q',
+  'ک': 'k', 'گ': 'g', 'ل': 'l', 'م': 'm', 'ن': 'n', 'ں': 'n', 'و': 'o',
+  'ہ': 'h', 'ھ': 'h', 'ء': '', 'ئ': 'i', 'ی': 'i', 'ے': 'e', 'ۂ': 'h', 'ۃ': 't',
+};
+
+export function transliterateUrdu(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .split('')
+    .map((c) => URDU_TO_ROMAN_CHAR_MAP[c] || c)
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /**
  * 0..1 similarity between two raw item names.
  * Evaluates cross-lingual concept matches, phonetic spelling equivalence,
@@ -205,6 +229,16 @@ export function similarity(a, b) {
   // 1. Cross-lingual match (e.g. "chawal" vs "Rice", "چاول" vs "Rice")
   const crossScore = crossLingualScore(na, nb);
   if (crossScore >= 0.85) return crossScore;
+
+  // Cross-script transliteration: if one item is Urdu script and the other Latin
+  const hasUrduA = /[\u0600-\u06FF]/.test(na);
+  const hasUrduB = /[\u0600-\u06FF]/.test(nb);
+  if (hasUrduA !== hasUrduB) {
+    const transA = hasUrduA ? normalizeName(transliterateUrdu(na)) : na;
+    const transB = hasUrduB ? normalizeName(transliterateUrdu(nb)) : nb;
+    const transScore = similarity(transA, transB);
+    if (transScore >= 0.70) return transScore;
+  }
 
   // 2. Phonetic equivalence (e.g. "riece" vs "rice", "sugr" vs "sugar")
   const pa = simplifyPhonetic(na);
@@ -221,14 +255,23 @@ export function similarity(a, b) {
   const tb = nb.split(' ');
   let matched = 0;
   for (const t of ta) if (tb.includes(t)) matched++;
-  const tokenScore = matched / Math.max(ta.length, tb.length);
+  let tokenScore = matched / Math.max(ta.length, tb.length);
+
+  // Full word subset match: if one item's words are a complete subset of the other
+  // e.g. "lipton" in "lipton yellow label", or "daal chana" in "daal chana special"
+  if (matched === ta.length || matched === tb.length) {
+    const minLen = Math.min(ta.length, tb.length);
+    const maxLen = Math.max(ta.length, tb.length);
+    const subsetScore = 0.82 + 0.18 * (minLen / maxLen);
+    tokenScore = Math.max(tokenScore, subsetScore);
+  }
 
   // 5. Substring containment
   const shorter = na.length < nb.length ? na : nb;
   const longer = na.length < nb.length ? nb : na;
   const contains =
     shorter.length >= 3 && longer.includes(shorter)
-      ? 0.65 + 0.3 * (shorter.length / longer.length)
+      ? 0.75 + 0.25 * (shorter.length / longer.length)
       : 0;
 
   // 6. Space-stripped comparison
@@ -245,13 +288,23 @@ export function similarity(a, b) {
 }
 
 /**
- * Ranks stock items against what the merchant said. Returns
- * [{ item, score }] sorted best-first, filtered to score >= minScore.
+ * Ranks stock items against what the merchant said.
+ * Evaluates learned aliases with instant 1.0 score, then falls back to fuzzy/phonetic similarity.
  */
 export async function findSimilarInventoryItems(merchantId, saidName, { limit = 3, minScore = 0.5 } = {}) {
-  const items = await InventoryItem.find({ merchantId }).limit(100);
+  const items = await InventoryItem.find({ merchantId }).limit(150);
+  const cleanSaid = (saidName || '').trim().toLowerCase();
+
   return items
-    .map((item) => ({ item, score: similarity(saidName, item.name) }))
+    .map((item) => {
+      if (item.name.toLowerCase() === cleanSaid) {
+        return { item, score: 1.0 };
+      }
+      if (Array.isArray(item.aliases) && item.aliases.some((a) => a.toLowerCase() === cleanSaid)) {
+        return { item, score: 1.0 };
+      }
+      return { item, score: similarity(saidName, item.name) };
+    })
     .filter((m) => m.score >= minScore)
     .sort((x, y) => y.score - x.score)
     .slice(0, limit);

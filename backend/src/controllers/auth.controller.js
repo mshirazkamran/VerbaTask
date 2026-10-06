@@ -34,7 +34,7 @@ export const signup = async (req, res) => {
 
         // NOTE: The Schema requires whatsappNumber, but the API contract for signup doesn't include it. 
         // We set a temporary one here. It gets overwritten when they confirm the link code.
-        const tempWhatsappNumber = `unlinked_${Date.now()}`;
+        const tempWhatsappNumber = 'unlinked_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
 
         const merchant = await Merchant.create({
             email,
@@ -128,7 +128,12 @@ export const confirmLinkCode = async (req, res) => {
             const oldId = emailMerchant._id;
             const newId = existingWhatsAppMerchant._id;
 
-            existingWhatsAppMerchant.email = emailMerchant.email;
+            // Prevent duplicate key error by clearing the email from the old record first
+            const originalEmail = emailMerchant.email;
+            emailMerchant.email = `merged_${Date.now()}_${emailMerchant._id}`;
+            await emailMerchant.save();
+
+            existingWhatsAppMerchant.email = originalEmail;
             existingWhatsAppMerchant.passwordHash = emailMerchant.passwordHash;
             await existingWhatsAppMerchant.save();
 

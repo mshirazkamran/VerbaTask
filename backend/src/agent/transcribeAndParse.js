@@ -12,82 +12,107 @@ const GROQ_TRANSCRIPTION_URL = 'https://api.groq.com/openai/v1/audio/transcripti
 // costs you rate-limit budget and latency for no reason — cap it.
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024; // ~8MB, comfortably covers a normal 1-2 min voice note
 
+import { getMerchantCatalog } from '../services/catalogCache.service.js';
+
 /**
- * Voice note -> transcript -> the same command-contract JSON the typed-text
- * path produces. Called from whatsapp.controller.js once media.service.js
- * has already downloaded the audio buffer.
- *
- * Deliberately does NOT romanize the transcript. Whisper transcribes spoken
- * Urdu into native Urdu (Perso-Arabic) script — Qwen-2.5 reads that natively,
- * so the native-script transcript goes straight into the same parseIntent()
- * the text path uses.
+ * Builds dynamic transcription vocabulary prompt tailored to the merchant's real catalog.
+ */
+export function buildVocabularyPrompt(merchant, catalog) {
+  const businessName = catalog?.businessName || merchant?.businessName || '';
+  const businessType = catalog?.businessType || merchant?.businessType || 'Retail';
+  const commonTerms = 'cash, easypaisa, jazzcash, sadapay, nayapay, raast, meezan, hbl, ubl, bill, sale, total, rupay, rupees, روپے, kg, piece, packet, box, bottle, dozen';
+
+  if (catalog?.names?.length) {
+    const header = businessName ? `[${businessName} - ${businessType}]` : `[${businessType}]`;
+    return `${header} Catalog: ${catalog.names.slice(0, 45).join(', ')}. Terms: ${commonTerms}`;
+  }
+
+  const header = businessName ? `[${businessName} - ${businessType}] ` : '';
+  return `${header}Pakistani retail commerce & payment terms: ${commonTerms}`;
+}
+
+/**
+ * Voice note -> transcript -> structured command.
+ * Dynamically adapts Whisper vocabulary to the merchant's inventory catalog.
  *
  * @param {Buffer} buffer
  * @param {string} mimeType
  * @param {string} [language='ur'] merchant language ('en' or 'ur')
+ * @param {Object} [merchant=null] merchant document
  */
-export async function transcribeAndParse(buffer, mimeType, language = 'ur') {
+export async function transcribeAndParse(buffer, mimeType, language = 'ur', merchant = null) {
+  if (!buffer || !buffer.length) {
+    return { type: 'unknown', rawText: '', error: 'empty_audio' };
+  }
+
   if (buffer.length > MAX_AUDIO_BYTES) {
     return { type: 'unknown', rawText: '', error: 'audio_too_long' };
   }
 
-  const transcript = await transcribeWithRetry(buffer, mimeType, language);
+  const cleanMimeType = (mimeType?.split(';')[0]?.trim() || 'audio/ogg').toLowerCase();
+  const catalog = merchant?._id ? await getMerchantCatalog(merchant._id) : null;
+  const prompt = buildVocabularyPrompt(merchant, catalog);
+
+  const transcript = await transcribeWithRetry(buffer, cleanMimeType, language, prompt);
 
   if (!transcript?.trim()) {
+    console.warn('[voice] Empty transcription received');
     return { type: 'unknown', rawText: '' };
   }
 
   const detectedLanguage = /[\u0600-\u06FF]/.test(transcript) ? 'ur' : (language || 'ur');
-  console.log(`[voice] transcript (${detectedLanguage}): ${transcript}`);
-  const intent = await parseIntent(transcript);
+  console.log(`[voice] transcript (${detectedLanguage}): "${transcript}"`);
+  const intent = await parseIntent(transcript, merchant);
   return { ...intent, transcript, detectedLanguage };
 }
 
-async function transcribeWithRetry(buffer, mimeType, language, attempt = 1) {
+async function transcribeWithRetry(buffer, cleanMimeType, language, prompt = '') {
+  const primaryModel = language === 'ur' ? 'whisper-large-v3' : 'whisper-large-v3-turbo';
+  const fallbackModel = language === 'ur' ? 'whisper-large-v3-turbo' : 'whisper-large-v3';
+
   try {
-    return await transcribe(buffer, mimeType, language);
-  } catch (err) {
-    const status = err.response?.status;
-    const body = err.response?.data ? JSON.stringify(err.response.data) : '';
-    // Retry once on transient failures (timeouts, rate limit, 5xx) — not on
-    // 4xx auth/bad-request errors, retrying those just wastes another call.
-    const transient = !status || status === 429 || status >= 500;
-    if (transient && attempt < 2) {
-      console.warn(`Transcription attempt ${attempt} failed (${status} ${body}), retrying once...`);
-      return transcribeWithRetry(buffer, mimeType, language, attempt + 1);
+    return await transcribe(buffer, cleanMimeType, language, primaryModel, prompt);
+  } catch (err1) {
+    const status1 = err1.response?.status;
+    console.warn(`[voice] ${primaryModel} (${language}) failed (${status1 || err1.message}). Retrying with auto-detect...`);
+
+    try {
+      return await transcribe(buffer, cleanMimeType, null, primaryModel, prompt);
+    } catch (err2) {
+      const status2 = err2.response?.status;
+      console.warn(`[voice] ${primaryModel} (auto) failed (${status2 || err2.message}). Falling back to ${fallbackModel}...`);
+      return await transcribe(buffer, cleanMimeType, language, fallbackModel, prompt);
     }
-    throw err;
   }
 }
 
 /**
- * Raw Whisper transcription — exported so the voice half can be tested
- * directly against a local audio file, without the Qwen parse step.
+ * Raw Whisper transcription with dynamic vocabulary prompt.
  */
-export async function transcribe(buffer, mimeType, language) {
+export async function transcribe(buffer, mimeType, language, model = 'whisper-large-v3-turbo', prompt = '') {
   if (!process.env.GROQ_API_KEY) {
     throw new Error('GROQ_API_KEY not set');
   }
 
+  const cleanMime = (mimeType?.split(';')[0]?.trim() || 'audio/ogg').toLowerCase();
   const form = new FormData();
-  form.append('file', buffer, { filename: filenameFor(mimeType), contentType: mimeType });
-  form.append('model', 'whisper-large-v3'); // high-accuracy Whisper model
+  form.append('file', buffer, { filename: filenameFor(cleanMime), contentType: cleanMime });
+  form.append('model', model);
   if (language === 'en') {
     form.append('language', 'en');
   } else if (language === 'ur') {
     form.append('language', 'ur');
   }
-  form.append(
-    'prompt',
-    'Pakistani retail store kiryana: chawal, aata, daal, chini, ghee, oil, cash, easypaisa, jazzcash, sadapay, nayapay, raast, meezan, hbl, ubl, alfalah, 1, 2, 3, 5, 10, 20, 50, 100, 500, 1000, sale, order, do, teen, char, paanch, bori, kilo, packet'
-  );
+  if (prompt) {
+    form.append('prompt', prompt);
+  }
 
   const { data } = await axios.post(GROQ_TRANSCRIPTION_URL, form, {
     headers: {
       ...form.getHeaders(),
       Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
     },
-    timeout: 25_000,
+    timeout: 15_000,
     maxBodyLength: Infinity,
   });
 
@@ -95,9 +120,10 @@ export async function transcribe(buffer, mimeType, language) {
 }
 
 function filenameFor(mimeType) {
-  if (mimeType?.includes('ogg')) return 'note.ogg';
-  if (mimeType?.includes('mpeg') || mimeType?.includes('mp3')) return 'note.mp3';
-  if (mimeType?.includes('mp4') || mimeType?.includes('m4a')) return 'note.m4a';
-  if (mimeType?.includes('wav')) return 'note.wav';
-  return 'note.bin';
+  const m = (mimeType || '').toLowerCase();
+  if (m.includes('ogg') || m.includes('opus')) return 'note.ogg';
+  if (m.includes('mpeg') || m.includes('mp3')) return 'note.mp3';
+  if (m.includes('mp4') || m.includes('m4a')) return 'note.m4a';
+  if (m.includes('wav')) return 'note.wav';
+  return 'note.ogg';
 }

@@ -16,6 +16,7 @@ import {
   normalizePaymentMethod,
   DEFAULT_ACCEPTED_PAYMENT_METHODS,
 } from '../constants/paymentMethods.js';
+import { emitDashboardUpdate } from '../socket.js';
 
 /**
  * GET /api/merchant/profile
@@ -72,6 +73,7 @@ export async function updateProfile(req, res) {
       'replyPreference',
       'acceptedPaymentMethods',
       'paymentDetails',
+      'defaultPaymentMethod',
     ];
 
     const updates = {};
@@ -133,6 +135,8 @@ export async function updateProfile(req, res) {
       return res.status(404).json({ success: false, error: { message: 'Merchant not found' } });
     }
 
+    emitDashboardUpdate(req.merchantId, { type: 'profile' });
+
     return res.status(200).json({
       success: true,
       data: merchant,
@@ -151,7 +155,7 @@ export async function updateProfile(req, res) {
  */
 export async function getPaymentMethods(req, res) {
   try {
-    const merchant = await Merchant.findById(req.merchantId).select('acceptedPaymentMethods paymentDetails');
+    const merchant = await Merchant.findById(req.merchantId).select('acceptedPaymentMethods paymentDetails defaultPaymentMethod');
     if (!merchant) {
       return res.status(404).json({ success: false, error: { message: 'Merchant not found' } });
     }
@@ -172,6 +176,7 @@ export async function getPaymentMethods(req, res) {
         totalSupported: allMethods.length,
         totalActive: activeList.length,
         activeMethods: activeList,
+        defaultPaymentMethod: merchant.defaultPaymentMethod,
         methods: allMethods,
       },
     });
@@ -188,7 +193,7 @@ export async function getPaymentMethods(req, res) {
  */
 export async function updatePaymentMethods(req, res) {
   try {
-    const { acceptedPaymentMethods, paymentDetails } = req.body;
+    const { acceptedPaymentMethods, paymentDetails, defaultPaymentMethod } = req.body;
 
     if (!Array.isArray(acceptedPaymentMethods) || !acceptedPaymentMethods.length) {
       return res.status(400).json({
@@ -215,12 +220,17 @@ export async function updatePaymentMethods(req, res) {
     if (paymentDetails && typeof paymentDetails === 'object') {
       updates.paymentDetails = paymentDetails;
     }
+    if (defaultPaymentMethod !== undefined) {
+      updates.defaultPaymentMethod = defaultPaymentMethod;
+    }
 
     const merchant = await Merchant.findByIdAndUpdate(
       req.merchantId,
       { $set: updates },
       { new: true }
     ).select('acceptedPaymentMethods paymentDetails businessName');
+
+    emitDashboardUpdate(req.merchantId, { type: 'payment_methods' });
 
     return res.status(200).json({
       success: true,

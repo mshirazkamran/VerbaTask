@@ -86,6 +86,7 @@ export function SettingsPage() {
   // Payments State
   const [activePaymentIds, setActivePaymentIds] = useState([]);
   const [paymentDetails, setPaymentDetails] = useState({});
+  const [defaultPaymentMethod, setDefaultPaymentMethod] = useState('cash');
 
   // Sync profile data to state
   useEffect(() => {
@@ -107,6 +108,9 @@ export function SettingsPage() {
     }
     if (profile?.paymentDetails) {
       setPaymentDetails(profile.paymentDetails);
+    }
+    if (paymentMethodsData?.defaultPaymentMethod) {
+      setDefaultPaymentMethod(paymentMethodsData.defaultPaymentMethod);
     }
   }, [paymentMethodsData, profile]);
 
@@ -223,6 +227,7 @@ export function SettingsPage() {
       await updatePaymentsMutation.mutateAsync({
         acceptedPaymentMethods: activePaymentIds,
         paymentDetails,
+        defaultPaymentMethod,
       });
       toast.success('Accepted payment methods updated successfully!');
     } catch (err) {
@@ -560,6 +565,30 @@ export function SettingsPage() {
             </div>
 
             <div className="space-y-6">
+              {/* Default Payment Method */}
+              <div>
+                <h3 className="text-xs font-semibold text-ink-secondary uppercase tracking-wider mb-3">
+                  Default Payment Method
+                </h3>
+                <div className="max-w-md">
+                  <Select
+                    value={defaultPaymentMethod}
+                    onChange={(e) => setDefaultPaymentMethod(e.target.value)}
+                  >
+                    {allMethods
+                      .filter((m) => activePaymentIds.includes(m.id) || m.id === 'cash')
+                      .map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} {m.nameUrdu ? `(${m.nameUrdu})` : ''}
+                        </option>
+                      ))}
+                  </Select>
+                  <p className="text-[11px] text-ink-mute mt-1.5">
+                    If an order is logged without specifying the payment type, this method will be used automatically.
+                  </p>
+                </div>
+              </div>
+
               {/* Cash Section */}
               <div>
                 <h3 className="text-xs font-semibold text-ink-secondary uppercase tracking-wider mb-3">

@@ -6,8 +6,7 @@ describe('Localization Service Tests', () => {
   describe('orderLogged', () => {
     test('formats Urdu spoken and text correctly', () => {
       const { spoken, text } = spokenPhrases.orderLogged('ur', {
-        quantity: 2,
-        itemName: 'چاول',
+        items: [{ quantity: 2, name: 'چاول' }],
         paymentMethod: 'cash',
         orderNo: '123456',
       });
@@ -20,8 +19,7 @@ describe('Localization Service Tests', () => {
 
     test('formats English spoken and text correctly', () => {
       const { spoken, text } = spokenPhrases.orderLogged('en', {
-        quantity: 3,
-        itemName: 'Rice',
+        items: [{ quantity: 3, name: 'Rice' }],
         paymentMethod: 'cash',
         orderNo: '789012',
       });

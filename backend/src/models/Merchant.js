@@ -13,6 +13,7 @@ const merchantSchema = new mongoose.Schema({
   onboardingComplete: { type: Boolean, default: false },
   voiceReplies:   { type: Boolean, default: true },
   replyPreference: { type: String, enum: ['voice_on_voice', 'always_voice', 'text_only'], default: 'voice_on_voice' },
+  defaultPaymentMethod: { type: String, default: 'cash', trim: true, lowercase: true },
   acceptedPaymentMethods: {
     type: [String],
     default: DEFAULT_ACCEPTED_PAYMENT_METHODS,
