@@ -1,111 +1,67 @@
-import { motion } from 'motion/react';
-import {
-  XCircle,
-  CheckCircle2,
-  Smartphone,
-  Shield,
-  Zap,
-} from 'lucide-react';
-import { SpotlightCard } from '../ui/reactbits/SpotlightCard';
-
-const comparisons = [
+// F3 tabular spec sheet — no card, hairline rows. Stacks into labelled pairs on phones.
+const rows = [
   {
-    feature: 'Hardware & Terminal Cost',
-    traditional: 'Rs. 45,000 – 120,000 for PC, touch POS terminal & barcode gun',
-    verbatask: 'Rs. 0 — Runs entirely inside WhatsApp on any basic Android phone',
-    advantage: true,
+    need: 'Hardware',
+    pos: 'Rs. 45,000–120,000 for a PC, touch terminal and barcode gun',
+    vt: 'Nothing new. Any Android phone with WhatsApp',
   },
   {
-    feature: 'Language & Literacy Barrier',
-    traditional: 'English-only UI with 15 mandatory fields per checkout entry',
-    verbatask: 'Urdu & Roman Urdu voice notes — speak naturally like talking to staff',
-    advantage: true,
+    need: 'Language',
+    pos: 'English-only screens, a form per checkout',
+    vt: 'Urdu and Roman Urdu voice notes, spoken like you’d talk to staff',
   },
   {
-    feature: 'Loadshedding & Offline Power',
-    traditional: 'Requires uninterrupted UPS/generator power for desktop terminals',
-    verbatask: 'Works via mobile battery & 3G/4G cellular data network',
-    advantage: true,
+    need: 'Loadshedding',
+    pos: 'Needs a UPS or generator to keep the terminal on',
+    vt: 'Runs on phone battery and mobile data',
   },
   {
-    feature: 'Staff & Cashier Training',
-    traditional: 'Weeks of cashier training; errors result in bad inventory logs',
-    verbatask: 'Zero training needed — if staff can send a voice note, they can use it',
-    advantage: true,
+    need: 'Training',
+    pos: 'Weeks of cashier training; mistakes end up in the stock count',
+    vt: 'If staff can send a voice note, they can use it',
   },
 ];
 
 export function WhyWhatsApp() {
   return (
-    <section id="why-whatsapp" className="px-4 sm:px-6 py-24 bg-[var(--bg-canvas)] transition-colors duration-200">
-      <div className="mx-auto max-w-6xl">
-        <div className="max-w-2xl mb-14">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#287A74]/30 bg-[#287A74]/10 px-3 py-1 text-xs font-semibold text-[#1E5C58] dark:text-[#AEEED3] uppercase tracking-wider mb-3">
-            04 — The Contrast
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-[var(--text-ink)] font-display">
-            The counter reality: Desktop POS vs. WhatsApp Voice.
+    <section id="why-whatsapp" className="scroll-mt-16 border-t border-rule py-20 sm:py-28">
+      <div className="shell">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-end">
+          <h2 className="display max-w-[17ch] text-[length:var(--fs-2xl)] text-ink sm:text-[length:var(--fs-3xl)]">
+            A desktop till, or the phone already in your hand.
           </h2>
-          <p className="mt-4 text-base leading-relaxed text-[var(--text-ink-secondary)] font-body">
-            Software adoption fails in Pakistan when it forces shopkeepers to sit behind clunky hardware.
-            VerbaTask turns the chat app they already use all day into a sales operations engine.
+          <p className="max-w-[28rem] leading-relaxed text-ink-2 lg:justify-self-end">
+            Shop software fails when it asks shopkeepers to sit behind a machine. VerbaTask works
+            in the chat app you already have open all day.
           </p>
         </div>
 
-        {/* Tactile Comparison Table Container */}
-        <SpotlightCard
-          spotlightColor="rgba(174, 238, 211, 0.16)"
-          className="rounded-3xl border border-[var(--border-hairline)] bg-[var(--bg-canvas-soft)] p-6 sm:p-9 shadow-sm"
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm border-collapse min-w-[620px]">
-              <thead>
-                <tr className="border-b border-[var(--border-hairline)]">
-                  <th className="py-4 pr-6 font-display font-semibold text-xs uppercase tracking-wider text-[var(--text-ink-mute)] w-1/3">
-                    Counter Requirement
-                  </th>
-                  <th className="py-4 px-6 font-display font-semibold text-xs uppercase tracking-wider text-red-600 dark:text-red-400 w-1/3">
-                    Traditional Desktop POS
-                  </th>
-                  <th className="py-4 pl-6 font-display font-semibold text-xs uppercase tracking-wider text-[#1E5C58] dark:text-[#AEEED3] bg-[#287A74]/10 dark:bg-[#AEEED3]/10 rounded-t-xl w-1/3">
-                    VerbaTask on WhatsApp
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-hairline)]">
-                {comparisons.map((row, idx) => (
-                  <tr key={idx} className="transition-colors hover:bg-[var(--bg-canvas)]/50">
-                    <td className="py-4 pr-6 font-semibold text-[var(--text-ink)] font-display">
-                      {row.feature}
-                    </td>
-                    <td className="py-4 px-6 text-[var(--text-ink-secondary)] text-xs sm:text-sm">
-                      <div className="flex items-start gap-2">
-                        <XCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                        <span>{row.traditional}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 pl-6 font-medium text-[var(--text-ink)] bg-[#287A74]/5 dark:bg-[#AEEED3]/5 text-xs sm:text-sm">
-                      <div className="flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-[#287A74] dark:text-[#AEEED3] shrink-0 mt-0.5" />
-                        <span className="font-semibold text-[#1E5C58] dark:text-[#AEEED3]">{row.verbatask}</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="mt-12 border-t-2 border-ink" role="table" aria-label="Desktop POS compared with VerbaTask">
+          <div role="row" className="hidden grid-cols-[minmax(0,3fr)_minmax(0,4fr)_minmax(0,5fr)] gap-6 border-b border-rule py-3 md:grid">
+            <span role="columnheader" className="label">At the counter</span>
+            <span role="columnheader" className="label">Desktop POS</span>
+            <span role="columnheader" className="label text-ink">VerbaTask on WhatsApp</span>
           </div>
-
-          <div className="mt-8 pt-6 border-t border-[var(--border-hairline)] flex flex-wrap items-center justify-between gap-4 text-xs text-[var(--text-ink-mute)]">
-            <span className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-[#55A9A0]" />
-              Zero hardware maintenance or proprietary terminal fees
-            </span>
-            <span className="font-mono text-[#287A74] dark:text-[#AEEED3] font-bold">
-              Immediate ROI on Day 1
-            </span>
-          </div>
-        </SpotlightCard>
+          {rows.map((r) => (
+            <div
+              key={r.need}
+              role="row"
+              className="grid gap-3 border-b border-rule py-5 md:grid-cols-[minmax(0,3fr)_minmax(0,4fr)_minmax(0,5fr)] md:gap-6"
+            >
+              <span role="rowheader" className="font-display text-xl font-semibold tracking-tight text-ink sm:text-2xl">
+                {r.need}
+              </span>
+              <span role="cell" className="text-sm leading-relaxed text-muted">
+                <span className="label mr-2 md:hidden">POS</span>
+                {r.pos}
+              </span>
+              <span role="cell" className="text-sm font-medium leading-relaxed text-ink">
+                <span className="label mr-2 md:hidden">VerbaTask</span>
+                {r.vt}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

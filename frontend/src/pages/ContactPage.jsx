@@ -1,164 +1,58 @@
-import { motion } from 'motion/react';
-import { Link } from 'react-router';
-import {
-  ArrowRight,
-  Code,
-  Bug,
-  Star,
-  GitFork,
-  Mail,
-} from 'lucide-react';
-import { GithubIcon } from '../components/ui/GithubIcon';
+import { ArrowUpRight } from 'lucide-react';
 import { LandingLayout } from '../components/layout/LandingLayout';
 
-const ease = [0.16, 1, 0.3, 1];
+const REPO = 'https://github.com/soban-iftikhar/VerbaTask';
 
 const links = [
-  {
-    icon: Mail,
-    title: 'Email support',
-    desc: 'Reach out directly for business inquiries, feedback, or support.',
-    href: 'mailto:verbatask.business@gmail.com',
-    action: 'Send email',
-  },
-  {
-    icon: GithubIcon,
-    title: 'Source code',
-    desc: 'View the full codebase, report issues, or contribute to VerbaTask.',
-    href: 'https://github.com/soban-iftikhar/VerbaTask',
-    action: 'View on GitHub',
-  },
-  {
-    icon: Bug,
-    title: 'Report a bug',
-    desc: 'Found something broken? Open an issue and we\'ll look into it.',
-    href: 'https://github.com/soban-iftikhar/VerbaTask/issues',
-    action: 'Open an issue',
-  },
-  {
-    icon: Star,
-    title: 'Feature request',
-    desc: 'Have an idea for VerbaTask? Open a feature request on GitHub.',
-    href: 'https://github.com/soban-iftikhar/VerbaTask/issues',
-    action: 'Request feature',
-  },
-  {
-    icon: GitFork,
-    title: 'Contribute',
-    desc: 'Fork the repo, make your changes, and submit a pull request.',
-    href: 'https://github.com/soban-iftikhar/VerbaTask/fork',
-    action: 'Fork repository',
-  },
+  { title: 'Source code', desc: 'Read the full codebase or star the repo.', href: REPO, action: 'GitHub' },
+  { title: 'Report a bug', desc: 'Something broken? Open an issue and we’ll look at it.', href: `${REPO}/issues`, action: 'Issues' },
+  { title: 'Request a feature', desc: 'An idea for VerbaTask? Put it in an issue.', href: `${REPO}/issues`, action: 'Issues' },
+  { title: 'Contribute', desc: 'Fork the repo, make a change, open a pull request.', href: `${REPO}/fork`, action: 'Fork' },
 ];
 
+// Index-first: one giant typographic address, then a hairline index of everywhere else to reach us.
 export function ContactPage() {
- return (
- <LandingLayout>
- <div className="py-16 lg:py-24">
- <div className="max-w-3xl mx-auto px-6">
- <motion.div
- className="text-center mb-12"
- initial={{ opacity: 0, y: 16 }}
- animate={{ opacity: 1, y: 0 }}
- transition={{ duration: 0.5, ease }}
- >
- <p className="font-heading text-xs font-medium uppercase tracking-wider text-primary mb-3">
- Contact
- </p>
- <h1 className="font-heading text-3xl sm:text-4xl font-light tracking-[-0.96px] text-ink leading-[1.15]">
- Get in touch
- </h1>
- <p className="font-body text-sm text-ink-mute mt-4 leading-relaxed">
- VerbaTask is open source. The best way to reach us is through GitHub.
- </p>
- </motion.div>
+  return (
+    <LandingLayout>
+      <section className="py-16 sm:py-24">
+        <div className="shell">
+          <h1 className="display text-[length:var(--fs-2xl)] text-ink sm:text-[length:var(--text-display)]">Write to us.</h1>
+          <p className="mt-6 max-w-[32rem] leading-relaxed text-ink-2">
+            Business questions, feedback or help getting set up — email is quickest. VerbaTask is open
+            source, so code questions are best on GitHub.
+          </p>
 
- {/* GitHub CTA Card */}
- <motion.div
- className="border border-hairline rounded-lg bg-canvas p-8 text-center mb-8"
- initial={{ opacity: 0, y: 24 }}
- animate={{ opacity: 1, y: 0 }}
- transition={{ duration: 0.5, delay: 0.1, ease }}
- >
- <div className="w-14 h-14 rounded-xl bg-ink/5 flex items-center justify-center mx-auto mb-4">
- <Code className="w-7 h-7 text-ink" />
- </div>
- <h2 className="font-heading text-xl font-light tracking-[-0.26px] text-ink">
- github.com/soban-iftikhar/VerbaTask
- </h2>
- <p className="font-body text-sm text-ink-mute mt-2 leading-relaxed max-w-md mx-auto">
- The full source code for VerbaTask is available on GitHub. Star the repo if you find it useful, or open an issue to report bugs.
- </p>
- <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-6">
- <a
- href="https://github.com/soban-iftikhar/VerbaTask"
- target="_blank"
- rel="noopener noreferrer"
- className="inline-flex items-center gap-2 bg-ink text-canvas px-6 py-2.5 rounded-pill text-sm font-medium hover:bg-ink/90 transition-colors"
- >
- <GithubIcon className="w-4 h-4" />
- View repository
- </a>
- <Link
- to="/signup"
- className="inline-flex items-center gap-2 text-ink-secondary px-6 py-2.5 rounded-pill text-sm font-medium border border-hairline hover:bg-canvas-soft transition-colors"
- >
- Try VerbaTask
- <ArrowRight className="w-4 h-4" />
- </Link>
- </div>
- </motion.div>
+          <a
+            href="mailto:verbatask.business@gmail.com"
+            className="group mt-12 inline-block max-w-full font-display text-[clamp(1.35rem,4.5vw,3.25rem)] font-semibold tracking-[-0.03em] text-ink [overflow-wrap:anywhere]"
+          >
+            <span className="hl">verbatask.business@gmail.com</span>
+            <ArrowUpRight className="ml-2 inline size-[0.8em] align-baseline text-muted transition-transform duration-150 group-hover:-translate-y-1 group-hover:translate-x-1 group-hover:text-ink" />
+          </a>
 
- {/* Quick Links */}
- <div className="grid sm:grid-cols-2 gap-4">
- {links.map((link, i) => {
- const Icon = link.icon;
- return (
- <motion.a
- key={link.title}
- href={link.href}
- target="_blank"
- rel="noopener noreferrer"
- className="border border-hairline rounded-lg bg-canvas p-5 hover:shadow-card transition-shadow group"
- initial={{ opacity: 0, y: 16 }}
- animate={{ opacity: 1, y: 0 }}
- transition={{ duration: 0.4, delay: 0.15 + i * 0.08, ease }}
- >
- <div className="flex items-start justify-between">
- <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-3">
- <Icon className="w-5 h-5" />
- </div>
- <ArrowRight className="w-4 h-4 text-ink-mute group-hover:text-primary transition-colors" />
- </div>
- <h3 className="font-heading text-base font-light text-ink">{link.title}</h3>
- <p className="font-body text-sm text-ink-mute mt-1 leading-relaxed">{link.desc}</p>
- </motion.a>
- );
- })}
- </div>
-
- <motion.div
- className="mt-12 text-center"
- initial={{ opacity: 0 }}
- animate={{ opacity: 1 }}
- transition={{ duration: 0.4, delay: 0.5 }}
- >
- <p className="text-sm text-ink-mute">
- Need help? Check the{' '}
- <Link to="/faq" className="text-primary hover:underline">FAQ</Link>{' '}
- or{' '}
- <a
- href="https://github.com/soban-iftikhar/VerbaTask"
- target="_blank"
- rel="noopener noreferrer"
- className="text-primary hover:underline"
- >
- open an issue on GitHub
- </a>.
- </p>
- </motion.div>
- </div>
- </div>
- </LandingLayout>
- );
+          <ul className="mt-16 border-t-2 border-ink sm:mt-24 lg:ml-[33%]">
+            {links.map((l) => (
+              <li key={l.title} className="border-b border-rule">
+                <a
+                  href={l.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-1 py-5 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto]"
+                >
+                  <span className="font-display text-lg font-semibold tracking-tight text-ink">{l.title}</span>
+                  <span className="col-span-2 row-start-2 text-sm text-ink-2 sm:col-span-1 sm:row-start-auto">{l.desc}</span>
+                  <span className="label col-start-2 row-start-1 inline-flex items-center gap-1 whitespace-nowrap group-hover:text-ink sm:col-start-auto">
+                    {l.action}
+                    <ArrowUpRight className="size-3.5 transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+    </LandingLayout>
+  );
 }
+
+export default ContactPage;

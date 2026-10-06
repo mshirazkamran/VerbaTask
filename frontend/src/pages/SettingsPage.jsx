@@ -4,11 +4,7 @@ import {
   Store,
   CreditCard,
   Mic,
-  Languages,
   Check,
-  ShieldCheck,
-  Wallet,
-  Info,
   Smartphone,
   RefreshCw,
   Pencil,
@@ -249,78 +245,58 @@ export function SettingsPage() {
   const cashMethods = allMethods.filter((m) => m.category === 'cash');
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-light tracking-tight text-ink">Store Settings & Profile</h1>
-          <p className="text-xs text-ink-mute mt-1">
-            Customize your store identity, WhatsApp voice AI persona, and accepted Pakistani payment channels.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="neutral" className="gap-1.5 py-1 px-2.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Active Store: {profile?.businessName || 'My Business'}</span>
-          </Badge>
-        </div>
+    <div className="space-y-5 pb-12 sm:space-y-6">
+      <div>
+        <p className="label">Your shop</p>
+        <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)]">
+          {profile?.businessName || 'Shop settings'}
+        </h1>
       </div>
 
-      {/* Tabs Navigation */}
-      <div className="flex items-center gap-2 border-b border-hairline pb-px overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => setActiveTab('profile')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-            activeTab === 'profile'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-ink-mute hover:text-ink'
-          }`}
+      {/* 3/9 — a vertical section rail beside the form */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-8">
+        <nav
+          aria-label="Settings sections"
+          className="custom-scrollbar flex gap-1 overflow-x-auto lg:sticky lg:top-24 lg:col-span-3 lg:flex-col lg:self-start lg:overflow-visible"
         >
-          <Store className="w-4 h-4" />
-          Store Profile
-        </button>
+          {[
+            { id: 'profile', label: 'Shop profile', hint: 'Name, area, what you sell', icon: Store },
+            { id: 'payments', label: 'Payments', hint: `${activePaymentIds.length} accepted`, icon: CreditCard },
+            { id: 'voice', label: 'Voice & language', hint: 'How the bot talks', icon: Mic },
+          ].map((t) => {
+            const on = activeTab === t.id;
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setActiveTab(t.id)}
+                aria-current={on ? 'page' : undefined}
+                className={`flex shrink-0 items-center gap-3 rounded-card px-4 py-3 text-left transition-colors duration-150 lg:w-full ${
+                  on ? 'bg-ink text-paper' : 'text-ink-2 hover:bg-paper-2 hover:text-ink'
+                }`}
+              >
+                <Icon className="size-4 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block whitespace-nowrap text-sm font-semibold">{t.label}</span>
+                  <span className={`hidden truncate text-xs lg:block ${on ? 'opacity-70' : 'text-muted'}`}>{t.hint}</span>
+                </span>
+              </button>
+            );
+          })}
+        </nav>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('payments')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-            activeTab === 'payments'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-ink-mute hover:text-ink'
-          }`}
-        >
-          <CreditCard className="w-4 h-4" />
-          Pakistani Banks & Payments
-          <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-primary/10 text-primary font-bold">
-            {activePaymentIds.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('voice')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-            activeTab === 'voice'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-ink-mute hover:text-ink'
-          }`}
-        >
-          <Mic className="w-4 h-4" />
-          Voice & Language AI
-        </button>
-      </div>
-
+        <div className="min-w-0 lg:col-span-9">
       {/* Tab 1: Store Profile */}
       {activeTab === 'profile' && (
         <form onSubmit={handleSaveProfile} className="space-y-6">
           <Card>
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-hairline">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <div className="grid size-10 shrink-0 place-items-center rounded-pill bg-primary-tint text-primary-deep dark:text-primary">
                 <Store className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-medium text-ink">Store Identity</h2>
+                <h2 className="font-display text-lg font-semibold tracking-tight text-ink">Store Identity</h2>
                 <p className="text-xs text-ink-mute">
                   Rename your business and specify your location and retail specialty.
                 </p>
@@ -428,10 +404,10 @@ export function SettingsPage() {
 
             {/* Change Phone Number Flow (Step 1: Input / Remove / Add New, Step 2: Verify OTP) */}
             {isChangingPhone && (
-              <div className="mt-4 p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-4">
+              <div className="mt-4 p-4 rounded-card bg-primary-tint space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-hairline">
                   <div className="flex items-center gap-2">
-                    <WhatsAppIcon className="w-4 h-4 text-emerald-500" />
+                    <WhatsAppIcon className="w-4 h-4 text-success-ink" />
                     <span className="text-xs font-medium text-ink">
                       {phoneStep === 'input' ? 'Change Store WhatsApp Number' : 'Verify New Phone Number'}
                     </span>
@@ -567,11 +543,11 @@ export function SettingsPage() {
           <Card>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 pb-4 border-b border-hairline">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <div className="grid size-10 shrink-0 place-items-center rounded-pill bg-success-tint text-success-ink">
                   <CreditCard className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-medium text-ink">Accepted Pakistani Payment Methods</h2>
+                  <h2 className="font-display text-lg font-semibold tracking-tight text-ink">Accepted Pakistani Payment Methods</h2>
                   <p className="text-xs text-ink-mute">
                     Choose which payment platforms are active. Only selected methods are offered to your WhatsApp bot.
                   </p>
@@ -593,7 +569,7 @@ export function SettingsPage() {
                   {cashMethods.map((m) => (
                     <div
                       key={m.id}
-                      className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 flex items-center justify-between"
+                      className="p-3 rounded-lg border border-primary bg-success-tint flex items-center justify-between"
                     >
                       <div>
                         <p className="text-xs font-medium text-ink">{m.name}</p>
@@ -628,7 +604,7 @@ export function SettingsPage() {
                             <div className="flex items-center gap-1.5">
                               <p className="text-xs font-medium text-ink">{m.name}</p>
                               {m.isPopular && (
-                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-pear-tint text-warn-ink font-medium">
                                   Popular
                                 </span>
                               )}
@@ -637,7 +613,7 @@ export function SettingsPage() {
                           </div>
                           <div
                             className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${
-                              isActive ? 'bg-primary text-white' : 'border border-hairline bg-canvas'
+                              isActive ? 'bg-primary text-on-primary' : 'border border-hairline bg-canvas'
                             }`}
                           >
                             {isActive && <Check className="w-3.5 h-3.5 stroke-[3]" />}
@@ -657,7 +633,7 @@ export function SettingsPage() {
                               onChange={(e) =>
                                 handlePaymentDetailChange(m.id, 'accountNumber', e.target.value)
                               }
-                              className="w-full text-[10px] px-2 py-1 rounded bg-canvas border border-hairline text-ink focus:outline-none focus:ring-1 focus:ring-primary"
+                              className="w-full rounded-sm border border-rule-2 bg-surface px-2 py-1.5 text-xs text-ink focus:border-ink focus:outline-none"
                             />
                           </div>
                         )}
@@ -690,7 +666,7 @@ export function SettingsPage() {
                             <div className="flex items-center gap-1.5">
                               <p className="text-xs font-medium text-ink">{m.name}</p>
                               {m.isPopular && (
-                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-pear-tint text-warn-ink font-medium">
                                   Popular
                                 </span>
                               )}
@@ -699,7 +675,7 @@ export function SettingsPage() {
                           </div>
                           <div
                             className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${
-                              isActive ? 'bg-primary text-white' : 'border border-hairline bg-canvas'
+                              isActive ? 'bg-primary text-on-primary' : 'border border-hairline bg-canvas'
                             }`}
                           >
                             {isActive && <Check className="w-3.5 h-3.5 stroke-[3]" />}
@@ -718,7 +694,7 @@ export function SettingsPage() {
                               onChange={(e) =>
                                 handlePaymentDetailChange(m.id, 'accountNumber', e.target.value)
                               }
-                              className="w-full text-[10px] px-2 py-1 rounded bg-canvas border border-hairline text-ink focus:outline-none focus:ring-1 focus:ring-primary"
+                              className="w-full rounded-sm border border-rule-2 bg-surface px-2 py-1.5 text-xs text-ink focus:border-ink focus:outline-none"
                             />
                           </div>
                         )}
@@ -748,11 +724,11 @@ export function SettingsPage() {
         <form onSubmit={handleSaveVoice} className="space-y-6">
           <Card>
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-hairline">
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+              <div className="grid size-10 shrink-0 place-items-center rounded-pill bg-sky-tint text-sky-ink">
                 <Mic className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-medium text-ink">Conversational AI Voice Configuration</h2>
+                <h2 className="font-display text-lg font-semibold tracking-tight text-ink">Conversational AI Voice Configuration</h2>
                 <p className="text-xs text-ink-mute">
                   Control spoken Urdu voice synthesis and how WhatsApp responds to your voice notes.
                 </p>
@@ -853,6 +829,8 @@ export function SettingsPage() {
           </div>
         </form>
       )}
+        </div>
+      </div>
     </div>
   );
 }

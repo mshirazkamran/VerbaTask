@@ -9,25 +9,20 @@ export function DashboardLayout() {
   const location = useLocation();
 
   return (
-    <div className="min-h-screen min-h-[100dvh] flex bg-[var(--bg-canvas-soft)] text-[var(--text-ink)] relative selection:bg-[#287A74]/25 selection:text-[#174845] dark:selection:bg-[#AEEED3]/30 dark:selection:text-[#AEEED3] transition-colors duration-200">
-      {/* Sidebar */}
-      <Sidebar
-        mobileOpen={mobileOpen}
-        onMobileClose={() => setMobileOpen(false)}
-      />
+    <div className="relative flex min-h-screen min-h-[100dvh] bg-paper text-ink">
+      <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 z-10 bg-[var(--bg-canvas-soft)] transition-colors duration-200">
+      <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onOpenMobileMenu={() => setMobileOpen(true)} />
 
-        <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-[1400px] w-full mx-auto">
+        <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 py-5 sm:px-6 sm:py-8 lg:px-8">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
-              initial={{ opacity: 0, y: 8 }}
+              initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              exit={{ opacity: 0, transition: { duration: 0.12 } }}
+              transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
             >
               <Outlet />
             </motion.div>

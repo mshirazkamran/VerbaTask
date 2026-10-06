@@ -18,16 +18,16 @@ export function EmptyState({
  className={`flex flex-col items-center justify-center text-center p-8 md:p-12 w-full ${className}`}
  >
  {icon && (
- <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-4">
+ <div className="mb-5 grid size-14 place-items-center rounded-pill bg-pear-tint text-ink ring-8 ring-pear-tint/40">
  {isValidElement(icon)
  ? cloneElement(icon, { className: 'w-6 h-6' })
  : icon}
  </div>
  )}
 
- <h3 className="text-base font-medium text-ink mb-1">{title}</h3>
+ <h3 className="mb-1.5 font-display text-lg font-semibold tracking-tight text-ink">{title}</h3>
  {description && (
- <p className="text-sm text-ink-mute max-w-sm mb-6 leading-relaxed">
+ <p className="mb-6 max-w-sm text-sm leading-relaxed text-muted">
  {description}
  </p>
  )}

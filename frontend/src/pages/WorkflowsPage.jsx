@@ -222,10 +222,8 @@ export function WorkflowsPage() {
  header: 'Trigger',
  cell: ({ getValue }) => (
  <div className="flex items-center gap-2">
- <span className="w-7 h-7 rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 flex items-center justify-center shrink-0">
- <Zap className="w-3.5 h-3.5" />
- </span>
- <span className="capitalize text-ink font-medium text-xs">{getValue()}</span>
+ <Zap className="size-4 shrink-0 text-warn-ink" />
+ <span className="text-sm font-medium capitalize text-ink">{getValue()}</span>
  </div>
  ),
  },
@@ -243,9 +241,7 @@ export function WorkflowsPage() {
  text = `Every ${condition.intervalMinutes >= 1440 ? `${condition.intervalMinutes / 1440} day(s)` : `${condition.intervalMinutes / 60} hour(s)`}`;
  }
  return (
- <span className="px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-xs font-medium text-ink-secondary">
- {text}
- </span>
+ <span className="font-mono text-xs text-ink-2">{text}</span>
  );
  },
  },
@@ -262,10 +258,8 @@ export function WorkflowsPage() {
  : action.type || '-';
  return (
  <div className="flex items-center gap-2 max-w-[260px]">
- <span className="w-7 h-7 rounded-md bg-fuchsia-50 dark:bg-fuchsia-950 border border-fuchsia-200 dark:border-fuchsia-800 text-fuchsia-800 dark:text-fuchsia-300 flex items-center justify-center shrink-0">
- <Bell className="w-3.5 h-3.5" />
- </span>
- <span className="text-xs font-medium text-ink truncate" title={label}>
+ <Bell className="size-4 shrink-0 text-sky-ink" />
+ <span className="truncate text-sm font-medium text-ink" title={label}>
  {label}
  </span>
  </div>
@@ -285,7 +279,7 @@ export function WorkflowsPage() {
  accessorKey: 'createdAt',
  header: 'Created',
  cell: ({ getValue }) => (
- <span className="text-xs text-ink-secondary whitespace-nowrap">
+ <span className="whitespace-nowrap font-mono text-xs text-muted">
  {formatDate(getValue())}
  </span>
  ),
@@ -298,7 +292,7 @@ export function WorkflowsPage() {
  <Button
  variant="ghost"
  size="sm"
- className={row.original.active ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10' : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10'}
+ className={row.original.active ? '' : '!text-success-ink'}
  onClick={() => handleToggle(row.original)}
  disabled={updateWorkflow.isPending}
  >
@@ -307,8 +301,8 @@ export function WorkflowsPage() {
  <Button
  variant="ghost"
  size="sm"
- className="text-ruby hover:text-ruby hover:bg-ruby/10 border border-ruby/20"
- leftIcon={<Trash2 className="w-4 h-4" />}
+ className="!text-danger-ink hover:!bg-coral-tint"
+ leftIcon={<Trash2 className="size-4" />}
  onClick={(e) => {
  e.stopPropagation();
  setDeletingId(row.original._id);
@@ -336,12 +330,12 @@ export function WorkflowsPage() {
  <div className="space-y-6">
  <div className="flex items-center justify-between">
  <div>
- <h2 className="text-xl font-light text-ink tracking-tight">Workflows</h2>
- <p className="text-xs text-ink-mute">Automate low-stock alerts and actions</p>
+ <p className="label">Automations</p>
+ <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink">Workflows</h1>
  </div>
  </div>
  <Card padding="lg" className="text-center py-12">
- <AlertCircle className="w-10 h-10 text-ruby mx-auto mb-3" />
+ <AlertCircle className="mx-auto mb-3 size-9 text-coral" />
  <h3 className="text-base font-medium text-ink">Failed to load workflows</h3>
  <p className="text-xs text-ink-mute mt-1">{error.message}</p>
  </Card>
@@ -349,68 +343,67 @@ export function WorkflowsPage() {
  );
  }
 
+ const activeCount = workflows?.filter((w) => w.active)?.length || 0;
+
  return (
- <div className="space-y-6">
- <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+ <div className="space-y-5 sm:space-y-6">
+ <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
  <div>
- <h2 className="font-heading text-2xl font-light tracking-[-0.5px] text-ink">Workflows</h2>
- <p className="font-body text-sm text-ink-mute">Automate threshold warnings and WhatsApp alerts</p>
+ <p className="label">Automations</p>
+ <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)]">Workflows</h1>
  </div>
- <Button
- leftIcon={<Plus className="w-4 h-4" />}
- onClick={() => setModalOpen(true)}
- className="shadow-sm shadow-primary/25 w-full sm:w-auto"
- >
+ <Button leftIcon={<Plus className="size-4" />} onClick={() => setModalOpen(true)}>
  New workflow
  </Button>
  </div>
 
- {/* Automation Hub Banner - Solid Accent & Glassmorphism */}
- <div className="p-4 rounded-xl border-l-4 border-l-emerald-500 border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-card hover:shadow-md transition-all duration-200">
- <div className="flex items-start gap-3">
- <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 flex items-center justify-center shrink-0 shadow-xs ">
- <Zap className="w-5 h-5" />
+ {/* 8/4 — rules on the left, the explainer rides the right (mirrors Approvals) */}
+ <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-6">
+ <Card padding="none" className="min-w-0 overflow-hidden lg:col-span-8">
+ <div className="px-5 pb-2 pt-5 sm:px-6">
+ <h2 className="font-display text-base font-semibold tracking-tight text-ink sm:text-lg">Rules</h2>
+ <p className="label mt-0.5">{workflows?.length || 0} total</p>
  </div>
- <div>
- <div className="flex items-center gap-2">
- <h3 className="text-sm font-medium text-ink">Autonomous Inventory Watcher</h3>
- <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 font-medium ">
- Live
- </span>
- </div>
- <p className="text-xs text-ink-mute mt-0.5">
- Whenever a sale deducts stock below your configured threshold, VerbaTask automatically dispatches an instant WhatsApp notification.
- </p>
- </div>
- </div>
- <div className="flex items-center gap-2 text-xs text-ink-secondary bg-canvas dark:bg-canvas px-3 py-1.5 rounded-md border border-hairline shrink-0 font-tabular">
- <span className="font-semibold text-emerald-800 dark:text-emerald-300">
- {workflows?.filter((w) => w.active)?.length || 0}
- </span>
- <span>active triggers</span>
- </div>
- </div>
-
  {isLoading ? (
- <div className="space-y-2">
+ <div className="space-y-2 px-5 pb-5 sm:px-6">
  <Skeleton variant="tableRow" />
  <Skeleton variant="tableRow" />
  <Skeleton variant="tableRow" />
  </div>
  ) : workflows?.length === 0 ? (
- <Card padding="lg">
  <EmptyState
- icon={<Zap className="w-6 h-6" />}
- title="No workflows configured"
- description="Create an automation rule to receive WhatsApp notifications whenever stock falls below threshold."
+ icon={<Zap className="size-6" />}
+ title="No workflows yet"
+ description="Set a stock level and get a WhatsApp message the moment an item drops below it."
  actionLabel="New workflow"
- actionIcon={<Plus className="w-4 h-4" />}
+ actionIcon={<Plus className="size-4" />}
  onAction={() => setModalOpen(true)}
  />
- </Card>
  ) : (
- <Table table={table} emptyText="No workflows yet." />
+ <div className="pb-2">
+ <Table table={table} emptyText="No workflows yet" />
+ </div>
  )}
+ </Card>
+
+ <aside className="order-first lg:order-none lg:sticky lg:top-24 lg:col-span-4 lg:self-start">
+ <div className="rounded-card bg-sky-tint p-5 sm:p-6">
+ <div className="flex items-end justify-between gap-4">
+ <div>
+ <p className="label">Running now</p>
+ <p className="mt-2 font-display text-6xl font-semibold leading-none tracking-[-0.04em] text-sky-ink font-tabular">
+ {isLoading ? '—' : activeCount}
+ </p>
+ </div>
+ <Bell className="mb-1 size-6 text-sky-ink" />
+ </div>
+ <p className="mt-6 border-t border-current/15 pt-4 text-sm leading-relaxed text-ink-2">
+ When a sale takes an item below its level, VerbaTask messages you on WhatsApp straight away.
+ Pause a rule any time without deleting it.
+ </p>
+ </div>
+ </aside>
+ </div>
 
  <Modal
  isOpen={modalOpen}
@@ -430,7 +423,7 @@ export function WorkflowsPage() {
  isOpen={!!deletingId}
  onClose={() => setDeletingId(null)}
  title="Delete workflow"
- description="Are you sure? This workflow will stop running immediately."
+ description="The rule stops immediately and can’t be restored. Pause it instead if you might want it back."
  maxWidth="max-w-sm"
  >
  <div className="flex justify-end gap-2 pt-2">

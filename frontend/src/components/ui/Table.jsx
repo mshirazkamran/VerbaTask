@@ -1,6 +1,5 @@
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { flexRender } from '@tanstack/react-table';
-import { motion } from 'motion/react';
 
 /**
  * Stripe-styled table wrapper for TanStack Table with tabular typography.
@@ -9,13 +8,13 @@ export function Table({ table, onRowClick, emptyText = 'No records found', getRo
   const rows = table.getRowModel().rows;
 
   return (
-    <div className="w-full overflow-x-auto border border-hairline rounded-xl bg-canvas shadow-card touch-pan-x [-webkit-overflow-scrolling:touch]">
+    <div className="custom-scrollbar w-full overflow-x-auto touch-pan-x [-webkit-overflow-scrolling:touch]">
       <table className="w-full text-left border-collapse text-sm">
         <thead>
           {table.getHeaderGroups().map((headerGroup) => (
             <tr
               key={headerGroup.id}
-              className="border-b border-hairline bg-canvas-soft"
+              className="border-b border-rule"
             >
               {headerGroup.headers.map((header) => {
                 const canSort = header.column.getCanSort();
@@ -25,7 +24,7 @@ export function Table({ table, onRowClick, emptyText = 'No records found', getRo
                   <th
                     key={header.id}
                     colSpan={header.colSpan}
-                    className={`py-3 px-4 text-[11px] font-medium uppercase tracking-wider text-ink-mute select-none ${
+                    className={`label whitespace-nowrap px-3 py-3 select-none first:pl-5 last:pr-5 sm:first:pl-6 sm:last:pr-6 ${
                       canSort ? 'cursor-pointer hover:text-ink' : ''
                     }`}
                     onClick={header.column.getToggleSortingHandler()}
@@ -40,9 +39,9 @@ export function Table({ table, onRowClick, emptyText = 'No records found', getRo
                       {canSort && (
                         <span className="text-ink-mute/70">
                           {isSorted === 'asc' ? (
-                            <ChevronUp className="w-3.5 h-3.5 text-primary" />
+                            <ChevronUp className="size-3.5 text-ink" />
                           ) : isSorted === 'desc' ? (
-                            <ChevronDown className="w-3.5 h-3.5 text-primary" />
+                            <ChevronDown className="size-3.5 text-ink" />
                           ) : (
                             <ChevronsUpDown className="w-3.5 h-3.5 opacity-40" />
                           )}
@@ -56,40 +55,33 @@ export function Table({ table, onRowClick, emptyText = 'No records found', getRo
           ))}
         </thead>
 
-        <tbody className="divide-y divide-hairline font-normal text-ink">
+        <tbody className="divide-y divide-rule text-ink">
           {rows.length === 0 ? (
             <tr>
               <td
                 colSpan={table.getAllColumns().length}
-                className="py-12 text-center text-sm text-ink-mute"
+                className="py-14 text-center text-sm text-muted"
               >
                 {emptyText}
               </td>
             </tr>
           ) : (
-            rows.map((row, index) => {
+            rows.map((row) => {
               const customClass = getRowClassName ? getRowClassName(row) : '';
               return (
-                <motion.tr
+                <tr
                   key={row.id}
-                  initial={{ opacity: 0, x: -12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{
-                    duration: 0.25,
-                    delay: index * 0.04,
-                    ease: [0.16, 1, 0.3, 1],
-                  }}
                   onClick={() => onRowClick && onRowClick(row.original)}
                   className={`transition-colors duration-100 ${
-                    onRowClick ? 'cursor-pointer hover:bg-canvas-soft' : 'hover:bg-canvas-soft'
+                    onRowClick ? 'cursor-pointer hover:bg-paper-2' : 'hover:bg-paper-2'
                   } ${customClass}`}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="py-3.5 px-4 text-sm whitespace-nowrap">
+                    <td key={cell.id} className="whitespace-nowrap px-3 py-3.5 text-sm first:pl-5 last:pr-5 sm:first:pl-6 sm:last:pr-6">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
-                </motion.tr>
+                </tr>
               );
             })
           )}

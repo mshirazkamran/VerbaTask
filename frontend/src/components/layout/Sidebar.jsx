@@ -1,7 +1,6 @@
 import { NavLink, Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore, useUiStore } from '../../lib/store';
-
 import {
   LayoutDashboard,
   Package,
@@ -11,181 +10,132 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
-  Store,
   Settings,
   X,
 } from 'lucide-react';
-
 import { Logo } from '../landing/Logo';
 
 const NAV_ITEMS = [
-  {
-    to: '/dashboard',
-    label: 'Overview',
-    icon: LayoutDashboard,
-    end: true,
-  },
-  {
-    to: '/dashboard/inventory',
-    label: 'Inventory',
-    icon: Package,
-  },
-  {
-    to: '/dashboard/orders',
-    label: 'Orders',
-    icon: Receipt,
-  },
-  {
-    to: '/dashboard/workflows',
-    label: 'Workflows',
-    icon: GitBranch,
-  },
-  {
-    to: '/dashboard/approvals',
-    label: 'Approvals',
-    icon: ClipboardCheck,
-  },
-  {
-    to: '/dashboard/settings',
-    label: 'Store Settings',
-    icon: Settings,
-  },
+  { to: '/dashboard', label: 'Overview', icon: LayoutDashboard, end: true },
+  { to: '/dashboard/orders', label: 'Orders', icon: Receipt },
+  { to: '/dashboard/inventory', label: 'Inventory', icon: Package },
+  { to: '/dashboard/approvals', label: 'Approvals', icon: ClipboardCheck },
+  { to: '/dashboard/workflows', label: 'Workflows', icon: GitBranch },
 ];
+
+function initials(name = '') {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join('') || 'VT';
+}
+
+function NavItem({ item, compact, onNavigate }) {
+  const Icon = item.icon;
+  return (
+    <NavLink
+      to={item.to}
+      end={item.end}
+      onClick={onNavigate}
+      title={compact ? item.label : undefined}
+      className={({ isActive }) =>
+        `group flex items-center gap-3 rounded-pill text-sm font-medium transition-colors duration-150 ${
+          compact ? 'size-11 justify-center' : 'h-11 px-4'
+        } ${isActive ? 'bg-ink text-paper' : 'text-ink-2 hover:bg-paper-3 hover:text-ink'}`
+      }
+    >
+      {({ isActive }) => (
+        <>
+          <Icon className="size-[18px] shrink-0" strokeWidth={isActive ? 2.2 : 1.8} />
+          {!compact && <span className="truncate">{item.label}</span>}
+          {!compact && isActive && <span className="ml-auto size-1.5 rounded-pill bg-pear" aria-hidden="true" />}
+        </>
+      )}
+    </NavLink>
+  );
+}
 
 export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
   const { sidebarCollapsed, toggleSidebar } = useUiStore();
   const { merchant, logout } = useAuthStore();
 
-  const businessName = merchant?.businessName || 'My Business';
+  const businessName = merchant?.businessName || 'My shop';
   const merchantEmail = merchant?.email || '';
 
-  const content = (
-    <div className="h-full flex flex-col justify-between glass-sidebar border-r border-zinc-200 dark:border-white/10 select-none transition-colors duration-200">
-      <div>
-        {/* Brand Header */}
-        <div className="h-16 px-4 flex items-center justify-between border-b border-zinc-200 dark:border-white/10">
-          <Link
-            to="/"
+  const content = (compact) => (
+    <div className="flex h-full flex-col bg-paper-2 select-none">
+      <div className={`flex h-16 shrink-0 items-center ${compact ? 'justify-center' : 'justify-between px-5'}`}>
+        <Link to="/" onClick={onMobileClose} className="rounded-sm" title="Back to the VerbaTask site">
+          <Logo showWordmark={!compact} size={30} textSize="text-xl" />
+        </Link>
+        {mobileOpen && (
+          <button
+            type="button"
             onClick={onMobileClose}
-            className="flex items-center gap-2.5 transition-opacity hover:opacity-85"
-            title="Return to Landing Page"
+            className="grid size-10 place-items-center rounded-pill border border-rule text-ink-2 hover:text-ink"
+            aria-label="Close menu"
           >
-            <Logo showWordmark={!sidebarCollapsed || mobileOpen} size={36} textSize="text-xl" />
-          </Link>
-
-          {mobileOpen && (
-            <button
-              type="button"
-              onClick={onMobileClose}
-              className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
-              aria-label="Close menu"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
-        </div>
-
-        {/* Navigation Links */}
-        <nav className="p-2 space-y-1">
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                onClick={onMobileClose}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-all duration-150 ${
-                    isActive
-                      ? 'bg-[#287A74]/10 text-[#287A74] dark:bg-[#AEEED3]/10 dark:text-[#AEEED3] font-semibold border-l-2 border-[#287A74] dark:border-[#AEEED3]'
-                      : 'text-[var(--text-ink-secondary)] hover:text-[var(--text-ink)] hover:bg-[var(--color-anchor)]/8 border-l-2 border-transparent'
-                  }`
-                }
-                title={sidebarCollapsed && !mobileOpen ? item.label : undefined}
-              >
-                {({ isActive }) => (
-                  <>
-                    <Icon
-                      className={`w-5 h-5 shrink-0 transition-colors ${
-                        isActive ? 'text-[#287A74] dark:text-[#AEEED3]' : 'text-[var(--text-ink-mute)]'
-                      }`}
-                    />
-                    {(!sidebarCollapsed || mobileOpen) && (
-                      <span className="truncate">{item.label}</span>
-                    )}
-                  </>
-                )}
-              </NavLink>
-            );
-          })}
-        </nav>
+            <X className="size-4" />
+          </button>
+        )}
       </div>
 
-      {/* Footer / Account / Collapse */}
-      <div className="p-2 border-t border-[var(--border-hairline)] space-y-1">
-        {/* Merchant Info */}
-        {!sidebarCollapsed || mobileOpen ? (
-          <NavLink
-            to="/dashboard/settings"
-            onClick={onMobileClose}
-            className="px-3 py-2 flex items-center gap-2.5 rounded-md bg-[var(--bg-canvas-soft)] border border-[var(--border-hairline)] hover:border-[#287A74]/40 hover:bg-[var(--color-anchor)]/5 transition-colors cursor-pointer"
-            title="Open Store Settings"
-          >
-            <div className="w-7 h-7 rounded-full bg-[#287A74]/15 text-[#287A74] dark:text-[#AEEED3] flex items-center justify-center shrink-0 text-xs font-medium">
-              <Store className="w-4 h-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-[var(--text-ink)] truncate leading-tight">
-                {businessName}
-              </p>
-              {merchantEmail && (
-                <p className="text-[10px] text-zinc-500 dark:text-ink-mute truncate">{merchantEmail}</p>
-              )}
-            </div>
-          </NavLink>
-        ) : (
-          <NavLink
-            to="/dashboard/settings"
-            className="w-full flex justify-center py-2 text-zinc-600 hover:text-emerald-600 dark:text-ink-secondary dark:hover:text-primary transition-colors cursor-pointer"
-            title={businessName}
-          >
-            <div className="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-medium">
-              <Store className="w-4 h-4" />
-            </div>
-          </NavLink>
+      {/* Shop identity sits above navigation — this is your shop's console */}
+      <NavLink
+        to="/dashboard/settings"
+        onClick={onMobileClose}
+        title={compact ? businessName : 'Shop settings'}
+        className={({ isActive }) =>
+          `mx-3 mt-2 flex items-center gap-3 rounded-card border transition-colors duration-150 ${
+            compact ? 'size-11 justify-center self-center p-0' : 'p-3'
+          } ${isActive ? 'border-ink bg-surface' : 'border-rule bg-surface hover:border-rule-2'}`
+        }
+      >
+        <span className="grid size-9 shrink-0 place-items-center rounded-pill bg-pear font-display text-sm font-bold text-on-pear">
+          {initials(businessName)}
+        </span>
+        {!compact && (
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-display text-sm font-semibold tracking-tight text-ink">{businessName}</span>
+            {merchantEmail && <span className="block truncate font-mono text-[10.5px] text-muted">{merchantEmail}</span>}
+          </span>
         )}
+        {!compact && <Settings className="size-4 shrink-0 text-muted" />}
+      </NavLink>
 
-        {/* Sidebar Collapse Toggle (Desktop only) */}
+      <nav className={`mt-6 flex flex-1 flex-col gap-1 ${compact ? 'items-center px-0' : 'px-3'}`} aria-label="Dashboard">
+        {!compact && <p className="label mb-2 px-4">Shop</p>}
+        {NAV_ITEMS.map((item) => (
+          <NavItem key={item.to} item={item} compact={compact} onNavigate={onMobileClose} />
+        ))}
+      </nav>
+
+      <div className={`flex shrink-0 flex-col gap-1 border-t border-rule py-3 ${compact ? 'items-center' : 'px-3'}`}>
         {!mobileOpen && (
           <button
             type="button"
             onClick={toggleSidebar}
-            className="w-full flex items-center gap-3 px-3 py-2 text-xs text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100 dark:text-[#94A3B8] dark:hover:text-[#F8FAFC] dark:hover:bg-[#1E293B] rounded-md transition-colors cursor-pointer"
+            className={`flex items-center gap-3 rounded-pill text-xs font-medium text-muted transition-colors hover:bg-paper-3 hover:text-ink ${
+              compact ? 'size-11 justify-center' : 'h-10 px-4'
+            }`}
             aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {sidebarCollapsed ? (
-              <PanelLeftOpen className="w-4 h-4 shrink-0 mx-auto" />
-            ) : (
-              <>
-                <PanelLeftClose className="w-4 h-4 shrink-0" />
-                <span className="truncate">Collapse sidebar</span>
-              </>
-            )}
+            {sidebarCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+            {!compact && <span>Collapse</span>}
           </button>
         )}
-
-        {/* Logout Button */}
         <button
           type="button"
           onClick={logout}
-          className="w-full flex items-center gap-3 px-3 py-2 text-xs text-red-600 hover:bg-red-50 dark:text-ruby dark:hover:bg-ruby/10 rounded-md transition-colors cursor-pointer"
-          title={sidebarCollapsed && !mobileOpen ? 'Sign out' : undefined}
+          title={compact ? 'Sign out' : undefined}
+          className={`flex items-center gap-3 rounded-pill text-xs font-medium text-danger-ink transition-colors hover:bg-coral-tint ${
+            compact ? 'size-11 justify-center' : 'h-10 px-4'
+          }`}
         >
-          <LogOut className={`w-4 h-4 shrink-0 ${sidebarCollapsed && !mobileOpen ? 'mx-auto' : ''}`} />
-          {(!sidebarCollapsed || mobileOpen) && (
-            <span className="truncate font-medium">Sign out</span>
-          )}
+          <LogOut className="size-4" />
+          {!compact && <span>Sign out</span>}
         </button>
       </div>
     </div>
@@ -193,35 +143,33 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
 
   return (
     <>
-      {/* Desktop Sidebar with Motion width */}
       <motion.aside
-        animate={{ width: sidebarCollapsed ? 64 : 240 }}
-        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-        className="hidden md:block shrink-0 h-screen sticky top-0 z-30"
+        animate={{ width: sidebarCollapsed ? 76 : 256 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        className="sticky top-0 z-[10] hidden h-screen shrink-0 overflow-hidden border-r border-rule md:block"
       >
-        {content}
+        {content(sidebarCollapsed)}
       </motion.aside>
 
-      {/* Mobile Drawer with AnimatePresence */}
       <AnimatePresence>
         {mobileOpen && (
-          <div className="md:hidden fixed inset-0 z-50 flex">
+          <div className="fixed inset-0 z-[400] flex md:hidden">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+              className="fixed inset-0 bg-[var(--color-scrim)]"
               onClick={onMobileClose}
             />
             <motion.div
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              className="relative w-72 max-w-[85vw] h-full shadow-2xl z-10"
+              exit={{ x: '-100%', transition: { duration: 0.18, ease: [0.7, 0, 0.84, 0] } }}
+              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+              className="relative z-10 h-full w-[17rem] max-w-[85vw] shadow-[var(--shadow-pop)]"
             >
-              {content}
+              {content(false)}
             </motion.div>
           </div>
         )}

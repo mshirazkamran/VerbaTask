@@ -1,95 +1,92 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Minus, HelpCircle } from 'lucide-react';
+import { Plus } from 'lucide-react';
+import { Link } from 'react-router';
 
 const faqs = [
   {
     q: 'Do I have to change how I run my counter?',
-    a: 'No. You continue serving customers exactly as you do today. The only new habit is sending a quick voice note or text to your VerbaTask WhatsApp thread: "2 carton oil bech diye, cash mil gaya." Everything else stays the same.',
+    a: 'No. You serve customers the way you do today. The only new habit is a quick voice note or text to the VerbaTask chat: “2 carton oil bech diye, cash mil gaya.”',
   },
   {
-    q: 'What if the AI misunderstands an amount or item?',
-    a: 'Every logged entry is read back to you immediately with the item name, quantity, rate, and total in chat. If anything is incorrect, reply GALAT or type the correction and it reverses instantly. High-value sales (≥ Rs. 10,000) require your explicit confirmation before being recorded.',
+    q: 'What if it gets an amount or item wrong?',
+    a: 'Every entry is read back to you with the item, quantity, rate and total. If anything is off, reply GALAT or type the correction and it’s reversed. Sales above your limit wait for your approval before they’re recorded.',
   },
   {
     q: 'Does it really understand Roman Urdu and mixed sentences?',
-    a: 'Yes. Sentences like "Do kilo chawal aur ek kilo daal, 500 ka note mila" are parsed seamlessly into items, quantities, and cash payments. Voice notes in natural Urdu dialect are transcribed and matched against your inventory catalogue.',
+    a: 'Yes. “Do kilo chawal aur ek kilo daal, 500 ka note mila” becomes items, quantities and a cash payment. Urdu voice notes are transcribed and matched against your own inventory list.',
   },
   {
-    q: 'Who has access to my store and sales data?',
-    a: 'Only you and anyone you authorize to access your dashboard. Your sales records and inventory levels are securely tied to your verified WhatsApp merchant account and are never shared or sold.',
+    q: 'Who can see my sales and stock?',
+    a: 'Only you, and anyone you give dashboard access to. Your records are tied to your verified WhatsApp number and are never shared or sold.',
   },
   {
-    q: 'Is the Web Dashboard required to use VerbaTask?',
-    a: 'Not at all. The WhatsApp thread alone is completely self-sufficient for everyday sales and stock checks. The Web Dashboard is an optional bonus for when you want visual charts, printable PDF reports, or detailed payment method management.',
+    q: 'Do I need the web dashboard?',
+    a: 'No. The WhatsApp chat handles daily sales and stock checks on its own. The dashboard is there when you want charts, printable reports or to manage payment methods.',
   },
   {
-    q: 'What happens if my phone loses cellular connection?',
-    a: 'WhatsApp automatically queues your voice note or message and delivers it as soon as your connection restores. VerbaTask then processes the queue in sequence without losing a single transaction.',
+    q: 'What if my phone loses signal?',
+    a: 'WhatsApp holds your message and sends it when the signal comes back. VerbaTask then processes messages in order, so nothing is skipped.',
   },
 ];
 
-export function Faq() {
-  const [openIndex, setOpenIndex] = useState(0);
-
+export function FaqList({ items = faqs, defaultOpen = 0 }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <section id="faq" className="px-4 sm:px-6 py-24 bg-[var(--bg-canvas)] transition-colors duration-200">
-      <div className="mx-auto max-w-3xl">
-        <div className="mb-14 text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#287A74]/30 bg-[#287A74]/10 px-3 py-1 text-xs font-semibold text-[#1E5C58] dark:text-[#AEEED3] uppercase tracking-wider mb-3">
-            06 — Clarifications
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-[var(--text-ink)] font-display">
-            Clear answers for store owners.
+    <ul className="border-t-2 border-ink">
+      {items.map((f, i) => {
+        const isOpen = open === i;
+        const id = `faq-${i}`;
+        return (
+          <li key={f.q} className="border-b border-rule">
+            <h3>
+              <button
+                type="button"
+                onClick={() => setOpen(isOpen ? null : i)}
+                aria-expanded={isOpen}
+                aria-controls={id}
+                className="group flex w-full items-start justify-between gap-6 py-5 text-left"
+              >
+                <span className="font-display text-lg font-semibold tracking-tight text-ink sm:text-[1.4rem]">{f.q}</span>
+                <span
+                  className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-pill border transition-[transform,background-color,border-color] duration-200 ${
+                    isOpen ? 'rotate-45 border-pear bg-pear text-on-pear' : 'border-rule-2 text-ink-2 group-hover:border-ink'
+                  }`}
+                  style={{ transitionTimingFunction: 'var(--ease-out)' }}
+                  aria-hidden="true"
+                >
+                  <Plus className="size-4" />
+                </span>
+              </button>
+            </h3>
+            <div id={id} className="accordion-panel" data-open={isOpen}>
+              <div>
+                <p className="max-w-[44rem] pb-6 pr-12 leading-relaxed text-ink-2">{f.a}</p>
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// S3 sticky-pinned head beside the questions.
+export function Faq() {
+  return (
+    <section id="faq" className="scroll-mt-16 py-20 sm:py-28">
+      <div className="shell grid gap-10 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-16">
+        <div className="lg:sticky lg:top-28 lg:self-start">
+          <h2 className="display max-w-[12ch] text-[length:var(--fs-2xl)] text-ink sm:text-[length:var(--fs-3xl)]">
+            Questions shopkeepers ask.
           </h2>
-          <p className="mt-4 text-base leading-relaxed text-[var(--text-ink-secondary)] font-body">
-            Everything you need to know before connecting your shop to VerbaTask.
+          <p className="mt-5 max-w-[22rem] leading-relaxed text-ink-2">
+            Something else on your mind?{' '}
+            <Link to="/contact" className="link-type">
+              Write to us
+            </Link>
           </p>
         </div>
-
-        <div className="space-y-3.5">
-          {faqs.map((f, i) => {
-            const isOpen = openIndex === i;
-            return (
-              <div
-                key={f.q}
-                className="rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-canvas-soft)] overflow-hidden transition-colors shadow-xs"
-              >
-                <button
-                  type="button"
-                  onClick={() => setOpenIndex(isOpen ? null : i)}
-                  aria-expanded={isOpen}
-                  className="flex w-full items-center justify-between gap-4 px-6 py-4.5 text-left transition-colors hover:bg-[var(--color-anchor)]/5 cursor-pointer"
-                >
-                  <span className="font-display text-base font-semibold text-[var(--text-ink)]">
-                    {f.q}
-                  </span>
-                  <div className={`size-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                    isOpen ? 'bg-[#287A74] text-white' : 'bg-[var(--border-hairline)] text-[var(--text-ink-mute)]'
-                  }`}>
-                    {isOpen ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                  </div>
-                </button>
-
-                <AnimatePresence>
-                  {isOpen && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                      className="overflow-hidden"
-                    >
-                      <div className="border-t border-[var(--border-hairline)] px-6 py-4 text-sm leading-relaxed text-[var(--text-ink-secondary)] font-body bg-[var(--bg-canvas)]">
-                        {f.a}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            );
-          })}
-        </div>
+        <FaqList />
       </div>
     </section>
   );

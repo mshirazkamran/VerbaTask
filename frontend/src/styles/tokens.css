@@ -1,0 +1,190 @@
+/* Hallmark · design-system tokens · theme: custom "Counter"
+ * vibe: "warm bazaar counter, machined voice ledger"
+ * day   (light) — Hum register: cream paper, pear push, teal ink-link, coral pop
+ * night (dark)  — Lumen Night-Foundry register: deep teal-black, pear emits, blueprint grid
+ * display: Space Grotesk · body: Geist · mono: JetBrains Mono
+ * axes: light+dark / grotesk-sans / multi (pear 102 · teal 185 · coral 28)
+ *
+ * Every colour and font in the app resolves through these names. Add a token here
+ * before using a new value anywhere else.
+ */
+
+:root {
+  /* ── Paper & ink ─────────────────────────────────────────── */
+  --color-paper:      oklch(97.2% 0.013 92);
+  --color-paper-2:    oklch(94.6% 0.018 92);
+  --color-paper-3:    oklch(91.4% 0.022 92);
+  --color-surface:    oklch(98.8% 0.007 92);
+  --color-ink:        oklch(22% 0.022 195);
+  --color-ink-2:      oklch(37% 0.02 195);
+  --color-muted:      oklch(50% 0.018 195);
+  --color-rule:       oklch(88.5% 0.016 92);
+  --color-rule-2:     oklch(80% 0.02 92);
+
+  /* ── Brand teal (links, active, data) ────────────────────── */
+  --color-primary:      oklch(50% 0.085 185);
+  --color-primary-deep: oklch(41% 0.075 185);
+  --color-primary-tint: oklch(93% 0.035 175);
+  --color-on-primary:   oklch(98.5% 0.008 92);
+
+  /* ── Pear (primary action, highlighter, the character) ───── */
+  --color-pear:      oklch(89% 0.165 102);
+  --color-pear-deep: oklch(73% 0.15 92);
+  --color-pear-tint: oklch(95.5% 0.055 100);
+  --color-on-pear:   oklch(22% 0.022 195);
+
+  /* ── Coral (one emphatic moment per view, danger) ────────── */
+  --color-coral:      oklch(63% 0.19 28);
+  --color-coral-deep: oklch(52% 0.18 28);
+  --color-coral-tint: oklch(94.5% 0.03 28);
+
+  /* ── Sky (guided / info, used sparingly) ─────────────────── */
+  --color-sky:      oklch(60% 0.13 235);
+  --color-sky-tint: oklch(94.5% 0.028 235);
+  --color-sky-ink:  oklch(43% 0.11 240);
+
+  /* ── Status inks on their tints ──────────────────────────── */
+  --color-success-ink:  oklch(42% 0.09 165);
+  --color-success-tint: oklch(93.5% 0.045 165);
+  --color-warn-ink:     oklch(44% 0.1 80);
+  --color-danger-ink:   oklch(49% 0.17 28);
+
+  /* ── Chart series ────────────────────────────────────────── */
+  --color-chart-1: var(--color-primary);
+  --color-chart-2: var(--color-pear-deep);
+  --color-chart-3: var(--color-coral);
+  --color-chart-4: var(--color-sky);
+
+  /* ── Modifiers (overlays, grid, emission) ────────────────── */
+  --color-focus:     oklch(55% 0.14 215);
+  --color-scrim:     oklch(18% 0.02 195 / 0.55);
+  --color-hl:        oklch(89% 0.165 102 / 0.7);
+  --rule-blueprint:  oklch(22% 0.022 195 / 0.05);
+  --color-emit:      oklch(89% 0.165 102 / 0);
+  --color-glow:      oklch(89% 0.165 102 / 0);
+  --color-selection: oklch(89% 0.165 102 / 0.55);
+  --btn-cast:        oklch(73% 0.15 92 / 0.42);
+
+  /* ── Elevation: contact + ambient, never one shadow everywhere */
+  --shadow-contact: 0 1px 2px oklch(22% 0.022 195 / 0.06);
+  --shadow-ambient: 0 14px 34px -18px oklch(22% 0.022 195 / 0.2);
+  --shadow-lift:    0 22px 44px -20px oklch(22% 0.022 195 / 0.28);
+  --shadow-pop:     0 18px 40px -12px oklch(22% 0.022 195 / 0.3);
+
+  /* ── Type ────────────────────────────────────────────────── */
+  --font-display: "Space Grotesk", "Geist", ui-sans-serif, sans-serif;
+  --font-body:    "Geist", ui-sans-serif, "Segoe UI", sans-serif;
+  --font-label:   "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --fs-2xs: 0.6875rem;  /* 11 · mono labels */
+  --fs-xs:  0.8rem;
+  --fs-sm:  0.875rem;
+  --fs-base: 1rem;
+  --fs-md:  1.25rem;
+  --fs-lg:  1.5625rem;
+  --fs-xl:  1.9531rem;
+  --fs-2xl: 2.4414rem;
+  --fs-3xl: 3.0518rem;
+  --text-display: clamp(2.6rem, 4.6vw + 1rem, 5rem);
+  --text-numeral: clamp(4rem, 9vw + 1rem, 9rem);
+
+  --tracking-display: -0.035em;
+  --tracking-label: 0.1em;
+
+  /* ── Space (4pt) ─────────────────────────────────────────── */
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs:  0.5rem;
+  --space-sm:  0.75rem;
+  --space-md:  1rem;
+  --space-lg:  1.5rem;
+  --space-xl:  2.5rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+  --space-4xl: 9rem;
+
+  --page-max: 76rem;
+  --page-gutter: clamp(1rem, 4vw, 2.5rem);
+
+  /* ── Radius ──────────────────────────────────────────────── */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-input: 12px;
+  --radius-card: 20px;
+  --radius-slab: 28px;
+  --radius-pill: 999px;
+
+  /* ── Motion ──────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-press: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+  --dur-pulse: 4s;
+
+  /* ── Z scale ─────────────────────────────────────────────── */
+  --z-base: 1;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+
+  color-scheme: light;
+}
+
+/* Night counter — Lumen register. Same anchors, lightness + chroma move, hue stays. */
+.dark {
+  --color-paper:      oklch(16% 0.016 205);
+  --color-paper-2:    oklch(19% 0.018 205);
+  --color-paper-3:    oklch(23.5% 0.02 205);
+  --color-surface:    oklch(20.5% 0.018 205);
+  --color-ink:        oklch(95.5% 0.012 95);
+  --color-ink-2:      oklch(83% 0.014 190);
+  --color-muted:      oklch(67% 0.016 195);
+  --color-rule:       oklch(28.5% 0.018 205);
+  --color-rule-2:     oklch(37% 0.02 205);
+
+  --color-primary:      oklch(81% 0.105 172);
+  --color-primary-deep: oklch(71% 0.1 175);
+  --color-primary-tint: oklch(29% 0.045 180);
+  --color-on-primary:   oklch(17% 0.02 200);
+
+  --color-pear:      oklch(88% 0.16 102);
+  --color-pear-deep: oklch(64% 0.13 92);
+  --color-pear-tint: oklch(29% 0.045 100);
+  --color-on-pear:   oklch(19% 0.02 200);
+
+  --color-coral:      oklch(71% 0.16 28);
+  --color-coral-deep: oklch(61% 0.16 28);
+  --color-coral-tint: oklch(29% 0.055 28);
+
+  --color-sky:      oklch(74% 0.11 235);
+  --color-sky-tint: oklch(28% 0.045 240);
+  --color-sky-ink:  oklch(83% 0.08 235);
+
+  --color-success-ink:  oklch(83% 0.11 165);
+  --color-success-tint: oklch(28% 0.045 165);
+  --color-warn-ink:     oklch(89% 0.13 98);
+  --color-danger-ink:   oklch(79% 0.13 28);
+
+  --color-focus:     oklch(80% 0.12 200);
+  --color-scrim:     oklch(8% 0.01 205 / 0.7);
+  --color-hl:        oklch(88% 0.16 102);
+  --rule-blueprint:  oklch(95.5% 0.012 95 / 0.045);
+  --color-emit:      oklch(88% 0.16 102 / 0.05);
+  --color-glow:      oklch(88% 0.16 102 / 0.13);
+  --color-selection: oklch(88% 0.16 102 / 0.3);
+  --btn-cast:        oklch(5% 0.01 205 / 0.55);
+
+  /* On dark, elevation is lightness — shadows stay tight and dark, never glow. */
+  --shadow-contact: 0 1px 0 oklch(100% 0 0 / 0.04) inset;
+  --shadow-ambient: 0 1px 0 oklch(100% 0 0 / 0.04) inset, 0 18px 40px -24px oklch(4% 0.01 205 / 0.8);
+  --shadow-lift:    0 1px 0 oklch(100% 0 0 / 0.06) inset, 0 26px 50px -24px oklch(4% 0.01 205 / 0.9);
+  --shadow-pop:     0 24px 48px -16px oklch(4% 0.01 205 / 0.85);
+
+  color-scheme: dark;
+}

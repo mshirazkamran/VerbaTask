@@ -165,7 +165,7 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
  </div>
 
  <div className="space-y-2">
- <label className="text-xs font-medium text-ink">Expiry Reminders (YYYY-MM)</label>
+ <label className="text-xs font-semibold text-ink-2">Expiry reminders (month)</label>
  <div className="flex gap-2">
  <Input 
  type="month"
@@ -180,7 +180,7 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
  {form.expiryDates.map(date => (
  <Badge key={date} variant="warning" className="flex items-center gap-1">
  {date}
- <button type="button" onClick={() => handleRemoveExpiry(date)} className="hover:text-ruby">×</button>
+ <button type="button" onClick={() => handleRemoveExpiry(date)} className="hover:text-danger-ink" aria-label={`Remove ${date}`}>×</button>
  </Badge>
  ))}
  </div>
@@ -284,7 +284,7 @@ export function InventoryPage() {
  const firstLetter = (name || '?').charAt(0).toUpperCase();
  return (
  <div className="flex items-center gap-3 min-w-0">
- <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-heading font-semibold text-sm shrink-0 shadow-xs">
+ <div className="grid size-9 shrink-0 place-items-center rounded-pill bg-paper-3 font-display text-sm font-semibold text-ink">
  {firstLetter}
  </div>
  <div className="min-w-0">
@@ -324,7 +324,7 @@ export function InventoryPage() {
  accessorKey: 'price',
  header: 'Price',
  cell: ({ getValue }) => (
- <span className="font-tabular font-medium text-emerald-600 dark:text-emerald-400">
+ <span className="font-mono text-sm font-semibold text-ink">
  {formatPKR(getValue())}
  </span>
  ),
@@ -333,7 +333,7 @@ export function InventoryPage() {
  accessorKey: 'unit',
  header: 'Unit',
  cell: ({ getValue }) => (
- <span className="text-xs px-2 py-0.5 rounded-md bg-canvas-soft border border-hairline text-ink-secondary">
+ <span className="font-mono text-xs text-muted">
  {getValue() || '-'}
  </span>
  ),
@@ -357,7 +357,7 @@ export function InventoryPage() {
  <Button
  variant="ghost"
  size="sm"
- className="text-ruby hover:text-ruby hover:bg-ruby/10"
+ className="!text-danger-ink hover:!bg-coral-tint"
  leftIcon={<Trash2 className="w-4 h-4" />}
  onClick={(e) => {
  e.stopPropagation();
@@ -409,191 +409,140 @@ export function InventoryPage() {
  <div className="space-y-6">
  <div className="flex items-center justify-between">
  <div>
- <h2 className="text-xl font-light text-ink tracking-tight">Inventory</h2>
- <p className="text-xs text-ink-mute">Manage stock, pricing, and units</p>
+ <p className="label">Catalog</p>
+ <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink">Inventory</h1>
  </div>
  </div>
  <Card padding="lg" className="text-center py-12">
- <AlertCircle className="w-10 h-10 text-ruby mx-auto mb-3" />
- <h3 className="text-base font-medium text-ink">Failed to load inventory</h3>
- <p className="text-xs text-ink-mute mt-1">{error.message}</p>
+ <AlertCircle className="mx-auto mb-3 size-9 text-coral" />
+ <h3 className="font-display text-lg font-semibold text-ink">Inventory didn’t load</h3>
+ <p className="mt-1 text-sm text-muted">{error.message}. Refresh to try again.</p>
  </Card>
  </div>
  );
  }
 
+ const filters = [
+ { id: 'healthy', label: 'Healthy', hint: '10 or more', count: counts.healthy, tone: 'bg-success-tint text-success-ink', bar: 'bg-primary' },
+ { id: 'low', label: 'Running low', hint: 'Under 10', count: counts.low, tone: 'bg-pear-tint text-warn-ink', bar: 'bg-pear-deep' },
+ { id: 'out', label: 'Out of stock', hint: 'Zero left', count: counts.out, tone: 'bg-coral-tint text-danger-ink', bar: 'bg-coral' },
+ ];
+
  return (
- <div className="space-y-6">
- <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+ <div className="space-y-5 sm:space-y-6">
+ <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
  <div>
- <h2 className="font-heading text-2xl font-light tracking-[-0.5px] text-ink">Inventory</h2>
- <p className="font-body text-sm text-ink-mute">Manage stock, pricing, and catalog</p>
+ <p className="label">Catalog</p>
+ <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)]">Inventory</h1>
  </div>
- <div className="flex items-center gap-2">
+ <div className="flex flex-wrap items-center gap-2">
  <ReportDropdown />
- <Button
- leftIcon={<Plus className="w-4 h-4" />}
- onClick={handleAdd}
- className="shadow-sm shadow-primary/25 text-xs py-1"
- >
+ <Button leftIcon={<Plus className="size-4" />} onClick={handleAdd}>
  Add item
  </Button>
  </div>
  </div>
 
- {/* KPI Cards for Inventory - Solid Colors, Glassmorphism & High Contrast */}
- <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
- <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 flex items-center justify-between shadow-card hover:shadow-md transition-all duration-200">
- <div>
- <p className="text-xs uppercase tracking-wider font-medium text-emerald-700 dark:text-emerald-300">Total Items</p>
- <p className="text-2xl font-light text-emerald-950 dark:text-emerald-50 font-tabular mt-1">{counts.all}</p>
- </div>
- <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 flex items-center justify-center ">
- <Package className="w-5 h-5" />
- </div>
- </div>
- <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 flex items-center justify-between shadow-card hover:shadow-md transition-all duration-200">
- <div>
- <p className="text-xs uppercase tracking-wider font-medium text-emerald-700 dark:text-emerald-300">Healthy Stock</p>
- <p className="text-2xl font-light font-tabular mt-1 text-emerald-950 dark:text-emerald-50">{counts.healthy}</p>
- </div>
- <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 flex items-center justify-center ">
- <Package className="w-5 h-5" />
- </div>
- </div>
- <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 flex items-center justify-between shadow-card hover:shadow-md transition-all duration-200">
- <div>
- <p className="text-xs uppercase tracking-wider font-medium text-amber-800 dark:text-amber-300">Low Stock (&lt;10)</p>
- <p className="text-2xl font-light font-tabular mt-1 text-amber-950 dark:text-amber-50">{counts.low}</p>
- </div>
- <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700 flex items-center justify-center ">
- <AlertCircle className="w-5 h-5" />
- </div>
- </div>
- <div className="p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950 flex items-center justify-between shadow-card hover:shadow-md transition-all duration-200">
- <div>
- <p className="text-xs uppercase tracking-wider font-medium text-red-800 dark:text-red-300">Out of Stock</p>
- <p className="text-2xl font-light font-tabular mt-1 text-red-950 dark:text-red-50">{counts.out}</p>
- </div>
- <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-700 flex items-center justify-center ">
- <AlertCircle className="w-5 h-5" />
- </div>
- </div>
- </div>
-
- {/* Stock Health Distribution Bar */}
- {counts.all > 0 && (
- <div className="p-3.5 bg-canvas dark:bg-canvas border border-hairline dark:border-hairline rounded-xl shadow-card">
- <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-ink-mute gap-2 mb-2">
- <span className="font-medium text-ink">Catalog Stock Health</span>
- <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-[11px]">
- <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
- <span className="w-2.5 h-2.5 rounded-xs bg-emerald-500" />
- Healthy ({counts.healthy})
- </span>
- <span className="flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-400">
- <span className="w-2.5 h-2.5 rounded-xs bg-amber-500" />
- Low Stock ({counts.low})
- </span>
- <span className="flex items-center gap-1.5 font-medium text-red-700 dark:text-red-400">
- <span className="w-2.5 h-2.5 rounded-xs bg-red-500" />
- Out of Stock ({counts.out})
- </span>
- </div>
- </div>
- <div className="w-full h-2 rounded-xs bg-canvas-soft overflow-hidden flex gap-0.5">
- <div style={{ width: `${(counts.healthy / counts.all) * 100}%` }} className="bg-emerald-500 transition-all duration-300" title={`Healthy: ${counts.healthy}`} />
- <div style={{ width: `${(counts.low / counts.all) * 100}%` }} className="bg-amber-500 transition-all duration-300" title={`Low: ${counts.low}`} />
- <div style={{ width: `${(counts.out / counts.all) * 100}%` }} className="bg-red-500 transition-all duration-300" title={`Out: ${counts.out}`} />
- </div>
- </div>
- )}
-
- {/* Filter Tabs & Search */}
- <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
- <div className="flex items-center gap-1.5 p-1 bg-canvas-soft dark:bg-canvas-soft border border-hairline rounded-lg overflow-x-auto">
+ {/* Stock instrument — total + health bar on the left, the three counts double as filters */}
+ <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
  <button
  type="button"
  onClick={() => setStockFilter('all')}
- className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
- stockFilter === 'all'
- ? 'bg-emerald-600 text-white shadow-xs'
- : 'text-ink-secondary hover:text-ink hover:bg-canvas'
- }`}
+ aria-pressed={stockFilter === 'all'}
+ className={`surface-card flex flex-col justify-between gap-6 p-5 text-left transition-colors sm:p-6 lg:col-span-5 ${stockFilter === 'all' ? '!border-ink' : ''}`}
  >
- All Items ({counts.all})
+ <div className="flex items-start justify-between gap-4">
+ <div>
+ <p className="label">Items on the shelf</p>
+ <p className="mt-2 font-display text-5xl font-semibold leading-none tracking-[-0.04em] text-ink font-tabular">
+ {isLoading ? '—' : counts.all}
+ </p>
+ </div>
+ <span className="label">{stockFilter === 'all' ? 'Showing all' : 'Show all'}</span>
+ </div>
+ {counts.all > 0 ? (
+ <div className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-pill bg-paper-3" role="img" aria-label={`${counts.healthy} healthy, ${counts.low} low, ${counts.out} out of stock`}>
+ {filters.map((f) => (
+ <span key={f.id} className={f.bar} style={{ width: `${(f.count / counts.all) * 100}%` }} />
+ ))}
+ </div>
+ ) : (
+ <div className="h-2.5 w-full rounded-pill bg-paper-3" />
+ )}
  </button>
+
+ <div className="grid grid-cols-3 gap-3 lg:col-span-7">
+ {filters.map((f) => {
+ const on = stockFilter === f.id;
+ return (
  <button
+ key={f.id}
  type="button"
- onClick={() => setStockFilter('healthy')}
- className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
- stockFilter === 'healthy'
- ? 'bg-emerald-600 text-white shadow-xs'
- : 'text-ink-secondary hover:text-emerald-600 hover:bg-canvas'
- }`}
+ onClick={() => setStockFilter(on ? 'all' : f.id)}
+ aria-pressed={on}
+ className={`flex min-w-0 flex-col justify-between gap-4 rounded-card p-4 text-left ring-ink transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 sm:p-5 ${f.tone} ${on ? 'ring-2' : ''}`}
  >
- Healthy ({counts.healthy})
+ <span className="min-w-0">
+ <span className="block truncate font-display text-sm font-semibold tracking-tight sm:text-base">{f.label}</span>
+ <span className="block truncate text-[11px] opacity-75 sm:text-xs">{f.hint}</span>
+ </span>
+ <span className="font-display text-3xl font-semibold leading-none tracking-tight font-tabular sm:text-4xl">
+ {isLoading ? '—' : f.count}
+ </span>
  </button>
- <button
- type="button"
- onClick={() => setStockFilter('low')}
- className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
- stockFilter === 'low'
- ? 'bg-amber-600 text-white shadow-xs'
- : 'text-ink-secondary hover:text-amber-600 hover:bg-canvas'
- }`}
- >
- Low Stock ({counts.low})
- </button>
- <button
- type="button"
- onClick={() => setStockFilter('out')}
- className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
- stockFilter === 'out'
- ? 'bg-red-600 text-white shadow-xs'
- : 'text-ink-secondary hover:text-red-600 hover:bg-canvas'
- }`}
- >
- Out of Stock ({counts.out})
- </button>
+ );
+ })}
+ </div>
  </div>
 
- <div className="relative w-full sm:w-auto sm:min-w-[220px]">
- <Search className="w-4 h-4 text-ink-mute absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+ <Card padding="none" className="overflow-hidden">
+ <div className="flex flex-col gap-3 px-5 pb-2 pt-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+ <div>
+ <h2 className="font-display text-base font-semibold tracking-tight text-ink sm:text-lg">
+ {stockFilter === 'all' ? 'Every item' : filters.find((f) => f.id === stockFilter)?.label}
+ </h2>
+ <p className="label mt-0.5">{filteredItems.length} shown</p>
+ </div>
+ <div className="relative w-full sm:w-64">
+ <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
  <input
- type="text"
- placeholder="Search items..."
+ type="search"
+ placeholder="Search items…"
+ aria-label="Search items"
  value={search}
  onChange={(e) => setSearch(e.target.value)}
- className="w-full bg-canvas dark:bg-canvas border border-hairline rounded-lg pl-9 pr-3 text-xs text-ink placeholder:text-ink-mute/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary h-9 transition-colors"
+ className="h-10 w-full rounded-pill border border-rule-2 bg-paper pl-10 pr-4 text-sm text-ink transition-colors placeholder:text-muted/70 hover:border-muted focus:border-ink focus:outline-none"
  />
  </div>
  </div>
 
  {isLoading ? (
- <div className="space-y-2">
+ <div className="space-y-2 px-5 pb-5 sm:px-6">
  <Skeleton variant="tableRow" />
  <Skeleton variant="tableRow" />
  <Skeleton variant="tableRow" />
  </div>
  ) : items?.length === 0 && !search ? (
- <Card padding="lg">
  <EmptyState
- icon={<Package className="w-6 h-6" />}
- title="No inventory items yet"
- description="Start tracking your inventory by adding your first product."
+ icon={<Package className="size-6" />}
+ title="No items yet"
+ description="Add your first product, or send a voice note on WhatsApp and it will appear here."
  actionLabel="Add item"
- actionIcon={<Plus className="w-4 h-4" />}
+ actionIcon={<Plus className="size-4" />}
  onAction={handleAdd}
  />
- </Card>
  ) : (
+ <div className="pb-2">
  <Table
  table={table}
- emptyText="No inventory items found"
- getRowClassName={(row) => (row.original.quantity < 10 ? 'border-l-2 border-ruby' : '')}
+ emptyText="No items match that search"
+ getRowClassName={(row) =>
+ row.original.quantity === 0 ? 'bg-coral-tint/45' : row.original.quantity < 10 ? 'bg-pear-tint/45' : ''
+ }
  />
+ </div>
  )}
+ </Card>
 
  <Modal
  isOpen={modalOpen}
@@ -625,7 +574,7 @@ export function InventoryPage() {
  isOpen={!!deletingItem}
  onClose={() => setDeletingItem(null)}
  title="Delete item"
- description={`Are you sure you want to delete "${deletingItem?.name}"? This cannot be undone.`}
+ description={`“${deletingItem?.name}” and its stock count will be removed. This can’t be undone.`}
  maxWidth="max-w-sm"
  >
  <div className="flex justify-end gap-2 pt-2">

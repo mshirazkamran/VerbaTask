@@ -1,6 +1,6 @@
 import { useLocation, Link } from 'react-router';
-import { useUiStore } from '../../lib/store';
-import { Sun, Moon, Menu, Circle, Home } from 'lucide-react';
+import { Menu, ArrowUpRight } from 'lucide-react';
+import { ThemeToggle } from '../ui/ThemeToggle';
 
 const ROUTE_TITLES = {
   '/dashboard': 'Overview',
@@ -8,65 +8,42 @@ const ROUTE_TITLES = {
   '/dashboard/orders': 'Orders',
   '/dashboard/workflows': 'Workflows',
   '/dashboard/approvals': 'Approvals',
-  '/dashboard/settings': 'Store Settings',
+  '/dashboard/settings': 'Shop settings',
 };
 
 export function TopBar({ onOpenMobileMenu }) {
-  const location = useLocation();
-  const { theme, setTheme } = useUiStore();
-
-  const title = ROUTE_TITLES[location.pathname] || 'Dashboard';
-
-  const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  };
+  const { pathname } = useLocation();
+  const title = ROUTE_TITLES[pathname] || 'Dashboard';
+  const today = new Date().toLocaleDateString('en-PK', { weekday: 'short', day: 'numeric', month: 'short' });
 
   return (
-    <header className="h-16 sticky top-0 z-20 w-full glass-nav px-3 sm:px-6 flex items-center justify-between transition-colors duration-200">
-      {/* Left: Mobile hamburger + Page Title */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+    <header className="sticky top-0 z-[200] flex h-16 w-full items-center justify-between gap-3 border-b border-rule bg-paper px-3 sm:px-6 lg:px-8">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <button
           type="button"
           onClick={onOpenMobileMenu}
-          className="md:hidden p-2 min-w-[38px] min-h-[38px] flex items-center justify-center text-zinc-700 dark:text-ink-secondary hover:text-zinc-950 dark:hover:text-ink rounded-lg hover:bg-zinc-100 dark:hover:bg-canvas-soft transition-colors cursor-pointer"
+          className="grid size-10 shrink-0 place-items-center rounded-pill border border-rule bg-surface text-ink md:hidden"
           aria-label="Open navigation menu"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="size-4" />
         </button>
-
-        <h1 className="text-base sm:text-lg font-bold tracking-tight text-zinc-950 dark:text-white font-heading truncate">
-          {title}
-        </h1>
+        <p className="label hidden sm:block">Dashboard /</p>
+        <p className="truncate font-display text-base font-semibold tracking-tight text-ink sm:text-lg">{title}</p>
       </div>
 
-      {/* Right: Landing page link + Live System indicator + Theme Toggle */}
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <span className="label hidden items-center gap-2 lg:inline-flex">
+          <span className="size-1.5 rounded-pill bg-primary" aria-hidden="true" />
+          Live · {today}
+        </span>
         <Link
           to="/"
-          className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--text-ink-secondary)] hover:text-[var(--text-ink)] bg-[var(--bg-canvas-soft)] hover:bg-[var(--color-anchor)]/10 border border-[var(--border-hairline)] transition-colors"
-          title="Return to Public Landing Page"
+          className="hidden h-10 items-center gap-1.5 whitespace-nowrap rounded-pill px-3.5 text-sm font-medium text-ink-2 transition-colors hover:bg-paper-2 hover:text-ink sm:inline-flex"
         >
-          <Home className="w-4 h-4 text-[#287A74] dark:text-[#AEEED3] shrink-0" />
-          <span className="hidden sm:inline">Landing Page</span>
+          Site
+          <ArrowUpRight className="size-3.5" />
         </Link>
-
-        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#287A74]/10 border border-[#287A74]/25 text-[#287A74] dark:text-[#AEEED3] text-xs font-semibold">
-          <Circle className="w-2 h-2 fill-current animate-pulse text-[#287A74] dark:text-[#AEEED3]" />
-          <span>System Live</span>
-        </div>
-
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="p-2 min-w-[38px] min-h-[38px] flex items-center justify-center text-zinc-700 hover:text-zinc-950 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 dark:text-zinc-400 dark:hover:text-white dark:bg-white/[0.04] dark:border-white/10 dark:hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer"
-          aria-label="Toggle theme"
-        >
-          {theme === 'dark' ? (
-            <Sun className="w-4 h-4 text-amber-400" />
-          ) : (
-            <Moon className="w-4 h-4 text-zinc-700" />
-          )}
-        </button>
+        <ThemeToggle />
       </div>
     </header>
   );

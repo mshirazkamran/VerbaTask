@@ -36,7 +36,7 @@ export function Modal({
     <AnimatePresence>
       {isOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+          className="fixed inset-0 z-[400] flex items-end justify-center overflow-y-auto p-0 sm:items-center sm:p-4"
           role="dialog"
           aria-modal="true"
         >
@@ -47,34 +47,34 @@ export function Modal({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs"
+            className="fixed inset-0 bg-[var(--color-scrim)]"
           />
 
           {/* Modal Panel */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 8 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className={`relative w-full ${maxWidth} bg-canvas text-ink border border-hairline rounded-xl shadow-xl p-5 sm:p-6 z-10 max-h-[90dvh] flex flex-col overflow-hidden`}
+            exit={{ opacity: 0, scale: 0.98, y: 8, transition: { duration: 0.16 } }}
+            transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+            className={`relative z-10 flex max-h-[92dvh] w-full ${maxWidth} flex-col overflow-hidden rounded-t-slab border border-rule bg-surface p-5 text-ink shadow-[var(--shadow-pop)] sm:rounded-slab sm:p-7`}
           >
             {(title || showCloseButton) && (
               <div className="flex items-start justify-between gap-4 mb-4 shrink-0">
                 <div>
                   {title && (
-                    <h3 className="text-lg font-medium text-ink leading-snug">
+                    <h3 className="font-display text-xl font-semibold leading-snug tracking-tight text-ink">
                       {title}
                     </h3>
                   )}
                   {description && (
-                    <p className="text-xs text-ink-mute mt-1">{description}</p>
+                    <p className="mt-1.5 text-sm text-muted">{description}</p>
                   )}
                 </div>
                 {showCloseButton && (
                   <button
                     type="button"
                     onClick={onClose}
-                    className="text-ink-mute hover:text-ink p-1.5 sm:p-1 rounded-lg sm:rounded-sm hover:bg-canvas-soft transition-colors cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center shrink-0"
+                    className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-pill border border-rule text-muted transition-colors hover:bg-paper-2 hover:text-ink"
                     aria-label="Close modal"
                   >
                     <X className="w-5 h-5" />

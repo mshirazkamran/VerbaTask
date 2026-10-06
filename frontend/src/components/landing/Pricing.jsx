@@ -1,94 +1,46 @@
 import { Link } from 'react-router';
-import { Check, ArrowRight } from 'lucide-react';
 import { WhatsAppIcon } from '../ui/WhatsAppIcon';
-import { Magnet } from '../ui/reactbits/Magnet';
 
+// One honest price line on the pear band — no tier table.
 const included = [
-  'Unlimited sales logging via Urdu & Roman Urdu voice notes',
-  'Real-time automated inventory decrement & low-stock alerts',
-  'Pakistani payment channels: Cash, Easypaisa, JazzCash, 1-Link Banks',
-  'Human-in-the-loop safety approvals for transactions ≥ Rs. 10,000',
-  'Full Web Terminal dashboard with inventory analytics & CSV/PDF exports',
-  'Zero recurring subscription lockouts or hidden credit card fees',
+  'Unlimited sales by voice note or text',
+  'Live stock with low-stock alerts',
+  'Cash, Easypaisa, JazzCash, bank and udhaar',
+  'Approvals for sales above your limit',
+  'Web dashboard and WhatsApp reports',
+  'No card on file, no trial countdown',
 ];
 
 export function Pricing() {
   return (
-    <section id="pricing" className="px-4 sm:px-6 py-24 bg-[var(--bg-canvas-soft)] transition-colors duration-200 border-t border-[var(--border-hairline)]">
-      <div className="mx-auto max-w-6xl">
-        <div className="max-w-2xl mb-14">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#287A74]/30 bg-[#287A74]/10 px-3 py-1 text-xs font-semibold text-[#1E5C58] dark:text-[#AEEED3] uppercase tracking-wider mb-3">
-            05 — Economics
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-[var(--text-ink)] font-display">
-            Transparent pricing for community merchants.
-          </h2>
-          <p className="mt-4 text-base leading-relaxed text-[var(--text-ink-secondary)] font-body">
-            No credit card required. No trial expiration count-downs. No surprise lockouts when you need your ledger most.
+    <section id="pricing" className="scroll-mt-16 bg-pear text-on-pear dark:border-y dark:border-rule dark:bg-paper-2 dark:text-ink">
+      <div className="shell grid gap-12 py-20 sm:py-24 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16">
+        <div className="min-w-0">
+          <h2 className="font-display text-xl font-semibold tracking-tight">Pricing</h2>
+          <p className="display mt-4 font-tabular dark:text-pear text-[length:var(--text-numeral)] leading-[0.9]">
+            PKR&nbsp;0
           </p>
+          <p className="mt-4 font-mono text-sm uppercase tracking-[0.08em]">per store · per month</p>
         </div>
 
-        {/* High-Contrast Inverted Anchor Card */}
-        <div className="max-w-3xl mx-auto rounded-3xl bg-[#287A74] text-white p-7 sm:p-12 shadow-2xl relative overflow-hidden">
-          {/* Subtle decorative background glow */}
-          <div className="pointer-events-none absolute -right-20 -top-20 size-80 rounded-full bg-[#AEEED3]/15 blur-3xl" />
-          <div className="pointer-events-none absolute -left-20 -bottom-20 size-80 rounded-full bg-[#FFF8B0]/10 blur-3xl" />
-
-          <div className="relative z-10">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-              <span className="rounded-full bg-[#FFF8B0] text-[#3D3400] font-bold text-xs px-3.5 py-1 uppercase tracking-wider font-mono">
-                Small Merchant Tier
-              </span>
-              <span className="text-xs text-[#AEEED3] font-medium">
-                Meta Cloud Free API Tier
-              </span>
-            </div>
-
-            <div className="flex flex-wrap items-baseline gap-3">
-              <span className="text-5xl sm:text-7xl font-extrabold tracking-tight font-display font-tabular">
-                PKR 0
-              </span>
-              <span className="text-sm font-medium text-[#AEEED3]/80">
-                / month, per store
-              </span>
-            </div>
-
-            <p className="mt-5 text-sm sm:text-base leading-relaxed text-[#EAFBF5] font-body max-w-xl">
-              VerbaTask is designed to digitize local Kiryana shops and pharmacies across Pakistan.
-              Merchant-initiated WhatsApp messages operate within the Meta Cloud API free service tier,
-              allowing small shops to log daily sales without costly software subscriptions.
-            </p>
-
-            <div className="mt-9 pt-7 border-t border-white/20">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#FFF8B0] mb-5">
-                Every feature included on Day 1:
-              </p>
-              <ul className="grid gap-3.5 sm:grid-cols-2">
-                {included.map((item) => (
-                  <li key={item} className="flex items-start gap-2.5 text-xs sm:text-sm text-white/95">
-                    <Check className="mt-0.5 w-4 h-4 shrink-0 text-[#FFF8B0]" />
-                    <span className="leading-snug">{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="mt-10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <Magnet padding={40} magnetStrength={3} wrapperClassName="w-full sm:w-auto">
-                <Link
-                  to="/signup"
-                  className="inline-flex w-full sm:w-auto items-center justify-center gap-2.5 rounded-xl bg-[#FFF8B0] hover:bg-[#FFF380] text-[#287A74] px-7 py-4 text-sm font-bold shadow-lg transition-all duration-150 active:scale-[0.98]"
-                >
-                  <WhatsAppIcon className="w-5 h-5 shrink-0" />
-                  <span>Start Free on WhatsApp Now</span>
-                </Link>
-              </Magnet>
-
-              <span className="text-xs text-[#AEEED3]/80 flex items-center gap-1.5">
-                Takes 60 seconds to pair store
-                <ArrowRight className="w-3.5 h-3.5" />
-              </span>
-            </div>
+        <div className="min-w-0 lg:pt-4">
+          <p className="max-w-[34rem] text-lg leading-relaxed">
+            Messages you send to VerbaTask run inside WhatsApp’s free service window, so a small shop
+            can log every sale without paying for software.
+          </p>
+          <ul className="mt-8 grid border-t border-on-pear/25 dark:border-rule sm:grid-cols-2 sm:gap-x-8">
+            {included.map((item) => (
+              <li key={item} className="border-b border-on-pear/25 dark:border-rule py-3 text-sm font-medium">
+                {item}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-4">
+            <Link to="/signup" className="btn btn--ink btn--lg">
+              <WhatsAppIcon className="size-5" />
+              Start free
+            </Link>
+            <span className="text-sm">Pairing takes about a minute.</span>
           </div>
         </div>
       </div>

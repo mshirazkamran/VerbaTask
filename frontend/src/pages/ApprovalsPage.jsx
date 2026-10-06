@@ -47,9 +47,7 @@ export function ApprovalsPage() {
  accessorKey: 'type',
  header: 'Type',
  cell: ({ getValue }) => (
- <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-medium text-xs capitalize">
- {getValue()}
- </span>
+ <Badge variant="neutral">{getValue()}</Badge>
  ),
  },
  {
@@ -60,9 +58,9 @@ export function ApprovalsPage() {
  <span className="text-sm font-medium text-ink block truncate max-w-[340px]" title={getValue()}>
  {getValue() || '-'}
  </span>
- <span className="text-[11px] text-amber-800 dark:text-amber-300 font-medium flex items-center gap-1 mt-0.5">
- <AlertCircle className="w-3.5 h-3.5" />
- Exceeds Rs. 10,000 threshold
+ <span className="mt-0.5 flex items-center gap-1 font-mono text-[11px] text-danger-ink">
+ <AlertCircle className="size-3.5" />
+ Over your Rs. 10,000 limit
  </span>
  </div>
  ),
@@ -92,9 +90,8 @@ export function ApprovalsPage() {
  return (
  <div className="flex items-center justify-end gap-2">
  <Button
- variant="primary"
+ variant="teal"
  size="sm"
- className="bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-600 shadow-xs shadow-emerald-500/25"
  disabled={disabled}
  loading={isActing && acting.decision === 'approved'}
  leftIcon={<Check className="w-4 h-4" />}
@@ -103,9 +100,8 @@ export function ApprovalsPage() {
  Approve
  </Button>
  <Button
- variant="ghost"
+ variant="secondary"
  size="sm"
- className="text-ruby hover:text-ruby hover:bg-ruby/10 border border-ruby/20"
  disabled={disabled}
  loading={isActing && acting.decision === 'rejected'}
  leftIcon={<X className="w-4 h-4" />}
@@ -133,11 +129,11 @@ export function ApprovalsPage() {
  return (
  <div className="space-y-6">
  <div>
- <h2 className="text-xl font-light text-ink tracking-tight">Approvals</h2>
- <p className="text-xs text-ink-mute">Review flagged orders and workflow actions</p>
+ <p className="label">Held for you</p>
+ <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink">Approvals</h1>
  </div>
  <Card padding="lg" className="text-center py-12">
- <AlertCircle className="w-10 h-10 text-ruby mx-auto mb-3" />
+ <AlertCircle className="mx-auto mb-3 size-9 text-coral" />
  <h3 className="text-base font-medium text-ink">Failed to load approvals</h3>
  <p className="text-xs text-ink-mute mt-1">{error.message}</p>
  </Card>
@@ -145,63 +141,54 @@ export function ApprovalsPage() {
  );
  }
 
+ const pendingCount = approvals?.length || 0;
+
  return (
- <div className="space-y-6">
- <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+ <div className="space-y-5 sm:space-y-6">
  <div>
- <h2 className="font-heading text-2xl font-light tracking-[-0.5px] text-ink">Approvals</h2>
- <p className="font-body text-sm text-ink-mute">Review flagged orders and high-value transactions</p>
- </div>
- {isLoading ? (
- <Skeleton variant="button" />
- ) : (
- <Badge variant={approvals?.length ? 'warning' : 'success'} dot>
- {approvals?.length || 0} pending
- </Badge>
- )}
+ <p className="label">Held for you</p>
+ <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)]">Approvals</h1>
  </div>
 
- {/* High-Value Protection Banner - Solid Warm Accent & Glassmorphism */}
- <div className="p-4 rounded-xl border-l-4 border-l-amber-500 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-card hover:shadow-md transition-all duration-200">
- <div className="flex items-start gap-3">
- <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700 flex items-center justify-center shrink-0 shadow-xs ">
- <ClipboardCheck className="w-5 h-5" />
- </div>
- <div>
- <div className="flex items-center gap-2">
- <h3 className="text-sm font-medium text-ink">High-Value Order Protection</h3>
- <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-medium ">
- Active Guard
- </span>
- </div>
- <p className="text-xs text-ink-mute mt-0.5">
- Sales of Rs. 10,000 or more require explicit merchant authorization before stock is deducted.
+ {/* 4/8 — the rule on the left, the queue on the right */}
+ <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-6">
+ <aside className="lg:sticky lg:top-24 lg:col-span-4 lg:self-start">
+ <div className={`rounded-card p-5 sm:p-6 ${pendingCount ? 'bg-coral-tint' : 'bg-paper-2'}`}>
+ <p className="label">Waiting on you</p>
+ <p className={`mt-2 font-display text-6xl font-semibold leading-none tracking-[-0.04em] font-tabular ${pendingCount ? 'text-danger-ink' : 'text-ink'}`}>
+ {isLoading ? '—' : pendingCount}
+ </p>
+ <p className="mt-6 border-t border-current/15 pt-4 text-sm leading-relaxed text-ink-2">
+ Sales of <span className="font-mono font-semibold text-ink">Rs. 10,000</span> or more wait here before
+ any stock comes off the shelf. Rejecting one leaves your stock exactly as it was.
  </p>
  </div>
- </div>
- <div className="flex items-center gap-2 text-xs text-ink-secondary bg-canvas dark:bg-canvas px-3 py-1.5 rounded-md border border-hairline shrink-0 font-tabular">
- <span className="font-semibold text-amber-800 dark:text-amber-300">{approvals?.length || 0}</span>
- <span>awaiting response</span>
- </div>
- </div>
+ </aside>
 
+ <Card padding="none" className="min-w-0 overflow-hidden lg:col-span-8">
+ <div className="px-5 pb-2 pt-5 sm:px-6">
+ <h2 className="font-display text-base font-semibold tracking-tight text-ink sm:text-lg">Queue</h2>
+ <p className="label mt-0.5">Newest first</p>
+ </div>
  {isLoading ? (
- <div className="space-y-2">
+ <div className="space-y-2 px-5 pb-5 sm:px-6">
  <Skeleton variant="tableRow" />
  <Skeleton variant="tableRow" />
  <Skeleton variant="tableRow" />
  </div>
- ) : approvals?.length === 0 ? (
- <Card padding="lg">
+ ) : pendingCount === 0 ? (
  <EmptyState
- icon={<ClipboardCheck className="w-6 h-6" />}
- title="No approvals pending"
- description="You're all caught up! Orders and automated actions requiring merchant review will appear here."
+ icon={<ClipboardCheck className="size-6" />}
+ title="Nothing to approve"
+ description="Big sales and automated actions that need your say will show up here."
  />
- </Card>
  ) : (
- <Table table={table} emptyText="No approvals pending." />
+ <div className="pb-2">
+ <Table table={table} emptyText="Nothing to approve" />
+ </div>
  )}
+ </Card>
+ </div>
  </div>
  );
 }

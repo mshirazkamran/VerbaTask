@@ -66,7 +66,7 @@ export function LinkCodePage() {
  >
  {linked ? (
  <div className="text-center py-4 space-y-4">
- <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center">
+ <div className="w-12 h-12 rounded-full bg-success-tint text-success-ink mx-auto flex items-center justify-center">
  <Check className="w-6 h-6" />
  </div>
  <div className="space-y-1">
@@ -86,7 +86,7 @@ export function LinkCodePage() {
  ) : (
  <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
  <div className="p-3 rounded-lg bg-primary-subdued/20 border border-primary/20 flex items-start gap-2.5 text-xs text-ink-secondary">
- <WhatsAppIcon className="w-4 h-4 text-[#25D366] shrink-0 mt-0.5" />
+ <WhatsAppIcon className="w-4 h-4 text-success-ink shrink-0 mt-0.5" />
  <span>
  Send a message to the bot to receive a 15-minute code. If you already messaged the bot before signing up, reply <strong>link</strong> to get a fresh code.
  </span>
