@@ -13,6 +13,7 @@ import approvalRoutes from './src/routes/approval.routes.js';
 import dashboardRoutes from './src/routes/dashboard.routes.js';
 import workflowRoutes from './src/routes/workflow.routes.js';
 import merchantRoutes from './src/routes/merchant.routes.js';
+import customerRoutes from './src/routes/customer.routes.js';
 import { startScheduleRunner } from './src/workflows/workflow.service.js';
 
 const app = express();
@@ -45,6 +46,7 @@ app.use('/api/approvals', approvalRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/merchant', merchantRoutes);
+app.use('/api/customers', customerRoutes);
 
 const PORT = process.env.PORT || 8080;
 const server = http.createServer(app);
