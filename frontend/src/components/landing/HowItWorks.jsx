@@ -4,65 +4,86 @@ import {
   Mic,
   Package,
   LayoutDashboard,
+  ArrowRight,
 } from 'lucide-react';
-import { SectionHeading, Stagger, StaggerItem } from './glass';
 
 const steps = [
   {
-    icon: MessageSquarePlus,
-    title: '1. Message the Number',
-    body: 'Save the verified WhatsApp number. Send a message to link your store — that is your entire onboarding.',
+    num: '1.0',
+    title: 'Link Your WhatsApp Number',
+    body: 'Save the verified business number. Send "Salam" or link code to pair your store — that is your entire setup.',
+    detail: 'No app download or terminal config required.',
   },
   {
-    icon: Mic,
-    title: '2. Speak or Text the Sale',
-    body: 'Send a voice note or typed message in Urdu, Roman Urdu, or English: "Do carton oil bech diye, cash mil gaya."',
+    num: '2.0',
+    title: 'Speak or Text the Transaction',
+    body: 'Send a voice note or message in Urdu or Roman Urdu: "Do carton Dalda bech diye, cash mil gaya."',
+    detail: 'Understands Pakistani Kiryana transliterations.',
   },
   {
-    icon: Package,
-    title: '3. Order Logged & Stock Deducted',
-    body: 'The transaction is recorded, stock quantities adjust in real time, and any low-stock alerts fire immediately.',
+    num: '3.0',
+    title: 'Instant Stock & Ledger Sync',
+    body: 'The sale is logged, stock counts deduct in real time, and low-stock alerts ping if quantities drop.',
+    detail: 'Immediate double-entry verification on chat.',
   },
   {
-    icon: LayoutDashboard,
-    title: '4. Visual Web Hub',
-    body: 'Open your web dashboard whenever you want deep inventory analytics, downloadable PDF reports, and payment settings.',
+    num: '4.0',
+    title: 'Visual Web Dashboard',
+    body: 'Access your web terminal anytime to view charts, audit customer udhaar balances, or download reports.',
+    detail: 'Real-time sync between WhatsApp and Web.',
   },
 ];
 
 export function HowItWorks() {
   return (
-    <section id="how-it-works" className="px-4 py-24 bg-slate-50 dark:bg-[#0E1015] transition-colors duration-200">
+    <section id="how-it-works" className="px-4 sm:px-6 py-24 bg-[var(--bg-canvas-soft)] transition-colors duration-200 border-b border-[var(--border-hairline)]">
       <div className="mx-auto max-w-6xl">
-        <SectionHeading
-          eyebrow="How It Works"
-          title="Four simple steps — three happen in chat"
-          subtitle="Designed so that anyone from a seasoned cashier to a daily shop assistant can log sales with zero training."
-        />
+        <div className="max-w-2xl mb-14">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#287A74]/30 bg-[#287A74]/10 px-3 py-1 text-xs font-semibold text-[#1E5C58] dark:text-[#AEEED3] uppercase tracking-wider mb-3">
+            03 — Process
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-[var(--text-ink)] font-display">
+            Four straightforward stages. Three happen in WhatsApp.
+          </h2>
+          <p className="mt-4 text-base leading-relaxed text-[var(--text-ink-secondary)] font-body">
+            Designed so that any shop assistant or cashier can log daily transactions with zero software training.
+          </p>
+        </div>
 
-        <div className="mt-16">
-          <Stagger className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {steps.map((s, i) => (
-              <StaggerItem key={s.title}>
-                <div className="h-full rounded-2xl border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#141720] p-6 shadow-sm dark:shadow-md flex flex-col justify-start">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex size-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                      <s.icon className="w-6 h-6" />
-                    </div>
-                    <span className="font-mono text-xs font-bold text-zinc-600 bg-zinc-100 border border-zinc-200 dark:text-zinc-400 dark:bg-white/5 dark:border-white/10 px-2.5 py-1 rounded-full">
-                      Step {i + 1}
-                    </span>
-                  </div>
-                  <h3 className="text-lg font-bold text-zinc-950 dark:text-white font-heading">
-                    {s.title}
-                  </h3>
-                  <p className="mt-2.5 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                    {s.body}
-                  </p>
+        {/* Asymmetric Staggered Sequence */}
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {steps.map((s, idx) => (
+            <motion.div
+              key={s.num}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ delay: idx * 0.1, duration: 0.4 }}
+              className={`rounded-3xl border border-[var(--border-hairline)] bg-[var(--bg-canvas)] p-6 sm:p-7 flex flex-col justify-between shadow-xs transition-transform hover:-translate-y-1 ${
+                idx % 2 === 1 ? 'lg:translate-y-4' : ''
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-5">
+                  <span className="font-mono text-xs font-bold text-[#287A74] dark:text-[#AEEED3] bg-[#287A74]/10 dark:bg-[#AEEED3]/15 px-2.5 py-1 rounded-lg">
+                    {s.num}
+                  </span>
+                  <div className="size-2 rounded-full bg-[#55A9A0]" />
                 </div>
-              </StaggerItem>
-            ))}
-          </Stagger>
+
+                <h3 className="text-lg font-bold text-[var(--text-ink)] font-display">
+                  {s.title}
+                </h3>
+                <p className="mt-2.5 text-xs sm:text-sm leading-relaxed text-[var(--text-ink-secondary)] font-body">
+                  {s.body}
+                </p>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-[var(--border-hairline)] text-[11px] font-medium text-[var(--text-ink-mute)]">
+                {s.detail}
+              </div>
+            </motion.div>
+          ))}
         </div>
       </div>
     </section>

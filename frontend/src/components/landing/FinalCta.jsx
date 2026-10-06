@@ -1,98 +1,107 @@
 import { Link } from 'react-router';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 import { Logo } from './Logo';
-import { Reveal } from './glass';
+import { Magnet } from '../ui/reactbits/Magnet';
 
 export function FinalCta() {
   return (
     <>
       {/* Final Call to Action Section */}
-      <section className="relative px-4 py-16 sm:py-24 bg-slate-50 dark:bg-[#0E1015] border-t border-zinc-200 dark:border-white/10 transition-colors duration-200">
-        <Reveal className="mx-auto max-w-4xl text-center">
-          <span className="inline-block rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400 mb-4">
-            Zero Setup Barrier
+      <section className="relative px-4 sm:px-6 py-24 sm:py-32 bg-[#287A74] text-white overflow-hidden transition-colors duration-200">
+        {/* Atmospheric ambient lighting */}
+        <div className="pointer-events-none absolute -right-32 -top-32 size-96 rounded-full bg-[#AEEED3]/15 blur-3xl" />
+        <div className="pointer-events-none absolute -left-32 -bottom-32 size-96 rounded-full bg-[#FFF8B0]/10 blur-3xl" />
+
+        <div className="relative z-10 mx-auto max-w-4xl text-center">
+          <span className="inline-block rounded-full bg-[#FFF8B0] text-[#3D3400] px-3.5 py-1 text-xs font-bold uppercase tracking-wider mb-6 font-mono">
+            Zero Setup Friction
           </span>
-          <h2 className="text-3xl sm:text-5xl font-extrabold text-zinc-950 dark:text-white font-heading tracking-tight leading-[1.15]">
+
+          <h2 className="text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.12] font-display">
             Send one voice note.{' '}
-            <span className="bg-gradient-to-r from-emerald-600 to-amber-500 dark:from-emerald-400 dark:to-amber-400 bg-clip-text text-transparent">
-              Start keeping real records.
+            <span className="text-[#FFF8B0]">
+              Keep a synchronized ledger tonight.
             </span>
           </h2>
-          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-zinc-600 dark:text-zinc-300">
-            Save the number, speak what you sold today in Urdu or English, and your store has a synchronized ledger by tonight.
+
+          <p className="mx-auto mt-6 max-w-xl text-base sm:text-lg leading-relaxed text-[#EAFBF5] font-body">
+            Save the WhatsApp number, speak what you sold today in Urdu or English, and your store
+            has verified double-entry records before closing time.
           </p>
 
-          <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-4 max-w-xs sm:max-w-none mx-auto">
-            <Link
-              to="/signup"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-emerald-900/20 transition-all duration-150 w-full sm:w-auto text-center"
-            >
-              <WhatsAppIcon className="w-5 h-5 shrink-0" />
-              <span>Get Started Free</span>
-            </Link>
+          <div className="mt-9 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-4 max-w-sm sm:max-w-none mx-auto">
+            <Magnet padding={40} magnetStrength={3}>
+              <Link
+                to="/signup"
+                className="inline-flex items-center justify-center gap-2.5 rounded-xl bg-[#FFF8B0] hover:bg-[#FFF380] text-[#287A74] px-8 py-4 text-sm font-bold shadow-xl transition-all duration-150 active:scale-[0.98] w-full sm:w-auto text-center"
+              >
+                <WhatsAppIcon className="w-5 h-5 shrink-0" />
+                <span>Get Started Free on WhatsApp</span>
+              </Link>
+            </Magnet>
+
             <Link
               to="/login"
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-zinc-100 hover:bg-zinc-200 text-zinc-900 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white px-6 py-3.5 text-sm font-semibold transition-colors w-full sm:w-auto text-center"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 hover:bg-white/15 text-white px-6 py-4 text-sm font-semibold transition-colors w-full sm:w-auto text-center"
             >
-              <span>Merchant Log in</span>
-              <ArrowRight className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>Merchant Sign In</span>
+              <ArrowRight className="w-4 h-4 text-[#FFF8B0] shrink-0" />
             </Link>
           </div>
-        </Reveal>
+
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-xs text-[#AEEED3]/90 font-medium">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-[#FFF8B0]" />
+              No credit card required
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-[#FFF8B0]" />
+              Urdu & Roman Urdu native
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-[#FFF8B0]" />
+              Works on any phone
+            </span>
+          </div>
+        </div>
       </section>
 
-      {/* Clean Footer */}
-      <footer className="border-t border-zinc-200 bg-white dark:border-white/10 dark:bg-[#0B0D11] px-4 py-12 transition-colors duration-200">
-        <div className="mx-auto max-w-6xl flex flex-col gap-8">
-          <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
+      {/* Hallmark Statement Footer */}
+      <footer className="border-t border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-4 sm:px-6 py-14 transition-colors duration-200">
+        <div className="mx-auto max-w-6xl flex flex-col gap-10">
+          <div className="flex flex-col items-start sm:items-center justify-between gap-6 sm:flex-row">
             <Logo />
-            <nav className="flex flex-wrap items-center justify-center gap-6 text-sm text-zinc-600 dark:text-zinc-400">
-              <a href="#how-it-works" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
+            <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs sm:text-sm text-[var(--text-ink-secondary)]">
+              <a href="#how-it-works" className="transition-colors hover:text-[#287A74] dark:hover:text-[#AEEED3]">
                 How It Works
               </a>
-              <a href="#features" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
+              <a href="#problem" className="transition-colors hover:text-[#287A74] dark:hover:text-[#AEEED3]">
+                Problem
+              </a>
+              <a href="#features" className="transition-colors hover:text-[#287A74] dark:hover:text-[#AEEED3]">
                 Features
               </a>
-              <a href="#why-whatsapp" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
+              <a href="#why-whatsapp" className="transition-colors hover:text-[#287A74] dark:hover:text-[#AEEED3]">
                 Why WhatsApp
               </a>
-              <a href="#pricing" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
+              <a href="#pricing" className="transition-colors hover:text-[#287A74] dark:hover:text-[#AEEED3]">
                 Pricing
               </a>
-              <a href="#faq" className="transition-colors hover:text-zinc-950 dark:hover:text-white">
+              <a href="#faq" className="transition-colors hover:text-[#287A74] dark:hover:text-[#AEEED3]">
                 FAQ
               </a>
             </nav>
           </div>
 
-          <div className="pt-6 border-t border-zinc-200 dark:border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-            {/* Contact Email Chip matching user badge */}
-            <a
-              href="mailto:verbatask.business@gmail.com"
-              className="inline-flex items-center gap-3 px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/[0.03] hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all group shadow-xs max-w-full"
-            >
-              <img
-                src="/favicon_io-light/android-chrome-192x192.png"
-                alt="VerbaTask"
-                className="w-8 h-8 rounded-full object-cover shrink-0 shadow-xs dark:hidden"
-              />
-              <img
-                src="/favicon_io-dark/android-chrome-192x192.png"
-                alt="VerbaTask"
-                className="w-8 h-8 rounded-full object-cover shrink-0 shadow-xs hidden dark:block"
-              />
-              <div className="text-left min-w-0">
-                <p className="text-xs font-bold text-zinc-900 dark:text-white leading-tight">VerbaTask</p>
-                <p className="text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors font-mono leading-tight truncate">
-                  verbatask.business@gmail.com
-                </p>
-              </div>
-            </a>
-
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">
-              &copy; {new Date().getFullYear()} VerbaTask. AI Retail Assistant.
-            </p>
+          <div className="pt-6 border-t border-[var(--border-hairline)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs text-[var(--text-ink-mute)]">
+            <p>© {new Date().getFullYear()} VerbaTask. Voice-first commerce infrastructure for Pakistani merchants.</p>
+            <div className="flex items-center gap-3">
+              <span className="rounded-md bg-[#287A74]/10 dark:bg-[#AEEED3]/10 text-[#287A74] dark:text-[#AEEED3] px-2 py-0.5 font-mono font-semibold">
+                PKR Ready
+              </span>
+              <span>Lahore • Karachi • Rawalpindi</span>
+            </div>
           </div>
         </div>
       </footer>

@@ -43,15 +43,15 @@ export function TopBar({ onOpenMobileMenu }) {
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         <Link
           to="/"
-          className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-700 hover:text-zinc-950 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 dark:text-zinc-300 dark:hover:text-white dark:bg-white/[0.04] dark:border-white/10 dark:hover:bg-white/[0.08] transition-colors"
+          className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--text-ink-secondary)] hover:text-[var(--text-ink)] bg-[var(--bg-canvas-soft)] hover:bg-[var(--color-anchor)]/10 border border-[var(--border-hairline)] transition-colors"
           title="Return to Public Landing Page"
         >
-          <Home className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <Home className="w-4 h-4 text-[#287A74] dark:text-[#AEEED3] shrink-0" />
           <span className="hidden sm:inline">Landing Page</span>
         </Link>
 
-        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
-          <Circle className="w-2 h-2 fill-current animate-pulse text-emerald-500 dark:text-emerald-400" />
+        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#287A74]/10 border border-[#287A74]/25 text-[#287A74] dark:text-[#AEEED3] text-xs font-semibold">
+          <Circle className="w-2 h-2 fill-current animate-pulse text-[#287A74] dark:text-[#AEEED3]" />
           <span>System Live</span>
         </div>
 

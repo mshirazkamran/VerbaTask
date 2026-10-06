@@ -98,8 +98,8 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-all duration-150 ${
                     isActive
-                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 font-semibold border-l-2 border-emerald-600 dark:border-emerald-500'
-                      : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-white/[0.04] border-l-2 border-transparent'
+                      ? 'bg-[#287A74]/10 text-[#287A74] dark:bg-[#AEEED3]/10 dark:text-[#AEEED3] font-semibold border-l-2 border-[#287A74] dark:border-[#AEEED3]'
+                      : 'text-[var(--text-ink-secondary)] hover:text-[var(--text-ink)] hover:bg-[var(--color-anchor)]/8 border-l-2 border-transparent'
                   }`
                 }
                 title={sidebarCollapsed && !mobileOpen ? item.label : undefined}
@@ -108,7 +108,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
                   <>
                     <Icon
                       className={`w-5 h-5 shrink-0 transition-colors ${
-                        isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-400'
+                        isActive ? 'text-[#287A74] dark:text-[#AEEED3]' : 'text-[var(--text-ink-mute)]'
                       }`}
                     />
                     {(!sidebarCollapsed || mobileOpen) && (
@@ -123,20 +123,20 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
       </div>
 
       {/* Footer / Account / Collapse */}
-      <div className="p-2 border-t border-zinc-200 dark:border-white/10 space-y-1">
+      <div className="p-2 border-t border-[var(--border-hairline)] space-y-1">
         {/* Merchant Info */}
         {!sidebarCollapsed || mobileOpen ? (
           <NavLink
             to="/dashboard/settings"
             onClick={onMobileClose}
-            className="px-3 py-2 flex items-center gap-2.5 rounded-md bg-zinc-100/80 border border-zinc-200 hover:border-emerald-500/40 hover:bg-zinc-100 dark:bg-canvas-soft/80 dark:border-hairline dark:hover:border-primary/40 dark:hover:bg-canvas-soft transition-colors cursor-pointer"
+            className="px-3 py-2 flex items-center gap-2.5 rounded-md bg-[var(--bg-canvas-soft)] border border-[var(--border-hairline)] hover:border-[#287A74]/40 hover:bg-[var(--color-anchor)]/5 transition-colors cursor-pointer"
             title="Open Store Settings"
           >
-            <div className="w-7 h-7 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 text-xs font-medium">
+            <div className="w-7 h-7 rounded-full bg-[#287A74]/15 text-[#287A74] dark:text-[#AEEED3] flex items-center justify-center shrink-0 text-xs font-medium">
               <Store className="w-4 h-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-zinc-900 dark:text-ink truncate leading-tight">
+              <p className="text-xs font-medium text-[var(--text-ink)] truncate leading-tight">
                 {businessName}
               </p>
               {merchantEmail && (

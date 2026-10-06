@@ -10,7 +10,7 @@ import { FinalCta } from '../components/landing/FinalCta';
 
 export function LandingPage() {
   return (
-    <div className="relative min-h-screen bg-slate-50 dark:bg-[#0B0D11] text-zinc-900 dark:text-zinc-100 selection:bg-emerald-500/30 selection:text-emerald-800 dark:selection:text-emerald-200 transition-colors duration-200">
+    <div className="relative min-h-screen bg-[var(--bg-canvas)] text-[var(--text-ink)] selection:bg-[#287A74]/25 selection:text-[#174845] dark:selection:bg-[#AEEED3]/30 dark:selection:text-[#AEEED3] transition-colors duration-200">
       {/* Solid Navbar */}
       <Nav />
 

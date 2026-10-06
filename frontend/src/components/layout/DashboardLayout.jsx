@@ -9,7 +9,7 @@ export function DashboardLayout() {
   const location = useLocation();
 
   return (
-    <div className="min-h-screen min-h-[100dvh] flex bg-slate-50 dark:bg-[#0B0D11] text-zinc-900 dark:text-zinc-100 relative selection:bg-emerald-500/30 selection:text-emerald-800 dark:selection:text-emerald-200 transition-colors duration-200">
+    <div className="min-h-screen min-h-[100dvh] flex bg-[var(--bg-canvas-soft)] text-[var(--text-ink)] relative selection:bg-[#287A74]/25 selection:text-[#174845] dark:selection:bg-[#AEEED3]/30 dark:selection:text-[#AEEED3] transition-colors duration-200">
       {/* Sidebar */}
       <Sidebar
         mobileOpen={mobileOpen}
@@ -17,7 +17,7 @@ export function DashboardLayout() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 z-10 bg-slate-50 dark:bg-[#0B0D11] transition-colors duration-200">
+      <div className="flex-1 flex flex-col min-w-0 z-10 bg-[var(--bg-canvas-soft)] transition-colors duration-200">
         <TopBar onOpenMobileMenu={() => setMobileOpen(true)} />
 
         <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-[1400px] w-full mx-auto">

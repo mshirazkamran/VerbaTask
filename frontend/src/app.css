@@ -36,47 +36,69 @@
 
 @layer base {
   :root {
-    --bg-canvas: #FFFFFF;
-    --bg-canvas-soft: #F8FAFC;
-    --bg-canvas-cream: #F1F5F9;
-    --text-ink: #09090B;
-    --text-ink-secondary: #27272A;
-    --text-ink-mute: #71717A;
-    --border-hairline: #E4E4E7;
-    --border-hairline-input: #D4D4D8;
-    --color-primary: #059669;
-    --color-primary-deep: #047857;
-    --color-primary-press: #065F46;
-    --color-primary-soft: #10B981;
-    --color-primary-subdued: #D1FAE5;
-    --color-brand-dark: #09090B;
+    --bg-canvas: #FCFDFD;
+    --bg-canvas-soft: #F2F7F6;
+    --bg-canvas-cream: #EBF3F1;
+    --text-ink: #0D2422;
+    --text-ink-secondary: #284744;
+    --text-ink-mute: #547A76;
+    --border-hairline: rgba(40, 122, 116, 0.16);
+    --border-hairline-input: rgba(40, 122, 116, 0.28);
+
+    /* Core Brand 4-Color Tokens */
+    --color-anchor: #287A74;
+    --color-accent: #55A9A0;
+    --color-mint: #AEEED3;
+    --color-butter: #FFF8B0;
+
+    /* Semantic Aliases & Compatibility */
+    --color-primary: #287A74;
+    --color-primary-deep: #1E5C58;
+    --color-primary-press: #174845;
+    --color-primary-soft: #55A9A0;
+    --color-primary-subdued: #E1F8EF;
+    --color-brand-dark: #0D2422;
     --color-ruby: #E11D48;
     --color-magenta: #7C3AED;
-    --color-lemon: #D97706;
-    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.04);
-    --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.08);
+    --color-lemon: #FFF8B0;
+
+    --shadow-card: 0 1px 3px rgba(40, 122, 116, 0.08), 0 0 0 1px rgba(40, 122, 116, 0.06);
+    --shadow-float: 0 8px 24px rgba(40, 122, 116, 0.12);
   }
 
   .dark {
-    --bg-canvas: #12151C;
-    --bg-canvas-soft: #0B0D11;
-    --bg-canvas-cream: #181C26;
-    --text-ink: #FFFFFF;
-    --text-ink-secondary: #D4D4D8;
-    --text-ink-mute: #71717A;
-    --border-hairline: rgba(255, 255, 255, 0.09);
-    --border-hairline-input: rgba(255, 255, 255, 0.16);
-    --color-primary: #10B981;
-    --color-primary-deep: #059669;
-    --color-primary-press: #047857;
-    --color-primary-soft: #34D399;
-    --color-primary-subdued: #064E3B;
-    --color-brand-dark: #0B0D11;
+    --bg-canvas: #0E1716;
+    --bg-canvas-soft: #080F0E;
+    --bg-canvas-cream: #142120;
+    --text-ink: #F4FAF9;
+    --text-ink-secondary: #C8DDDA;
+    --text-ink-mute: #769E9A;
+    --border-hairline: rgba(174, 238, 211, 0.12);
+    --border-hairline-input: rgba(174, 238, 211, 0.22);
+
+    /* Core Brand 4-Color Tokens */
+    --color-anchor: #287A74;
+    --color-accent: #55A9A0;
+    --color-mint: #AEEED3;
+    --color-butter: #FFF8B0;
+
+    /* Semantic Aliases & Compatibility */
+    --color-primary: #55A9A0;
+    --color-primary-deep: #287A74;
+    --color-primary-press: #1E5C58;
+    --color-primary-soft: #AEEED3;
+    --color-primary-subdued: #14302C;
+    --color-brand-dark: #080F0E;
     --color-ruby: #F43F5E;
-    --color-magenta: #8B5CF6;
-    --color-lemon: #F59E0B;
-    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    --color-magenta: #A78BFA;
+    --color-lemon: #FFF8B0;
+
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(174, 238, 211, 0.08);
     --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.4);
+  }
+
+  html, body {
+    overflow-x: clip;
   }
 
   * {
@@ -92,17 +114,32 @@
     min-height: 100vh;
     min-height: 100dvh;
     margin: 0;
-    font-family: var(--font-sans, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+    font-family: var(--font-body, 'Ubuntu Sans', system-ui, -apple-system, sans-serif);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display, 'Space Grotesk', system-ui, -apple-system, sans-serif);
+    font-style: normal;
+    overflow-wrap: anywhere;
+    min-width: 0;
   }
 }
 
 @theme {
-  --font-sans: 'Geist', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-heading: 'Outfit', 'SF Pro Display', system-ui, -apple-system, sans-serif;
-  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-numeric: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+  --font-sans: 'Ubuntu Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-body: 'Ubuntu Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-numeric: 'JetBrains Mono', ui-monospace, monospace;
 
+  /* 4-Color Core Brand System */
+  --color-anchor: var(--color-anchor);
+  --color-accent: var(--color-accent);
+  --color-mint: var(--color-mint);
+  --color-butter: var(--color-butter);
+
+  /* Primary Compatibility */
   --color-primary: var(--color-primary);
   --color-primary-deep: var(--color-primary-deep);
   --color-primary-press: var(--color-primary-press);
@@ -137,21 +174,23 @@
   --shadow-float: var(--shadow-float);
 }
 
-/* Custom utilities */
+/* Custom typography utilities */
+.font-display,
 .font-heading {
-  font-family: 'Outfit', 'SF Pro Display', system-ui, -apple-system, sans-serif !important;
+  font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif !important;
+  font-style: normal;
 }
 
 .font-body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+  font-family: 'Ubuntu Sans', system-ui, -apple-system, sans-serif !important;
 }
 
 .font-numeric {
-  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace !important;
+  font-family: 'JetBrains Mono', ui-monospace, monospace !important;
 }
 
 .font-tabular {
-  font-feature-settings: "tnum" on, "ss01" on;
+  font-feature-settings: "tnum" on, "zero" on;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
@@ -232,29 +271,29 @@
 }
 
 .glass-card:hover {
-  border-color: #CBD5E1;
-  box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(16, 185, 129, 0.25);
+  border-color: rgba(40, 122, 116, 0.4);
+  box-shadow: 0 12px 28px -6px rgba(40, 122, 116, 0.12), 0 0 0 1px rgba(40, 122, 116, 0.25);
 }
 
 .dark .glass-card {
-  background-color: #12151C;
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.015) 100%);
+  background-color: #111D1C;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
   backdrop-filter: blur(24px) saturate(170%);
   -webkit-backdrop-filter: blur(24px) saturate(170%);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.16), 0 12px 32px -8px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(174, 238, 211, 0.12);
+  box-shadow: inset 0 1px 0 0 rgba(174, 238, 211, 0.14), 0 12px 32px -8px rgba(0, 0, 0, 0.6);
   border-radius: 1.25rem;
 }
 
 .dark .glass-card:hover {
-  border-color: rgba(255, 255, 255, 0.18);
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.25), 0 0 0 1px rgba(16, 185, 129, 0.2), 0 20px 48px -10px rgba(0, 0, 0, 0.65);
+  border-color: rgba(174, 238, 211, 0.28);
+  box-shadow: inset 0 1px 0 0 rgba(174, 238, 211, 0.22), 0 0 0 1px rgba(174, 238, 211, 0.2), 0 20px 48px -10px rgba(0, 0, 0, 0.7);
 }
 
 .glow-primary {
-  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.3), 0 18px 60px -24px rgba(16, 185, 129, 0.55);
+  box-shadow: 0 0 0 1px rgba(40, 122, 116, 0.35), 0 18px 60px -24px rgba(40, 122, 116, 0.55);
 }
 
 .glow-accent {
-  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3), 0 18px 60px -24px rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 0 1px rgba(255, 248, 176, 0.4), 0 18px 60px -24px rgba(85, 169, 160, 0.45);
 }
