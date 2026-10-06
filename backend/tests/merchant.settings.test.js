@@ -17,7 +17,7 @@ describe('Merchant Profiling & Settings Module Tests', () => {
     });
 
     assert.ok(Array.isArray(merchant.acceptedPaymentMethods));
-    assert.deepEqual(merchant.acceptedPaymentMethods, ['cash', 'easypaisa', 'jazzcash']);
+    assert.deepEqual(merchant.acceptedPaymentMethods, ['cash', 'easypaisa', 'jazzcash', 'udhaar']);
     assert.equal(merchant.voiceReplies, true);
     assert.equal(merchant.replyPreference, 'voice_on_voice');
   });
