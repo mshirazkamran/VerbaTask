@@ -45,7 +45,7 @@ function updateDynamicFavicon(isDark) {
   // Update mobile web app theme color meta
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
   if (themeColorMeta) {
-    themeColorMeta.content = isDark ? '#0B0D11' : '#ffffff';
+    themeColorMeta.content = isDark ? '#0C1A1C' : '#F8F5EC';
   }
 }
 
@@ -66,7 +66,7 @@ function applyTheme(theme) {
 if (typeof window !== 'undefined' && window.matchMedia) {
   try {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-      const current = localStorage.getItem(THEME_KEY) || 'dark';
+      const current = localStorage.getItem(THEME_KEY) || 'system';
       if (current === 'system') {
         applyTheme('system');
       }
@@ -81,7 +81,7 @@ if (typeof localStorage !== 'undefined') {
   localStorage.removeItem('verbatask_landing_theme');
 }
 
-const initialTheme = typeof localStorage !== 'undefined' ? (localStorage.getItem(THEME_KEY) || 'dark') : 'dark';
+const initialTheme = typeof localStorage !== 'undefined' ? (localStorage.getItem(THEME_KEY) || 'system') : 'dark';
 applyTheme(initialTheme);
 
 export const useUiStore = create((set) => ({

@@ -31,8 +31,8 @@ export default defineConfig({
         display: 'standalone',
         display_override: ['window-controls-overlay', 'standalone', 'browser'],
         orientation: 'portrait-primary',
-        theme_color: '#10B981',
-        background_color: '#0B0D11',
+        theme_color: '#0C1A1C',
+        background_color: '#0C1A1C',
         categories: ['business', 'productivity'],
         icons: [
           {

@@ -141,7 +141,7 @@ export function ForgotPasswordPage() {
         />
 
         <div className="rounded-lg bg-surface/50 border border-hairline p-3 flex items-start gap-2.5 text-xs text-ink-secondary">
-          <WhatsAppIcon className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+          <WhatsAppIcon className="w-4 h-4 text-success-ink shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-ink">WhatsApp Delivery</p>
             <p className="text-ink-mute mt-0.5">
@@ -216,7 +216,7 @@ export function ForgotPasswordPage() {
             {remainingAttempts > 0 ? (
               `${remainingAttempts} request${remainingAttempts === 1 ? '' : 's'} remaining this hour`
             ) : (
-              <span className="text-amber-500">Hourly limit reached</span>
+              <span className="text-warn-ink">Hourly limit reached</span>
             )}
           </span>
 

@@ -28,18 +28,18 @@ export function ReportDropdown() {
     setOpen(false);
     try {
       await generateReport.mutateAsync(type);
-      toast.success('Report generated and sent to your WhatsApp! 📱');
+      toast.success('Report sent to your WhatsApp');
     } catch (err) {
-      toast.error('Failed to generate report');
+      toast.error('The report didn’t send. Try again in a moment.');
     }
   };
 
   const reports = [
-    { type: 'sales', label: 'Overall Sales Report' },
-    { type: 'top_selling', label: 'Top Selling Items' },
-    { type: 'inventory', label: 'Full Inventory Stock' },
-    { type: 'low_stock', label: 'Low Running Stock' },
-    { type: 'expiring', label: 'Item Expiry Report' },
+    { type: 'sales', label: 'Sales' },
+    { type: 'top_selling', label: 'Top sellers' },
+    { type: 'inventory', label: 'Full stock' },
+    { type: 'low_stock', label: 'Low stock' },
+    { type: 'expiring', label: 'Expiring items' },
   ];
 
   return (
@@ -47,24 +47,28 @@ export function ReportDropdown() {
       <Button
         size="sm"
         variant="secondary"
-        leftIcon={<WhatsAppIcon className="w-4 h-4 text-[#25D366]" />}
-        rightIcon={<ChevronDown className={`w-3.5 h-3.5 text-ink-mute transition-transform ${open ? 'rotate-180' : ''}`} />}
+        leftIcon={<WhatsAppIcon className="size-4" />}
+        rightIcon={<ChevronDown className={`size-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />}
         onClick={() => setOpen(!open)}
         loading={generateReport.isPending}
-        className="text-xs py-1.5 w-full sm:w-auto justify-center"
+        className="w-full sm:w-auto"
+        aria-haspopup="menu"
+        aria-expanded={open}
       >
-        Generate Report
+        Send a report
       </Button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-52 max-w-[calc(100vw-2rem)] bg-white dark:bg-canvas rounded-lg shadow-lg border border-hairline py-1 z-50 overflow-hidden">
+        <div role="menu" className="absolute right-0 z-[100] mt-2 w-60 max-w-[calc(100vw-2rem)] overflow-hidden rounded-card border border-rule bg-surface p-1.5 shadow-[var(--shadow-pop)]">
+          <p className="label px-3 pb-1 pt-2">Sent to your WhatsApp</p>
           {reports.map((r) => (
             <button
               key={r.type}
               onClick={() => handleSelect(r.type)}
-              className="w-full text-left px-4 py-2.5 sm:py-2 text-[13px] font-medium text-ink hover:bg-canvas-soft transition-colors flex items-center gap-2 cursor-pointer min-h-[38px]"
+              role="menuitem"
+              className="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-sm px-3 py-2 text-left text-sm font-medium text-ink transition-colors hover:bg-paper-2"
             >
-              <FileText className="w-4 h-4 text-ink-mute shrink-0" />
+              <FileText className="size-4 shrink-0 text-muted" />
               <span className="truncate">{r.label}</span>
             </button>
           ))}

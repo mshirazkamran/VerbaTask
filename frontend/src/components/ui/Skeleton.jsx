@@ -4,17 +4,16 @@
 
 export function Skeleton({ className = '', variant = 'text', count = 1 }) {
  const variantStyles = {
- text: 'h-4 w-full rounded-xs',
+ text: 'h-4 w-full rounded-pill',
  title: 'h-6 w-1/3 rounded-xs',
  circle: 'rounded-full w-10 h-10',
- stat: 'h-24 w-full rounded-lg',
- card: 'h-48 w-full rounded-lg',
+ stat: 'h-24 w-full rounded-card',
+ card: 'h-48 w-full rounded-card',
  button: 'h-10 w-24 rounded-pill',
- tableRow: 'h-12 w-full rounded-none',
+ tableRow: 'h-12 w-full rounded-sm',
  };
 
- const baseStyle =
- ' bg-[length:400%_100%] animate-[shimmer_1.5s_infinite] shrink-0';
+ const baseStyle = 'skeleton shrink-0';
 
  if (count > 1) {
  return (

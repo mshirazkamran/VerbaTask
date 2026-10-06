@@ -1,63 +1,67 @@
-import {
-  CloudOff,
-  Languages,
-  Smartphone,
-  BotMessageSquare,
-} from 'lucide-react';
-import { GlassCard, SectionHeading, Stagger, StaggerItem } from './glass';
-
-const reasons = [
+// F3 tabular spec sheet — no card, hairline rows. Stacks into labelled pairs on phones.
+const rows = [
   {
-    icon: CloudOff,
-    title: 'Zero App Installs',
-    body: 'No Play Store downloads, no 100MB apps consuming limited internal phone storage. Just a verified WhatsApp contact in a chat app that is already open all day.',
+    need: 'Hardware',
+    pos: 'Rs. 45,000–120,000 for a PC, touch terminal and barcode gun',
+    vt: 'Nothing new. Any Android phone with WhatsApp',
   },
   {
-    icon: Languages,
-    title: 'No English Literacy Barrier',
-    body: 'Urdu voice notes, Roman Urdu typing, and Urdu script are all first-class citizens. Shopkeepers simply tap the microphone icon and speak naturally.',
+    need: 'Language',
+    pos: 'English-only screens, a form per checkout',
+    vt: 'Urdu and Roman Urdu voice notes, spoken like you’d talk to staff',
   },
   {
-    icon: Smartphone,
-    title: 'Runs on Everyday Android Phones',
-    body: 'If a phone can send a basic WhatsApp message over a 3G/4G connection, it can power an entire shop inventory and sales operations layer.',
+    need: 'Loadshedding',
+    pos: 'Needs a UPS or generator to keep the terminal on',
+    vt: 'Runs on phone battery and mobile data',
   },
   {
-    icon: BotMessageSquare,
-    title: 'Meets Shopkeepers Where They Already Are',
-    body: 'Customers already order over WhatsApp. Suppliers already confirm stock over WhatsApp. Bringing the sales ledger into the same app eliminates context switching.',
+    need: 'Training',
+    pos: 'Weeks of cashier training; mistakes end up in the stock count',
+    vt: 'If staff can send a voice note, they can use it',
   },
 ];
 
 export function WhyWhatsApp() {
   return (
-    <section id="why-whatsapp" className="px-4 py-24 bg-white dark:bg-[#0B0D11] transition-colors duration-200">
-      <div className="mx-auto max-w-6xl">
-        <SectionHeading
-          eyebrow="Why WhatsApp-First"
-          title="The most powerful interface is the one already in your pocket"
-          subtitle="Software adoption fails when it forces shopkeepers through long tutorials and complicated hardware setups. We removed every barrier."
-        />
+    <section id="why-whatsapp" className="scroll-mt-16 border-t border-rule py-20 sm:py-28">
+      <div className="shell">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-end">
+          <h2 className="display max-w-[17ch] text-[length:var(--fs-2xl)] text-ink sm:text-[length:var(--fs-3xl)]">
+            A desktop till, or the phone already in your hand.
+          </h2>
+          <p className="max-w-[28rem] leading-relaxed text-ink-2 lg:justify-self-end">
+            Shop software fails when it asks shopkeepers to sit behind a machine. VerbaTask works
+            in the chat app you already have open all day.
+          </p>
+        </div>
 
-        <Stagger className="mt-14 grid gap-6 sm:grid-cols-2">
-          {reasons.map((r) => (
-            <StaggerItem key={r.title}>
-              <GlassCard className="h-full flex items-start gap-4">
-                <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                  <r.icon className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-zinc-950 dark:text-white font-heading">
-                    {r.title}
-                  </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                    {r.body}
-                  </p>
-                </div>
-              </GlassCard>
-            </StaggerItem>
+        <div className="mt-12 border-t-2 border-ink" role="table" aria-label="Desktop POS compared with VerbaTask">
+          <div role="row" className="hidden grid-cols-[minmax(0,3fr)_minmax(0,4fr)_minmax(0,5fr)] gap-6 border-b border-rule py-3 md:grid">
+            <span role="columnheader" className="label">At the counter</span>
+            <span role="columnheader" className="label">Desktop POS</span>
+            <span role="columnheader" className="label text-ink">VerbaTask on WhatsApp</span>
+          </div>
+          {rows.map((r) => (
+            <div
+              key={r.need}
+              role="row"
+              className="grid gap-3 border-b border-rule py-5 md:grid-cols-[minmax(0,3fr)_minmax(0,4fr)_minmax(0,5fr)] md:gap-6"
+            >
+              <span role="rowheader" className="font-display text-xl font-semibold tracking-tight text-ink sm:text-2xl">
+                {r.need}
+              </span>
+              <span role="cell" className="text-sm leading-relaxed text-muted">
+                <span className="label mr-2 md:hidden">POS</span>
+                {r.pos}
+              </span>
+              <span role="cell" className="text-sm font-medium leading-relaxed text-ink">
+                <span className="label mr-2 md:hidden">VerbaTask</span>
+                {r.vt}
+              </span>
+            </div>
           ))}
-        </Stagger>
+        </div>
       </div>
     </section>
   );

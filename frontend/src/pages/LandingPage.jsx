@@ -1,30 +1,36 @@
+import { useEffect } from 'react';
+import { useLocation } from 'react-router';
 import { Nav } from '../components/landing/Nav';
+import { scrollToHash } from '../lib/scroll';
 import { Hero } from '../components/landing/Hero';
 import { Problem } from '../components/landing/Problem';
-import { Features } from '../components/landing/Features';
 import { HowItWorks } from '../components/landing/HowItWorks';
+import { Features } from '../components/landing/Features';
 import { WhyWhatsApp } from '../components/landing/WhyWhatsApp';
 import { Pricing } from '../components/landing/Pricing';
 import { Faq } from '../components/landing/Faq';
 import { FinalCta } from '../components/landing/FinalCta';
 
 export function LandingPage() {
-  return (
-    <div className="relative min-h-screen bg-slate-50 dark:bg-[#0B0D11] text-zinc-900 dark:text-zinc-100 selection:bg-emerald-500/30 selection:text-emerald-800 dark:selection:text-emerald-200 transition-colors duration-200">
-      {/* Solid Navbar */}
-      <Nav />
+  const { hash } = useLocation();
 
-      {/* Main Content Sections */}
-      <main className="relative z-10">
+  useEffect(() => {
+    if (hash) requestAnimationFrame(() => scrollToHash(hash));
+  }, [hash]);
+
+  return (
+    <div className="min-h-screen bg-paper text-ink">
+      <Nav />
+      <main>
         <Hero />
         <Problem />
-        <Features />
         <HowItWorks />
+        <Features />
         <WhyWhatsApp />
         <Pricing />
         <Faq />
-        <FinalCta />
       </main>
+      <FinalCta />
     </div>
   );
 }

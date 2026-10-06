@@ -1,64 +1,62 @@
 import { Link } from 'react-router';
-import { useUiStore } from '../../lib/store';
-import { Sun, Moon } from 'lucide-react';
 import { Logo } from '../landing/Logo';
+import { ThemeToggle } from '../ui/ThemeToggle';
+
+const TICKS = Array.from({ length: 48 }, (_, i) => {
+  const t = i / 47;
+  const v = Math.min(1, Math.exp(-((t - 0.3) ** 2) / 0.02) + Math.exp(-((t - 0.72) ** 2) / 0.015) * 0.7 + 0.1);
+  return Math.round(14 + 86 * v);
+});
 
 /**
- * Authentication layout with atmospheric backdrop and centered card.
+ * Auth shell, split 5/7: an ink slab carrying the product's one idea on the left,
+ * the form left-aligned on paper to the right. Phones get the form alone.
  */
 export function AuthLayout({ children, title, subtitle }) {
-  const { theme, setTheme } = useUiStore();
-
-  const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
-  };
-
   return (
-    <div className="min-h-screen min-h-[100dvh] w-full flex flex-col justify-between mesh-gradient-bg px-4 py-8 relative transition-colors duration-200">
-      {/* Top Header */}
-      <header className="w-full max-w-5xl mx-auto flex items-center justify-between">
-        <Link to="/" className="transition-opacity hover:opacity-85" title="Return to Landing Page">
-          <Logo size={36} textSize="text-xl sm:text-[1.75rem]" />
+    <div className="grid min-h-screen min-h-[100dvh] bg-paper lg:grid-cols-12">
+      <aside className="relative hidden flex-col justify-between overflow-clip bg-ink p-10 text-paper lg:col-span-5 lg:flex xl:p-14 dark:border-r dark:border-rule dark:bg-paper-2 dark:text-ink">
+        <Link to="/" className="self-start rounded-sm" title="Back to the VerbaTask site">
+          <Logo className="!text-paper [--logo-accent:var(--color-pear)] dark:!text-ink dark:[--logo-accent:var(--color-primary)]" />
         </Link>
 
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="p-2 text-zinc-600 hover:text-zinc-950 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 dark:text-zinc-400 dark:hover:text-white dark:bg-white/[0.04] dark:border-white/10 dark:hover:bg-white/[0.08] rounded-full transition-colors cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center"
-          aria-label="Toggle theme"
-        >
-          {theme === 'dark' ? (
-            <Sun className="w-4 h-4 text-amber-400" />
-          ) : (
-            <Moon className="w-4 h-4 text-zinc-700" />
-          )}
-        </button>
-      </header>
+        <div>
+          <div className="flex h-16 items-end gap-[3px]" aria-hidden="true">
+            {TICKS.map((h, i) => (
+              <span key={i} className="flex-1 rounded-pill bg-pear" style={{ height: `${h}%`, opacity: 0.35 + (h / 100) * 0.65 }} />
+            ))}
+          </div>
+          <p className="display mt-10 max-w-[13ch] text-[length:var(--fs-2xl)] xl:text-[length:var(--fs-3xl)]">
+            One voice note in. One ledger line out.
+          </p>
+          <p className="mt-5 max-w-[26rem] text-sm leading-relaxed opacity-70">
+            Sales, stock and approvals for your shop, kept straight from the WhatsApp chat you already use.
+          </p>
+        </div>
 
-      {/* Center Auth Card */}
-      <main className="w-full max-w-md mx-auto my-6 sm:my-8">
-        <div className="bg-canvas border border-hairline rounded-xl shadow-md p-5 sm:p-8">
+        <p className="font-mono text-[11px] uppercase tracking-[0.1em] opacity-55">
+          © {new Date().getFullYear()} VerbaTask
+        </p>
+      </aside>
+
+      <div className="flex min-w-0 flex-col px-4 py-6 sm:px-10 lg:col-span-7 lg:px-16 xl:px-24">
+        <header className="flex items-center justify-between">
+          <Link to="/" className="rounded-sm lg:invisible" title="Back to the VerbaTask site">
+            <Logo />
+          </Link>
+          <ThemeToggle />
+        </header>
+
+        <main className="flex w-full max-w-[26rem] flex-1 flex-col justify-center py-10 sm:py-14">
           {title && (
-            <div className="text-center mb-6">
-              <h1 className="text-2xl font-light tracking-tight text-ink font-heading">
-                {title}
-              </h1>
-              {subtitle && (
-                <p className="text-xs text-ink-mute mt-1.5 leading-relaxed">
-                  {subtitle}
-                </p>
-              )}
+            <div className="mb-8">
+              <h1 className="display text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)]">{title}</h1>
+              {subtitle && <p className="mt-3 text-sm leading-relaxed text-ink-2">{subtitle}</p>}
             </div>
           )}
-
           {children}
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="w-full max-w-md mx-auto text-center text-xs text-ink-mute">
-        <p>© {new Date().getFullYear()} VerbaTask. Voice and Guided Commerce.</p>
-      </footer>
+        </main>
+      </div>
     </div>
   );
 }

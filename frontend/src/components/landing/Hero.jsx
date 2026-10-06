@@ -1,184 +1,99 @@
-import { motion } from 'motion/react';
 import { Link } from 'react-router';
-import {
-  ArrowRight,
-  ShieldCheck,
-  Sparkles,
-  Zap,
-} from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { WhatsAppIcon } from '../ui/WhatsAppIcon';
-import { WhatsAppMock } from './WhatsAppMock';
-import { CountUp } from './glass';
-import LightRays from '../ui/LightRays';
-import { useUiStore } from '../../lib/store';
+import { VoiceLedger } from './VoiceLedger';
+import { scrollToHash } from '../../lib/scroll';
+
+// Meter strip: a printed readout of the demo note — heights from two gaussians, never flat.
+const TICKS = Array.from({ length: 96 }, (_, i) => {
+  const t = i / 95;
+  const a = Math.exp(-((t - 0.24) ** 2) / 0.012);
+  const b = Math.exp(-((t - 0.61) ** 2) / 0.02) * 0.8;
+  const c = Math.exp(-((t - 0.86) ** 2) / 0.006) * 0.55;
+  const v = Math.min(1, a + b + c + 0.08 + 0.06 * Math.sin(i * 1.7));
+  return { h: Math.round(10 + 90 * v), o: (0.28 + 0.72 * v).toFixed(2) };
+});
 
 export function Hero() {
-  const { theme } = useUiStore();
-  const isDark = theme === 'dark';
-  const raysColor = isDark ? '#10B981' : '#047857';
-
   return (
-    <section className="relative overflow-hidden px-4 pb-20 pt-32 sm:pt-36 bg-white dark:bg-[#0B0D11] transition-colors duration-200">
-      {/* React Bits LightRays atmospheric WebGL lighting */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-90 dark:opacity-50 z-0">
-        <LightRays
-          raysOrigin="top-center"
-          raysColor={raysColor}
-          raysSpeed={2.2}
-          lightSpread={0.85}
-          rayLength={3.2}
-          pulsating={false}
-          fadeDistance={2.6}
-          saturation={isDark ? 1.0 : 1.3}
-          followMouse={true}
-          mouseInfluence={0.06}
-          noiseAmount={0.0}
-          distortion={0.03}
-          lightMode={!isDark}
-        />
-      </div>
+    <>
+      <section className="relative overflow-clip dark:blueprint">
+        <div className="shell grid items-start gap-14 pb-16 pt-12 sm:pt-16 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-16 lg:pb-24 lg:pt-20">
+          <div className="min-w-0">
+            <p className="label reveal" style={{ '--i': 0 }}>
+              WhatsApp · Urdu · Roman Urdu
+            </p>
 
-      <div className="relative z-10 mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
-        <div>
-          {/* Tagline Badge */}
-          <motion.span
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
-            className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-6"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            AI-Powered Voice Commerce for Pakistani Retail
-          </motion.span>
-
-          {/* Headline */}
-          <motion.h1
-            initial={{ opacity: 0, y: 22 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.12, type: 'spring', stiffness: 70, damping: 17 }}
-            className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-zinc-950 dark:text-white font-heading leading-[1.1]"
-          >
-            Run your shop by{' '}
-            <span className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-amber-500 dark:from-emerald-400 dark:via-emerald-300 dark:to-amber-400 bg-clip-text text-transparent">
-              talking to it
-            </span>
-          </motion.h1>
-
-          {/* Subtitle */}
-          <motion.p
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.24 }}
-            className="mt-6 max-w-xl text-base sm:text-lg leading-relaxed text-zinc-600 dark:text-zinc-300"
-          >
-            Log sales, track stock, and manage udhaar by sending WhatsApp voice notes or text
-            in Urdu, Roman Urdu, or English. No complicated POS hardware, no forms to fill.
-          </motion.p>
-
-          {/* CTA Buttons */}
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.34 }}
-            className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 max-w-sm sm:max-w-none"
-          >
-            <Link
-              to="/signup"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-emerald-900/20 transition-all duration-150 w-full sm:w-auto text-center"
+            <h1
+              className="display reveal mt-5 max-w-[11ch] text-[length:var(--text-display)] text-ink"
+              style={{ '--i': 1 }}
             >
-              <WhatsAppIcon className="w-5 h-5 shrink-0" />
-              <span>Get Started Free</span>
-            </Link>
-            <a
-              href="#how-it-works"
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-zinc-100 hover:bg-zinc-200 text-zinc-900 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white px-5 py-3.5 text-sm font-semibold transition-colors w-full sm:w-auto text-center"
+              Run your shop by <span className="hl hl-draw">talking</span> to&nbsp;it.
+            </h1>
+
+            <p
+              className="reveal mt-7 max-w-[31rem] text-lg leading-relaxed text-ink-2"
+              style={{ '--i': 2 }}
             >
-              <span>See how it works</span>
-              <ArrowRight className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            </a>
-          </motion.div>
+              Send a voice note when you make a sale. VerbaTask logs it, takes it off your stock,
+              and asks you only what it couldn’t hear. Built for kiryana stores and pharmacies,
+              not for people who like filling in forms.
+            </p>
 
-          {/* Realistic Verified Stats */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.45 }}
-            className="mt-10 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:gap-x-10 sm:gap-y-4 border-t border-zinc-200 dark:border-white/10 pt-6"
-          >
-            <div>
-              <p className="text-lg sm:text-2xl font-bold text-zinc-950 dark:text-white font-heading">
-                <CountUp value={3} suffix=" Langs" />
-              </p>
-              <p className="mt-0.5 text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400">Urdu, Roman, EN</p>
+            <div className="reveal mt-9 flex flex-wrap items-center gap-x-7 gap-y-5" style={{ '--i': 3 }}>
+              <Link to="/signup" className="btn btn--lg">
+                <WhatsAppIcon className="size-5" />
+                Start free on WhatsApp
+              </Link>
+              <a
+                href="/#how-it-works"
+                onClick={(e) => {
+                  e.preventDefault();
+                  scrollToHash('#how-it-works');
+                }}
+                className="link-type"
+              >
+                See how it works
+                <ArrowRight className="size-4" />
+              </a>
             </div>
-            <div>
-              <p className="text-lg sm:text-2xl font-bold text-zinc-950 dark:text-white font-heading">
-                <CountUp value={2} prefix="< " suffix=" Sec" />
-              </p>
-              <p className="mt-0.5 text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400">AI voice speed</p>
-            </div>
-            <div>
-              <p className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-heading">
-                PKR 0
-              </p>
-              <p className="mt-0.5 text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400">Free for merchants</p>
-            </div>
-          </motion.div>
 
-          {/* Value Bullets */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.55 }}
-            className="mt-6 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6 text-xs text-zinc-600 dark:text-zinc-400"
-          >
-            <span className="inline-flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              High-value sales require merchant confirmation
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <Zap className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />
-              Works on low-speed 3G/4G on any Android phone
-            </span>
-          </motion.div>
+            <dl
+              className="reveal mt-12 grid max-w-[34rem] grid-cols-3 border-t border-rule pt-5"
+              style={{ '--i': 4 }}
+            >
+              {[
+                ['Hardware', 'None'],
+                ['Setup', 'One code'],
+                ['Asks before', 'Rs. 10,000'],
+              ].map(([k, v]) => (
+                <div key={k} className="min-w-0 pr-3">
+                  <dt className="label">{k}</dt>
+                  <dd className="mt-1 font-display text-base font-semibold tracking-tight text-ink sm:text-lg">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          <div className="reveal min-w-0 lg:pt-14" style={{ '--i': 3 }}>
+            <VoiceLedger />
+          </div>
         </div>
+      </section>
 
-        {/* Hero Interactive WhatsApp Demo Mockup */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, type: 'spring', stiffness: 60, damping: 16 }}
-          className="relative"
-        >
-          <WhatsAppMock
-            bubbles={[
-              {
-                from: 'merchant',
-                text: 'Aaj 10 kg chawal 480 ke hisaab se bech diye, cash mil gaya',
-                time: '10:02 AM',
-              },
-              {
-                from: 'bot',
-                text: 'Order ORD-1042 logged! Sufi Basmati Rice 10 kg @ PKR 480. Total PKR 4,800 paid in Cash. Stock left: 42 kg.',
-                time: '10:02 AM',
-              },
-              {
-                from: 'merchant',
-                text: '',
-                voice: true,
-                time: '10:04 AM',
-              },
-              {
-                from: 'bot',
-                text: 'Voice note understood: "Dalda oil 2 carton udhaar pe bech diye". Recorded as Pending Payment (Udhaar). Remaining stock: 4 carton.',
-                sub: 'Transcribed from Urdu voice note',
-                time: '10:04 AM',
-              },
-            ]}
-          />
-        </motion.div>
-      </div>
-    </section>
+      {/* Lumen meter strip — full-bleed readout below the hero */}
+      <aside aria-label="Voice note readout" className="border-y border-rule bg-paper-2">
+        <div className="shell grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-6">
+          <p className="label whitespace-nowrap">Signal · 0:07</p>
+          <div className="meter__bars" aria-hidden="true">
+            {TICKS.map((t, i) => (
+              <span key={i} style={{ height: `${t.h}%`, opacity: t.o }} />
+            ))}
+          </div>
+          <p className="label hidden whitespace-nowrap sm:block">Parsed · item · qty · rate · payment</p>
+        </div>
+      </aside>
+    </>
   );
 }
 

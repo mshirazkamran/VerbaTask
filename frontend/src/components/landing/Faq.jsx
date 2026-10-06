@@ -1,88 +1,92 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Minus } from 'lucide-react';
-import { SectionHeading, Stagger, StaggerItem } from './glass';
+import { Plus } from 'lucide-react';
+import { Link } from 'react-router';
 
 const faqs = [
   {
     q: 'Do I have to change how I run my counter?',
-    a: 'No. You continue serving customers exactly as you do today. The only new habit is sending a quick voice note or text to your VerbaTask WhatsApp thread: "2 carton oil bech diye, cash mil gaya." Everything else stays the same.',
+    a: 'No. You serve customers the way you do today. The only new habit is a quick voice note or text to the VerbaTask chat: “2 carton oil bech diye, cash mil gaya.”',
   },
   {
-    q: 'What if the AI misunderstands an amount or item?',
-    a: 'Every logged entry is read back to you immediately with the item name, quantity, rate, and total in chat. If anything is incorrect, reply GALAT or type the correction and it reverses instantly. High-value sales require your explicit confirmation before being recorded.',
+    q: 'What if it gets an amount or item wrong?',
+    a: 'Every entry is read back to you with the item, quantity, rate and total. If anything is off, reply GALAT or type the correction and it’s reversed. Sales above your limit wait for your approval before they’re recorded.',
   },
   {
     q: 'Does it really understand Roman Urdu and mixed sentences?',
-    a: 'Yes. Sentences like "Do kilo chawal aur ek kilo daal, 500 ka note mila" are parsed seamlessly into items, quantities, and cash payments. Voice notes in natural Urdu dialect are transcribed and matched against your inventory catalogue.',
+    a: 'Yes. “Do kilo chawal aur ek kilo daal, 500 ka note mila” becomes items, quantities and a cash payment. Urdu voice notes are transcribed and matched against your own inventory list.',
   },
   {
-    q: 'Who has access to my store and sales data?',
-    a: 'Only you and anyone you authorize to access your dashboard. Your sales records and inventory levels are securely tied to your verified WhatsApp merchant account and are never shared or sold.',
+    q: 'Who can see my sales and stock?',
+    a: 'Only you, and anyone you give dashboard access to. Your records are tied to your verified WhatsApp number and are never shared or sold.',
   },
   {
-    q: 'Is the Web Dashboard required to use VerbaTask?',
-    a: 'Not at all. The WhatsApp thread alone is completely self-sufficient for everyday sales and stock checks. The Web Dashboard is an optional bonus for when you want visual charts, printable PDF reports, or detailed payment method management.',
+    q: 'Do I need the web dashboard?',
+    a: 'No. The WhatsApp chat handles daily sales and stock checks on its own. The dashboard is there when you want charts, printable reports or to manage payment methods.',
   },
   {
-    q: 'What happens if my phone loses internet connection?',
-    a: 'WhatsApp automatically queues your voice note or message and delivers it as soon as your connection restores. VerbaTask then processes the queue in sequence without losing a single transaction.',
+    q: 'What if my phone loses signal?',
+    a: 'WhatsApp holds your message and sends it when the signal comes back. VerbaTask then processes messages in order, so nothing is skipped.',
   },
 ];
 
-export function Faq() {
-  const [openIndex, setOpenIndex] = useState(0);
-
+export function FaqList({ items = faqs, defaultOpen = 0 }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <section id="faq" className="px-4 py-24 bg-white dark:bg-[#0B0D11] transition-colors duration-200">
-      <div className="mx-auto max-w-3xl">
-        <SectionHeading
-          eyebrow="Frequently Asked Questions"
-          title="Clear answers for store owners"
-          subtitle="Everything you need to know before linking your shop to VerbaTask."
-        />
+    <ul className="border-t-2 border-ink">
+      {items.map((f, i) => {
+        const isOpen = open === i;
+        const id = `faq-${i}`;
+        return (
+          <li key={f.q} className="border-b border-rule">
+            <h3>
+              <button
+                type="button"
+                onClick={() => setOpen(isOpen ? null : i)}
+                aria-expanded={isOpen}
+                aria-controls={id}
+                className="group flex w-full items-start justify-between gap-6 py-5 text-left"
+              >
+                <span className="font-display text-lg font-semibold tracking-tight text-ink sm:text-[1.4rem]">{f.q}</span>
+                <span
+                  className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-pill border transition-[transform,background-color,border-color] duration-200 ${
+                    isOpen ? 'rotate-45 border-pear bg-pear text-on-pear' : 'border-rule-2 text-ink-2 group-hover:border-ink'
+                  }`}
+                  style={{ transitionTimingFunction: 'var(--ease-out)' }}
+                  aria-hidden="true"
+                >
+                  <Plus className="size-4" />
+                </span>
+              </button>
+            </h3>
+            <div id={id} className="accordion-panel" data-open={isOpen}>
+              <div>
+                <p className="max-w-[44rem] pb-6 pr-12 leading-relaxed text-ink-2">{f.a}</p>
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
-        <Stagger className="mt-12 space-y-3">
-          {faqs.map((f, i) => {
-            const isOpen = openIndex === i;
-            return (
-              <StaggerItem key={f.q}>
-                <div className="rounded-2xl border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#12151C] overflow-hidden transition-colors hover:border-zinc-300 dark:hover:border-white/20 shadow-xs">
-                  <button
-                    type="button"
-                    onClick={() => setOpenIndex(isOpen ? null : i)}
-                    aria-expanded={isOpen}
-                    className="flex w-full items-center justify-between gap-4 px-6 py-4 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-white/[0.02] cursor-pointer"
-                  >
-                    <span className="font-heading text-base font-semibold text-zinc-900 dark:text-white">
-                      {f.q}
-                    </span>
-                    {isOpen ? (
-                      <Minus className="w-5 h-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                    ) : (
-                      <Plus className="w-5 h-5 shrink-0 text-zinc-500 dark:text-zinc-400" />
-                    )}
-                  </button>
-
-                  <AnimatePresence initial={false}>
-                    {isOpen && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.25, ease: 'easeInOut' }}
-                      >
-                        <div className="px-6 pb-5 pt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300 border-t border-zinc-100 dark:border-white/5">
-                          {f.a}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </StaggerItem>
-            );
-          })}
-        </Stagger>
+// S3 sticky-pinned head beside the questions.
+export function Faq() {
+  return (
+    <section id="faq" className="scroll-mt-16 py-20 sm:py-28">
+      <div className="shell grid gap-10 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-16">
+        <div className="lg:sticky lg:top-28 lg:self-start">
+          <h2 className="display max-w-[12ch] text-[length:var(--fs-2xl)] text-ink sm:text-[length:var(--fs-3xl)]">
+            Questions shopkeepers ask.
+          </h2>
+          <p className="mt-5 max-w-[22rem] leading-relaxed text-ink-2">
+            Something else on your mind?{' '}
+            <Link to="/contact" className="link-type">
+              Write to us
+            </Link>
+          </p>
+        </div>
+        <FaqList />
       </div>
     </section>
   );
