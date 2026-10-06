@@ -1,5 +1,6 @@
 import InventoryItem from '../models/InventoryItem.js';
 import Order from '../models/Order.js';
+import Customer from '../models/Customer.js';
 import { evaluateThresholdWorkflows } from '../workflows/workflow.service.js';
 import { createApproval, HIGH_VALUE_THRESHOLD } from '../approvals/approval.service.js';
 import { findSimilarInventoryItems } from './item-matching.js';
@@ -164,6 +165,23 @@ export const createOrder = async (command) => {
 
   const effectivePaymentMethod = normalizePaymentMethod(paymentMethod) || (paymentMethod ? String(paymentMethod).toLowerCase().trim() : 'cash');
 
+  let customerId = null;
+  let finalCustomerName = null;
+
+  if (effectivePaymentMethod === 'udhaar' && command.customerName) {
+    const rawName = command.customerName.trim();
+    if (rawName) {
+      finalCustomerName = rawName.toLowerCase();
+      let customer = await Customer.findOne({ merchantId, name: finalCustomerName });
+      if (!customer) {
+        customer = await Customer.create({ merchantId, name: finalCustomerName, balance: 0 });
+      }
+      customer.balance += total;
+      await customer.save();
+      customerId = customer._id;
+    }
+  }
+
   const orderNumber = `VT-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
 
   // 5. Construct and save the order
@@ -173,6 +191,8 @@ export const createOrder = async (command) => {
     items: orderItems,
     total,
     paymentMethod: effectivePaymentMethod,
+    customerId,
+    customerName: finalCustomerName,
     source,
     status,
   });

@@ -16,6 +16,16 @@ export const PAYMENT_METHODS = [
     isPopular: true,
   },
 
+  // Udhaar (Credit/Ledger)
+  {
+    id: 'udhaar',
+    name: 'Udhaar (Credit)',
+    nameUrdu: 'ادھار / کھاتہ',
+    category: 'credit',
+    aliases: ['udhaar', 'udhar', 'khata', 'khatay', 'credit', 'baqi', 'ادھار', 'کھاتہ', 'بقایا'],
+    isPopular: true,
+  },
+
   // Digital Wallets & EMIs
   {
     id: 'easypaisa',
@@ -239,7 +249,7 @@ PAYMENT_METHODS.forEach((m) => {
   m.aliases.forEach((alias) => ALIAS_MAP.set(alias.toLowerCase().trim(), m.id));
 });
 
-export const DEFAULT_ACCEPTED_PAYMENT_METHODS = ['cash', 'easypaisa', 'jazzcash'];
+export const DEFAULT_ACCEPTED_PAYMENT_METHODS = ['cash', 'easypaisa', 'jazzcash', 'udhaar'];
 
 /** Returns full catalog of all supported Pakistani payment methods. */
 export function getAllPaymentMethods() {
