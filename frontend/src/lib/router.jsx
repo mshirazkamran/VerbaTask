@@ -12,6 +12,7 @@ import { ForgotPasswordPage } from '../pages/ForgotPasswordPage';
 import { OverviewPage } from '../pages/OverviewPage';
 import { InventoryPage } from '../pages/InventoryPage';
 import { OrdersPage } from '../pages/OrdersPage';
+import { CustomersPage } from '../pages/CustomersPage';
 import { ApprovalsPage } from '../pages/ApprovalsPage';
 import { WorkflowsPage } from '../pages/WorkflowsPage';
 import { SettingsPage } from '../pages/SettingsPage';
@@ -68,6 +69,10 @@ export const router = createBrowserRouter([
  {
  path: 'orders',
  element: <OrdersPage />,
+ },
+ {
+ path: 'ledger',
+ element: <CustomersPage />,
  },
  {
  path: 'workflows',

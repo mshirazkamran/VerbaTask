@@ -12,6 +12,7 @@ import {
   LogOut,
   Settings,
   X,
+  Wallet,
 } from 'lucide-react';
 import { Logo } from '../landing/Logo';
 
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { to: '/dashboard', label: 'Overview', icon: LayoutDashboard, end: true },
   { to: '/dashboard/orders', label: 'Orders', icon: Receipt },
   { to: '/dashboard/inventory', label: 'Inventory', icon: Package },
+  { to: '/dashboard/ledger', label: 'Ledger', icon: Wallet },
   { to: '/dashboard/approvals', label: 'Approvals', icon: ClipboardCheck },
   { to: '/dashboard/workflows', label: 'Workflows', icon: GitBranch },
 ];
