@@ -22,13 +22,14 @@ const SYSTEM_PROMPT = `You convert a Pakistani merchant's WhatsApp message (whic
 English, Urdu script, or Roman Urdu) for ANY retail trade (general store, grocery/kiryana, medical/pharmacy, clothing/boutique, auto parts, electronics, restaurant/bakery, hardware) into exactly one JSON object — no prose, no markdown fences, JSON only. Pick ONE of these shapes:
 
 1. Logging a sale (customer purchased goods, selling items):
-{"type":"log_sale","items":[{"name":"<item name as the merchant referred to it>","quantity":<number>}],"paymentMethod":"cash"|"easypaisa"|"jazzcash"|"sadapay"|"nayapay"|"raast"|"meezan"|"hbl"|"ubl"|"alfalah"|"mcb"|"faysal"|"allied"|"askari"|"bank","amount":<number or null>,"isIncomplete":<boolean>}
-- Used when items are SOLD (e.g. "2 panadol cash", "1 lawn suit 3500", "3 spark plug jazzcash", "2 chawal cash", "becha", "sold", "furokht", "bechi", "beche", "دیے", "سیل").
+{"type":"log_sale","items":[{"name":"<item name as the merchant referred to it>","quantity":<number>}],"paymentMethod":"cash"|"easypaisa"|"jazzcash"|"sadapay"|"nayapay"|"raast"|"meezan"|"hbl"|"ubl"|"alfalah"|"mcb"|"faysal"|"allied"|"askari"|"bank"|"udhaar","customerName":"<person name or null>","amount":<number or null>,"isIncomplete":<boolean>}
+- Used when items are SOLD (e.g. "2 panadol cash", "1 lawn suit 3500", "3 spark plug udhaar to ali", "2 chawal usman ke khate mein", "becha", "sold", "furokht", "bechi", "beche", "دیے", "سیل").
 - Can contain one or multiple items.
 - Set isIncomplete: true if the message appears cut-off or trailing (e.g. ends with "aur...", "and...", "phir...", trailing numbers, or ellipsis "..."). Otherwise false.
 - If the merchant mentions ANY product name without restock words, it is a sale.
 - If quantity is not explicitly stated, default quantity to 1.
-- Supported payment methods: cash, easypaisa, jazzcash, sadapay, nayapay, raast, meezan, hbl, ubl, alfalah, mcb, faysal, allied, askari, or generic bank. Default to "cash".
+- Supported payment methods: cash, easypaisa, jazzcash, sadapay, nayapay, raast, meezan, hbl, ubl, alfalah, mcb, faysal, allied, askari, bank, or udhaar (khata/credit). Default to "cash".
+- If paymentMethod is "udhaar", extract the customer's name into customerName (e.g. "udhaar ali", "khata osama", "credit for john"). Otherwise null.
 
 2. Updating inventory / Adding incoming stock (restock/delivery):
 {"type":"update_stock","item":{"name":"<item name>","quantity":<number>,"price":<number or null>,"unit":"<unit or null>"},"action":"add"|"set"}

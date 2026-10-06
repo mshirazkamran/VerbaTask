@@ -38,7 +38,7 @@ export function formatPaymentMethod(pm, language = 'ur') {
 }
 
 export const spokenPhrases = {
-  orderLogged(language = 'ur', { items = [], paymentMethod, orderNo }) {
+  orderLogged(language = 'ur', { items = [], paymentMethod, orderNo, customerName }) {
     const isUrdu = language === 'ur';
     const payFormatted = formatPaymentMethod(paymentMethod, language);
     
@@ -46,18 +46,30 @@ export const spokenPhrases = {
     const itemsSpoken = items.map(i => `${i.quantity} ${i.name}`).join('، ');
     const itemsText = items.map(i => `${i.quantity} x ${i.name}`).join(', ');
 
+    let customerSpokenUrdu = '';
+    let customerTextUrdu = '';
+    let customerSpokenEng = '';
+    let customerTextEng = '';
+
+    if (customerName && (paymentMethod === 'udhaar' || paymentMethod === 'khata')) {
+      customerSpokenUrdu = `، ${customerName} کے کھاتے میں`;
+      customerTextUrdu = ` (کھاتہ: ${customerName})`;
+      customerSpokenEng = `, added to ${customerName}'s ledger`;
+      customerTextEng = ` (Ledger: ${customerName})`;
+    }
+
     if (isUrdu) {
       const orderPart = orderNo ? `۔ آرڈر نمبر ${orderNo}۔` : '۔';
       return {
-        spoken: `آپ کی سیل درج کر لی گئی ہے: ${itemsSpoken}، ${payFormatted} پر${orderPart}`,
-        text: `✅ سیل درج ہو گئی: ${itemsText} (${paymentMethod})${orderNo ? ` — آرڈر #${orderNo}` : ''}.`,
+        spoken: `آپ کی سیل درج کر لی گئی ہے: ${itemsSpoken}، ${payFormatted} پر${customerSpokenUrdu}${orderPart}`,
+        text: `✅ سیل درج ہو گئی: ${itemsText} (${payFormatted})${customerTextUrdu}${orderNo ? ` — آرڈر #${orderNo}` : ''}.`,
       };
     }
 
     const orderPart = orderNo ? ` — Order #${orderNo}` : '';
     return {
-      spoken: `Your sale has been logged: ${itemsSpoken}, paid with ${paymentMethod}${orderNo ? `. Order number ${orderNo}.` : '.'}`,
-      text: `✅ Logged: ${itemsText} (${paymentMethod})${orderPart}.`,
+      spoken: `Your sale has been logged: ${itemsSpoken}, via ${payFormatted}${customerSpokenEng}${orderNo ? `. Order number ${orderNo}.` : '.'}`,
+      text: `✅ Logged: ${itemsText} (${payFormatted})${customerTextEng}${orderPart}.`,
     };
   },
 

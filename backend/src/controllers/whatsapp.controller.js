@@ -781,6 +781,7 @@ async function routeParsedCommand(merchant, intent, source) {
       merchantId: merchant._id,
       items: intent.items,
       paymentMethod: intent.paymentMethod || merchant.defaultPaymentMethod || 'cash',
+      customerName: intent.customerName,
       amount: intent.amount,
       source,
       language: effectiveLanguage,
@@ -1208,6 +1209,7 @@ async function createOrderViaCrm(merchant, command) {
     const phrases = spokenPhrases.orderLogged(language, {
       items: command.items,
       paymentMethod: command.paymentMethod,
+      customerName: command.customerName,
       orderNo,
     });
     return replyToMerchant(merchant, phrases, source);

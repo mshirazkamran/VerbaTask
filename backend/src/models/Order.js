@@ -16,6 +16,8 @@ const orderSchema = new mongoose.Schema({
     trim: true,
     lowercase: true,
   },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+  customerName: { type: String, trim: true },
   source: { 
     type: String, 
     enum: ['guided', 'voice', 'dashboard', 'text'], 
