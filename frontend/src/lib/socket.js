@@ -4,7 +4,7 @@ import { useAuthStore } from './store';
 const rawUrl =
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_URL ||
-  'https://verbatask.fly.dev';
+  'https://verbatask-api.mshiraz.com';
 const SOCKET_URL = rawUrl.replace(/\/+$/, '');
 
 // A singleton socket instance
