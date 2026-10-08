@@ -3,6 +3,7 @@ import { findSimilarInventoryItems, cleanAndStandardizeItemName } from './item-m
 import { emitDashboardUpdate } from '../socket.js';
 import { spokenPhrases } from '../services/localization.service.js';
 import { invalidateMerchantCatalog } from '../services/catalogCache.service.js';
+import { evaluateThresholdWorkflows } from '../workflows/workflow.service.js';
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -37,6 +38,11 @@ export async function restockItemViaCrm(merchant, command) {
     if (price != null) item.price = price;
     if (unit) item.unit = unit;
     await item.save();
+
+    // Restock re-arms any low-stock alert that already fired for this item.
+    evaluateThresholdWorkflows(merchant._id, item).catch((err) =>
+      console.error('Threshold workflow evaluation failed:', err.message)
+    );
 
     invalidateMerchantCatalog(merchant._id);
     emitDashboardUpdate(merchant._id, {

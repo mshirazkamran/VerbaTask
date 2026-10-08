@@ -13,6 +13,9 @@ const merchantSchema = new mongoose.Schema({
   onboardingComplete: { type: Boolean, default: false },
   voiceReplies:   { type: Boolean, default: true },
   replyPreference: { type: String, enum: ['voice_on_voice', 'always_voice', 'text_only'], default: 'voice_on_voice' },
+  // Off: automations requested on WhatsApp are saved immediately. On: the bot
+  // reads each one back with Save / Cancel buttons first.
+  confirmAutomations: { type: Boolean, default: false },
   defaultPaymentMethod: { type: String, default: 'cash', trim: true, lowercase: true },
   acceptedPaymentMethods: {
     type: [String],

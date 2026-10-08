@@ -5,7 +5,8 @@ import Workflow from '../models/Workflow.js';
 
 import { createOrder } from '../crm/order.service.js';
 import { restockItemViaCrm, checkStockViaCrm, getStockListSummary, updateItemPriceViaCrm } from '../crm/inventory.service.js';
-import { evaluateMessageWorkflows, createWorkflow } from '../workflows/workflow.service.js';
+import { evaluateMessageWorkflows, prepareWorkflow, createWorkflow, WorkflowValidationError } from '../workflows/workflow.service.js';
+import { describeWorkflow, explainWorkflowError, capabilitiesText } from '../workflows/workflow.rules.js';
 import { respond as respondToApproval, findPendingByOrderId } from '../approvals/approval.service.js';
 import { generateLinkCode } from './auth.controller.js';
 import { emitDashboardUpdate } from '../socket.js';
@@ -14,19 +15,12 @@ import { findSimilarInventoryItems, cleanAndStandardizeItemName } from '../crm/i
 import { transcribeAndParse } from '../agent/transcribeAndParse.js';
 import { downloadMedia } from '../services/media.service.js';
 import { invalidateMerchantCatalog } from '../services/catalogCache.service.js';
-import {
-  generateInventoryReport,
-  generateLowStockReport,
-  generateExpiringReport,
-  generateSalesReport,
-  generateTopSellingReport
-} from '../services/report.service.js';
+import { deliverReport } from '../services/reportDelivery.service.js';
 import {
   sendTextMessage as sendTextMessageRaw,
   sendInteractiveButtons as sendInteractiveButtonsRaw,
   sendInteractiveList as sendInteractiveListRaw,
   sendVoiceReply as sendVoiceReplyRaw,
-  sendDocumentMessage as sendDocumentMessageRaw,
   paginateRows,
 } from '../services/whatsapp.service.js';
 import { spokenPhrases, formatPaymentMethod } from '../services/localization.service.js';
@@ -79,14 +73,6 @@ async function sendInteractiveList(to, body, buttonText, sections) {
     return await sendInteractiveListRaw(to, body, buttonText, sections);
   } catch (err) {
     console.error('sendInteractiveList failed:', err.message);
-  }
-}
-
-async function sendDocumentMessage(to, mediaId, filename, caption) {
-  try {
-    return await sendDocumentMessageRaw(to, mediaId, filename, caption);
-  } catch (err) {
-    console.error('sendDocumentMessage failed:', err.message);
   }
 }
 
@@ -387,6 +373,10 @@ async function handleOnboardedMerchant(merchant, message) {
         return await handleDisambiguationReply(merchant, buttonId);
       }
 
+      if (buttonId === 'wf_save' || buttonId === 'wf_cancel') {
+        return await handleWorkflowConfirmReply(merchant, buttonId);
+      }
+
       // Language selection buttons
       if (buttonId === 'set_lang_ur') {
         merchant.language = 'ur';
@@ -626,6 +616,19 @@ async function handleTextMessage(merchant, text) {
     return sendTextMessage(merchant.whatsappNumber, msg);
   }
 
+  // Automation confirmation toggle ("confirm on" / "confirm off")
+  const confirmMatch = text.match(/^confirm\s+(on|off)$/i) || text.match(/^تصدیق\s+(آن|بند)$/);
+  if (confirmMatch) {
+    const isOn = /^(on|آن)$/i.test(confirmMatch[1]);
+    merchant.confirmAutomations = isOn;
+    await merchant.save();
+    emitDashboardUpdate(merchant._id, { type: 'profile' });
+    const msg = merchant.language === 'ur'
+      ? (isOn ? '✅ اب ہر نئی آٹومیشن محفوظ کرنے سے پہلے میں آپ سے پوچھوں گا۔' : '✅ اب نئی آٹومیشن فوراً محفوظ ہو جائے گی۔')
+      : (isOn ? "✅ I'll now ask you to Save or Cancel each new automation." : '✅ New automations will now be saved straight away.');
+    return sendTextMessage(merchant.whatsappNumber, msg);
+  }
+
   // Enable payment method
   const enableMatch = text.match(/^(?:enable|add)\s+([a-zA-Z\s-]+)$/i);
   if (enableMatch) {
@@ -806,8 +809,12 @@ async function routeParsedCommand(merchant, intent, source) {
     return replyToMerchant(merchant, phrases, source, effectiveLanguage);
   }
 
+  if (intent.type === 'unsupported_workflow') {
+    return sendTextMessage(merchant.whatsappNumber, workflowRejectionText({ code: 'UNSUPPORTED_REQUEST' }, effectiveLanguage));
+  }
+
   if (intent.type === 'create_workflow') {
-    return createWorkflowViaModule(merchant, {
+    return proposeWorkflow(merchant, {
       merchantId: merchant._id,
       trigger: intent.trigger,
       condition: intent.condition,
@@ -839,46 +846,7 @@ async function routeParsedCommand(merchant, intent, source) {
 }
 
 async function handleReportRequest(merchant, reportType, source, language) {
-  const waitMsg = language === 'en' ? 'Generating your PDF report, please wait...' : 'آپ کی رپورٹ تیار ہو رہی ہے، براہ کرم انتظار کریں...';
-  await sendTextMessage(merchant.whatsappNumber, waitMsg);
-
-  try {
-    let report;
-    switch (reportType) {
-      case 'low_stock':
-        report = await generateLowStockReport(merchant);
-        break;
-      case 'top_selling':
-        report = await generateTopSellingReport(merchant);
-        break;
-      case 'expiring':
-        report = await generateExpiringReport(merchant);
-        break;
-      case 'sales':
-        report = await generateSalesReport(merchant);
-        break;
-      case 'inventory':
-      default:
-        report = await generateInventoryReport(merchant);
-        break;
-    }
-
-    const { uploadMedia } = await import('../services/media.service.js');
-    const { id: mediaId } = await uploadMedia(report.buffer, 'application/pdf', report.filename);
-    
-    await sendDocumentMessage(
-      merchant.whatsappNumber,
-      mediaId,
-      report.filename,
-      language === 'en' ? 'Here is your requested report! 📄' : 'یہ رہی آپ کی رپورٹ! 📄'
-    );
-  } catch (err) {
-    console.error('Report generation failed:', err);
-    await sendTextMessage(
-      merchant.whatsappNumber,
-      language === 'en' ? 'Sorry, something went wrong while generating your report.' : 'معذرت، رپورٹ تیار کرنے میں کچھ مسئلہ پیش آیا۔'
-    );
-  }
+  return deliverReport(merchant, reportType, language);
 }
 
 // ---------------------------------------------------------------------------
@@ -1371,19 +1339,90 @@ async function handleDisambiguationReply(merchant, buttonId) {
   });
 }
 
-/** Creates an automation through workflows/createWorkflow and confirms back to the merchant. */
-async function createWorkflowViaModule(merchant, command) {
-  const source = command.source || 'text';
+// Codes where the merchant asked for something we can't do at all (vs. a
+// fixable detail like a missing time) — those get the full capabilities list.
+const WORKFLOW_UNSUPPORTED_CODES = ['UNSUPPORTED_REQUEST', 'UNSUPPORTED_TRIGGER', 'UNSUPPORTED_ACTION', 'UNSUPPORTED_REPORT', 'UNSUPPORTED_OPERATOR'];
+
+function workflowRejectionText(error, language) {
+  const reason = explainWorkflowError(error, language);
+  return WORKFLOW_UNSUPPORTED_CODES.includes(error.code) ? `${reason}\n\n${capabilitiesText(language)}` : reason;
+}
+
+const WORKFLOW_CONFIRM_TTL_MS = 30 * 60 * 1000;
+
+/**
+ * Validates a parsed automation, then either saves it straight away (default)
+ * or — when the merchant turned on confirmAutomations — reads it back with
+ * Save / Cancel buttons and waits for handleWorkflowConfirmReply.
+ */
+async function proposeWorkflow(merchant, command) {
   const language = command.language || merchant.language || 'ur';
 
   try {
-    const workflow = await createWorkflow(command);
-    const phrases = spokenPhrases.workflowCreated(language, { rawInstruction: workflow.rawInstruction });
-    return replyToMerchant(merchant, phrases, source);
+    const prepared = await prepareWorkflow(merchant._id, command);
+    if (!prepared.ok) {
+      return sendTextMessage(merchant.whatsappNumber, workflowRejectionText(prepared.error, language));
+    }
+
+    if (!merchant.confirmAutomations) {
+      return saveWorkflowAndReply(merchant, prepared.value, language);
+    }
+
+    await ConversationState.findOneAndUpdate(
+      { whatsappNumber: merchant.whatsappNumber },
+      { merchantId: merchant._id, flow: 'workflow_confirm', step: 'awaiting_confirmation', data: { workflow: prepared.value, language } },
+      { upsert: true }
+    );
+
+    const description = describeWorkflow(prepared.value, language);
+    const body = language === 'ur'
+      ? `کیا یہ آٹومیشن محفوظ کروں؟\n\n⚡ ${description}`
+      : `Save this automation?\n\n⚡ ${description}`;
+    return sendInteractiveButtons(merchant.whatsappNumber, body, [
+      { id: 'wf_save', title: language === 'ur' ? '✅ محفوظ کریں' : '✅ Save' },
+      { id: 'wf_cancel', title: language === 'ur' ? '❌ منسوخ' : '❌ Cancel' },
+    ]);
   } catch (err) {
+    console.error('proposeWorkflow failed:', err.message);
+    return replyToMerchant(merchant, spokenPhrases.genericError(language), command.source || 'text');
+  }
+}
+
+/** Handles the Save / Cancel tap on an automation read-back. */
+async function handleWorkflowConfirmReply(merchant, buttonId) {
+  const state = await ConversationState.findOne({ whatsappNumber: merchant.whatsappNumber, flow: 'workflow_confirm' });
+  const language = state?.data?.language || merchant.language || 'ur';
+  const ur = language === 'ur';
+
+  const expired = !state || Date.now() - new Date(state.updatedAt).getTime() > WORKFLOW_CONFIRM_TTL_MS;
+  if (state) await ConversationState.deleteOne({ _id: state._id });
+  if (expired) {
+    return sendTextMessage(
+      merchant.whatsappNumber,
+      ur ? 'یہ درخواست پرانی ہو گئی ہے، براہ کرم آٹومیشن دوبارہ بھیجیں۔' : 'That request has expired — please send the automation again.'
+    );
+  }
+
+  if (buttonId === 'wf_cancel') {
+    return sendTextMessage(merchant.whatsappNumber, ur ? 'ٹھیک ہے، آٹومیشن محفوظ نہیں کی گئی۔' : 'Okay, the automation was not saved.');
+  }
+
+  return saveWorkflowAndReply(merchant, state.data.workflow, language);
+}
+
+/** Stores a validated automation and tells the merchant exactly what was saved. */
+async function saveWorkflowAndReply(merchant, workflowInput, language) {
+  try {
+    const workflow = await createWorkflow({ ...workflowInput, merchantId: merchant._id });
+    emitDashboardUpdate(merchant._id, { type: 'workflow', action: 'create' });
+    const phrases = spokenPhrases.workflowCreated(language, { description: describeWorkflow(workflow, language) });
+    return replyToMerchant(merchant, phrases, 'text', language);
+  } catch (err) {
+    if (err instanceof WorkflowValidationError) {
+      return sendTextMessage(merchant.whatsappNumber, workflowRejectionText(err.details, language));
+    }
     console.error('createWorkflow failed:', err.message);
-    const phrases = spokenPhrases.genericError(language);
-    return replyToMerchant(merchant, phrases, source);
+    return replyToMerchant(merchant, spokenPhrases.genericError(language), 'text', language);
   }
 }
 
@@ -1541,6 +1580,7 @@ async function sendProfileSettings(merchant) {
   const language = merchant.language || 'ur';
   const accepted = (merchant.acceptedPaymentMethods || []).map((m) => formatPaymentMethod(m, language)).join(', ') || 'Cash';
   const isVoice = merchant.voiceReplies !== false;
+  const confirmsAutomations = !!merchant.confirmAutomations;
 
   let text;
   if (language === 'ur') {
@@ -1550,12 +1590,14 @@ async function sendProfileSettings(merchant) {
       `🏷️ *کاروبار کی قسم:* ${merchant.businessType || 'general'}\n` +
       `🌐 *زبان:* ${merchant.language === 'ur' ? 'اردو (Urdu)' : 'English'}\n` +
       `🔊 *وائس جوابات:* ${isVoice ? 'چالو (On)' : 'بند (Off)'}\n` +
+      `⚡ *آٹومیشن سے پہلے تصدیق:* ${confirmsAutomations ? 'چالو (On)' : 'بند (Off)'}\n` +
       `💳 *منظور شدہ ادائیگی:* ${accepted}\n\n` +
       `📝 *تبدیل کرنے کا طریقہ:*\n` +
       `• نام بدلیں: *"set name [نیا نام]"*\n` +
       `• مقام بدلیں: *"set location [شہر]"*\n` +
       `• زبان: *"urdu"* یا *"english"*\n` +
       `• وائس: *"voice on"* یا *"voice off"*\n` +
+      `• آٹومیشن تصدیق: *"confirm on"* یا *"confirm off"*\n` +
       `• بینک: لکھیں *"banks"*`;
   } else {
     text = `⚙️ *Store Profile & Settings*\n\n` +
@@ -1564,12 +1606,14 @@ async function sendProfileSettings(merchant) {
       `🏷️ *Category:* ${merchant.businessType || 'general'}\n` +
       `🌐 *Language:* ${merchant.language === 'ur' ? 'Urdu' : 'English'}\n` +
       `🔊 *Voice Replies:* ${isVoice ? 'Enabled (On)' : 'Disabled (Off)'}\n` +
+      `⚡ *Confirm Automations:* ${confirmsAutomations ? 'Enabled (On)' : 'Disabled (Off)'}\n` +
       `💳 *Accepted Payments:* ${accepted}\n\n` +
       `📝 *Quick Change Commands:*\n` +
       `• Rename: *"set name [New Name]"*\n` +
       `• Location: *"set location [City]"*\n` +
       `• Language: *"urdu"* or *"english"*\n` +
       `• Voice: *"voice on"* or *"voice off"*\n` +
+      `• Confirm automations: *"confirm on"* or *"confirm off"*\n` +
       `• Bank channels: Type *"banks"*`;
   }
 
@@ -1737,7 +1781,7 @@ async function sendWorkflowsList(merchant) {
 
   const lines = workflows.map((w, idx) => {
     const status = w.active ? '🟢' : '⚪';
-    const instr = w.rawInstruction || `${w.trigger} trigger`;
+    const instr = describeWorkflow(w, language);
     return `${idx + 1}. ${status} *${instr}*`;
   });
 

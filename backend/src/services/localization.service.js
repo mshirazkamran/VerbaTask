@@ -101,16 +101,16 @@ export const spokenPhrases = {
     };
   },
 
-  workflowCreated(language = 'ur', { rawInstruction } = {}) {
+  workflowCreated(language = 'ur', { description } = {}) {
     if (language === 'ur') {
       return {
-        spoken: `آپ کی آٹومیشن تیار ہو گئی ہے۔ میں اس کا خیال رکھوں گا۔`,
-        text: `✅ آٹومیشن بن گئی: "${rawInstruction}". میں اس کا خیال رکھوں گا۔`,
+        spoken: `آپ کی آٹومیشن محفوظ ہو گئی ہے۔`,
+        text: `✅ آٹومیشن محفوظ ہو گئی:\n⚡ ${description}\n\nتمام آٹومیشن دیکھنے کے لیے *"workflows"* لکھیں۔`,
       };
     }
     return {
-      spoken: `Automation created. I'll take it from here.`,
-      text: `✅ Automation created: "${rawInstruction}". I'll take it from here.`,
+      spoken: `Automation saved.`,
+      text: `✅ Automation saved:\n⚡ ${description}\n\nType *"workflows"* to see all your automations.`,
     };
   },
 

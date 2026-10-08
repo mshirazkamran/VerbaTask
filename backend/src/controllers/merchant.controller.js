@@ -42,6 +42,7 @@ export async function getProfile(req, res) {
         language: merchant.language || 'ur',
         voiceReplies: merchant.voiceReplies ?? true,
         replyPreference: merchant.replyPreference || 'voice_on_voice',
+        confirmAutomations: merchant.confirmAutomations ?? false,
         acceptedPaymentMethods: merchant.acceptedPaymentMethods?.length
           ? merchant.acceptedPaymentMethods
           : DEFAULT_ACCEPTED_PAYMENT_METHODS,
@@ -71,6 +72,7 @@ export async function updateProfile(req, res) {
       'language',
       'voiceReplies',
       'replyPreference',
+      'confirmAutomations',
       'acceptedPaymentMethods',
       'paymentDetails',
       'defaultPaymentMethod',

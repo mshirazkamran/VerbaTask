@@ -43,8 +43,25 @@ English, Urdu script, or Roman Urdu) for ANY retail trade (general store, grocer
 - Used when the merchant asks how much stock is left of a product.
 - Examples: "panadol kitna hai", "check stock sugar", "lawn suit kitne bache hain", "spark plug stock", "how much oil left", "چاول کا اسٹاک کتنا ہے".
 
-4. Creating an automation:
-{"type":"create_workflow","trigger":"message"|"schedule"|"threshold","condition":{...},"action":{...},"rawInstruction":"<original text>"}
+4. Creating an automation (the merchant asks you to do something automatically later: "when...", "every day...", "jab...", "roz...", "har...").
+An automation has exactly ONE trigger and exactly ONE action from the lists below — nothing else exists.
+Triggers:
+  a) Stock threshold: {"trigger":"threshold","condition":{"item":"<item name, or null for any item>","operator":"<"|"<=","value":<number>}}
+     "below 5"/"less than 5"/"5 se kam" -> operator "<", value 5. "reaches 0"/"finishes"/"khatam ho" -> operator "<=", value 0.
+  b) Daily/weekly time: {"trigger":"schedule","condition":{"frequency":"daily"|"weekly","time":"HH:mm" (24h),"dayOfWeek":<0=Sunday..6=Saturday, weekly only>}}
+     "every night at 9" / "roz raat 9 baje" -> {"frequency":"daily","time":"21:00"}. "every Monday 10am" -> {"frequency":"weekly","time":"10:00","dayOfWeek":1}. "subah" = morning, "shaam" = evening, "raat" = night.
+  c) Merchant's own shortcut word: {"trigger":"message","condition":{"keywords":["<the exact word(s) the merchant will type>"]}}
+     "when I say end, send me the sales report" -> keywords ["end"].
+Actions:
+  - {"type":"notify","message":"<text to send the merchant, or null for stock alerts>"}
+  - {"type":"send_report","reportType":"sales"|"inventory"|"low_stock"|"top_selling"|"expiring"}  ("end of day"/"din ka hisab"/"daily" report = "sales")
+Shape: {"type":"create_workflow","trigger":"...","condition":{...},"action":{...},"rawInstruction":"<original text>"}
+Examples:
+  "alert me when sugar is below 5" -> {"type":"create_workflow","trigger":"threshold","condition":{"item":"sugar","operator":"<","value":5},"action":{"type":"notify","message":null},"rawInstruction":"alert me when sugar is below 5"}
+  "roz raat 10 baje sales report bhejo" -> {"type":"create_workflow","trigger":"schedule","condition":{"frequency":"daily","time":"22:00"},"action":{"type":"send_report","reportType":"sales"},"rawInstruction":"roz raat 10 baje sales report bhejo"}
+  "when I type end send me end day report" -> {"type":"create_workflow","trigger":"message","condition":{"keywords":["end"]},"action":{"type":"send_report","reportType":"sales"},"rawInstruction":"when I type end send me end day report"}
+If the merchant asks for an automation whose action is NOT one of the two actions above (e.g. delete/remove/change stock, order from a supplier, call someone, anything unrelated to the shop, anything physical or personal), or whose trigger is not one of the three above, DO NOT invent one. Reply:
+{"type":"unsupported_workflow","rawText":"<original text>"}
 
 5. Greetings or casual opening (e.g. "assalam o alaikum", "suno", "hello", "hi", "bhai"):
 {"type":"greeting","rawText":"<original text>"}
@@ -339,7 +356,7 @@ export async function parseIntent(text, merchant = null) {
     const raw = await chatCompletion(prompt, text);
     const parsed = extractJson(raw);
 
-    if (parsed && ['log_sale', 'update_stock', 'check_stock', 'create_workflow', 'greeting', 'generate_report', 'unknown'].includes(parsed.type)) {
+    if (parsed && ['log_sale', 'update_stock', 'check_stock', 'create_workflow', 'unsupported_workflow', 'greeting', 'generate_report', 'unknown'].includes(parsed.type)) {
       // Guard: If model misclassified restock speech as a sale, override it
       if (parsed.type === 'log_sale' && stockHeuristic?.type === 'update_stock') {
         return stockHeuristic;

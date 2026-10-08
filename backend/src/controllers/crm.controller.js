@@ -13,6 +13,13 @@ import {
   generateTopSellingReport
 } from '../services/report.service.js';
 import { invalidateMerchantCatalog } from '../services/catalogCache.service.js';
+import { evaluateThresholdWorkflows } from '../workflows/workflow.service.js';
+
+// Stock edited from the dashboard — fire or re-arm low-stock automations.
+const checkThresholds = (merchantId, item) =>
+    evaluateThresholdWorkflows(merchantId, item).catch((err) =>
+        console.error('Threshold workflow evaluation failed:', err.message)
+    );
 
 // Escape regex metacharacters in item names — same reason as order.service.js.
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -50,6 +57,7 @@ export const createInventoryItem = async (req, res) => {
             }
             
             await item.save();
+            checkThresholds(req.merchantId, item);
             invalidateMerchantCatalog(req.merchantId);
             emitDashboardUpdate(req.merchantId, { type: 'inventory', action: 'update', itemId: item._id, itemName: item.name });
             return res.status(200).json({ success: true, data: item });
@@ -65,6 +73,7 @@ export const createInventoryItem = async (req, res) => {
             expiryDates: Array.isArray(expiryDates) ? expiryDates : []
         });
 
+        checkThresholds(req.merchantId, item);
         invalidateMerchantCatalog(req.merchantId);
         emitDashboardUpdate(req.merchantId, { type: 'inventory', action: 'create', itemId: item._id, itemName: item.name });
         res.status(201).json({ success: true, data: item });
@@ -81,6 +90,7 @@ export const updateInventoryItem = async (req, res) => {
             { new: true }
         );
         if (!item) return res.status(404).json({ success: false, error: { message: 'Item not found' } });
+        if ('quantity' in req.body) checkThresholds(req.merchantId, item);
         invalidateMerchantCatalog(req.merchantId);
         emitDashboardUpdate(req.merchantId, { type: 'inventory', action: 'update', itemId: item._id, itemName: item.name });
         res.status(200).json({ success: true, data: item });
