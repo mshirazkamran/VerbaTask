@@ -2,6 +2,7 @@ import Approval from '../models/Approval.js';
 import Order from '../models/Order.js';
 import Merchant from '../models/Merchant.js';
 import InventoryItem from '../models/InventoryItem.js';
+import { evaluateThresholdWorkflows } from '../workflows/workflow.service.js';
 import { sendInteractiveButtons } from '../services/whatsapp.service.js';
 import { emitDashboardUpdate } from '../socket.js';
 
@@ -85,6 +86,12 @@ export const respond = async (id, decision, merchantId) => {
                         },
                     }))
                 );
+
+                // Returned stock may lift items back above their alert limit.
+                const restored = await InventoryItem.find({ _id: { $in: order.items.map((i) => i.inventoryItemId) } });
+                for (const item of restored) {
+                    await evaluateThresholdWorkflows(approval.merchantId, item).catch(() => {});
+                }
             }
         }
     }

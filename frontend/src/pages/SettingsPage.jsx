@@ -11,6 +11,7 @@ import {
   Key,
   X,
   ArrowRight,
+  Zap,
 } from 'lucide-react';
 import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { Card } from '../components/ui/Card';
@@ -82,6 +83,7 @@ export function SettingsPage() {
   const [language, setLanguage] = useState('ur');
   const [voiceReplies, setVoiceReplies] = useState(true);
   const [replyPreference, setReplyPreference] = useState('voice_on_voice');
+  const [confirmAutomations, setConfirmAutomations] = useState(false);
 
   // Payments State
   const [activePaymentIds, setActivePaymentIds] = useState([]);
@@ -98,6 +100,7 @@ export function SettingsPage() {
       setLanguage(profile.language || 'ur');
       setVoiceReplies(profile.voiceReplies ?? true);
       setReplyPreference(profile.replyPreference || 'voice_on_voice');
+      setConfirmAutomations(profile.confirmAutomations ?? false);
     }
   }, [profile]);
 
@@ -192,8 +195,9 @@ export function SettingsPage() {
         language,
         voiceReplies,
         replyPreference,
+        confirmAutomations,
       });
-      toast.success('Voice and language preferences updated!');
+      toast.success('Bot preferences updated!');
     } catch (err) {
       toast.error(err.message || 'Failed to update voice preferences');
     }
@@ -847,13 +851,49 @@ export function SettingsPage() {
             </div>
           </Card>
 
+          <Card>
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-hairline">
+              <div className="grid size-10 shrink-0 place-items-center rounded-pill bg-sky-tint text-sky-ink">
+                <Zap className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-semibold tracking-tight text-ink">WhatsApp Automations</h2>
+                <p className="text-xs text-ink-mute">
+                  What happens when you ask the bot to create an automation, e.g. "alert me when rice is below 5".
+                </p>
+              </div>
+            </div>
+
+            <label
+              className={`p-3 rounded-lg border flex items-start gap-3 cursor-pointer transition-colors ${
+                confirmAutomations
+                  ? 'border-primary bg-primary/5'
+                  : 'border-hairline bg-surface/20 hover:bg-surface/40'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={confirmAutomations}
+                onChange={(e) => setConfirmAutomations(e.target.checked)}
+                className="mt-0.5 text-primary focus:ring-primary"
+              />
+              <div>
+                <p className="text-xs font-medium text-ink">Ask me before saving automations</p>
+                <p className="text-[11px] text-ink-mute mt-0.5 leading-relaxed">
+                  When on, the bot reads each new automation back with Save / Cancel buttons. When off, it saves
+                  straight away and tells you what was saved. You can also type "confirm on" or "confirm off" on WhatsApp.
+                </p>
+              </div>
+            </label>
+          </Card>
+
           <div className="flex justify-end">
             <Button
               type="submit"
               loading={updateProfileMutation.isPending}
               rightIcon={<Check className="w-4 h-4" />}
             >
-              Save Voice Preferences
+              Save Preferences
             </Button>
           </div>
         </form>

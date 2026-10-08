@@ -189,7 +189,7 @@ export const getMe = async (req, res) => {
 // PATCH /api/auth/me
 export const updateMe = async (req, res) => {
     try {
-        const allowedUpdates = ['language', 'voiceReplies', 'replyPreference', 'businessName', 'location', 'sells'];
+        const allowedUpdates = ['language', 'voiceReplies', 'replyPreference', 'confirmAutomations', 'businessName', 'location', 'sells'];
         const updates = {};
         for (const key of allowedUpdates) {
             if (req.body[key] !== undefined) {
