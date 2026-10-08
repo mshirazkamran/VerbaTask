@@ -1,6 +1,6 @@
 import { useAuthStore } from './store';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'https://verbatask.fly.dev';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'https://verbatask-api.mshiraz.com';
 
 async function request(path, options = {}) {
   const url = path.startsWith('http') ? path : `${BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
