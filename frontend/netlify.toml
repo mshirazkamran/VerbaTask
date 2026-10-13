@@ -7,6 +7,13 @@
   VITE_API_BASE_URL = "https://verbatask-api.mshiraz.com"
   VITE_API_URL = "https://verbatask-api.mshiraz.com"
 
+# Proxy all /api/* requests to backend VPS - solves CORS and cross-origin failures permanently
+[[redirects]]
+  from = "/api/*"
+  to = "https://verbatask-api.mshiraz.com/api/:splat"
+  status = 200
+  force = true
+
 # SPA Fallback - Fix 404 on page reload
 [[redirects]]
   from = "/*"

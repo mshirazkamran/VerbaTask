@@ -52,9 +52,10 @@ export default defineConfig({
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
+        cleanupOutdatedCaches: true,
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//],
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webmanifest}'],
+        navigateFallbackDenylist: [/^\/api/, /^\/assets/],
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2,webmanifest}'],
       },
       devOptions: {
         enabled: true,

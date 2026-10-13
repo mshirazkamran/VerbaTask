@@ -24,3 +24,12 @@ createRoot(document.getElementById('root')).render(
  </QueryClientProvider>
  </StrictMode>
 );
+
+// Immediately check for updates and clean up stale caches
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (const reg of registrations) {
+      reg.update();
+    }
+  });
+}

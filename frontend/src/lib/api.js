@@ -4,7 +4,6 @@ import { API_BASE_URL } from './config';
 const BASE_URL = API_BASE_URL;
 
 async function request(path, options = {}) {
-  const url = path.startsWith('http') ? path : `${BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
   const token = useAuthStore.getState().token;
 
   const headers = {
@@ -22,11 +21,34 @@ async function request(path, options = {}) {
     config.body = JSON.stringify(config.body);
   }
 
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  const primaryUrl = path.startsWith('http') ? path : `${BASE_URL}${cleanPath}`;
+
+  // Fallback candidate if primary fails
+  let fallbackUrl = null;
+  if (!path.startsWith('http')) {
+    if (BASE_URL.startsWith('http')) {
+      fallbackUrl = cleanPath; // Same-origin via Netlify proxy
+    } else {
+      fallbackUrl = `https://verbatask-api.mshiraz.com${cleanPath}`;
+    }
+  }
+
   let response;
   try {
-    response = await fetch(url, config);
-  } catch (networkError) {
-    throw new Error('Network error. Please check your backend connection.', { cause: networkError });
+    response = await fetch(primaryUrl, config);
+  } catch (primaryError) {
+    if (fallbackUrl && fallbackUrl !== primaryUrl) {
+      try {
+        response = await fetch(fallbackUrl, config);
+      } catch (fallbackError) {
+        console.error(`[API] Both ${primaryUrl} and fallback ${fallbackUrl} failed:`, fallbackError);
+        throw new Error('Network error. Please check your backend connection.', { cause: fallbackError });
+      }
+    } else {
+      console.error(`[API] Fetch to ${primaryUrl} failed:`, primaryError);
+      throw new Error('Network error. Please check your backend connection.', { cause: primaryError });
+    }
   }
 
   let json;

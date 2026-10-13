@@ -1,6 +1,9 @@
 import { Link } from 'react-router';
 import { Logo } from '../landing/Logo';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { LanguageToggle } from '../ui/LanguageToggle';
+import { useUiStore } from '../../lib/store';
+import { getTranslations } from '../../lib/translations';
 
 const TICKS = Array.from({ length: 48 }, (_, i) => {
   const t = i / 47;
@@ -13,24 +16,31 @@ const TICKS = Array.from({ length: 48 }, (_, i) => {
  * the form left-aligned on paper to the right. Phones get the form alone.
  */
 export function AuthLayout({ children, title, subtitle }) {
+  const language = useUiStore((s) => s.language);
+  const isUrdu = language === 'ur';
+  const t = getTranslations(language).auth;
+
   return (
-    <div className="grid min-h-screen min-h-[100dvh] bg-paper lg:grid-cols-12">
+    <div
+      className={`grid min-h-screen min-h-[100dvh] bg-paper lg:grid-cols-12 ${isUrdu ? 'font-urdu' : ''}`}
+      dir={isUrdu ? 'rtl' : 'ltr'}
+    >
       <aside className="relative hidden flex-col justify-between overflow-clip bg-ink p-10 text-paper lg:col-span-5 lg:flex xl:p-14 dark:border-r dark:border-rule dark:bg-paper-2 dark:text-ink">
         <Link to="/" className="self-start rounded-sm" title="Back to the VerbaTask site">
           <Logo className="!text-paper [--logo-accent:var(--color-pear)] dark:!text-ink dark:[--logo-accent:var(--color-primary)]" />
         </Link>
 
         <div>
-          <div className="flex h-16 items-end gap-[3px]" aria-hidden="true">
+          <div className="flex h-16 items-end gap-[3px]" dir="ltr" aria-hidden="true">
             {TICKS.map((h, i) => (
               <span key={i} className="flex-1 rounded-pill bg-pear" style={{ height: `${h}%`, opacity: 0.35 + (h / 100) * 0.65 }} />
             ))}
           </div>
           <p className="display mt-10 max-w-[13ch] text-[length:var(--fs-2xl)] xl:text-[length:var(--fs-3xl)]">
-            One voice note in. One ledger line out.
+            {t.bannerTitle}
           </p>
           <p className="mt-5 max-w-[26rem] text-sm leading-relaxed opacity-70">
-            Sales, stock and approvals for your shop, kept straight from the WhatsApp chat you already use.
+            {t.bannerSubtitle}
           </p>
         </div>
 
@@ -44,7 +54,10 @@ export function AuthLayout({ children, title, subtitle }) {
           <Link to="/" className="rounded-sm lg:invisible" title="Back to the VerbaTask site">
             <Logo />
           </Link>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
         </header>
 
         <main className="flex w-full max-w-[26rem] flex-1 flex-col justify-center py-10 sm:py-14">
