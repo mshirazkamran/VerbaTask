@@ -31,11 +31,11 @@ export function WhatsAppMock({ bubbles = [], label = 'Thread · VerbaTask', clas
                 ) : (
                   <span className="whitespace-pre-line">{b.text}</span>
                 )}
-                {b.sub && <span className="mt-1.5 block font-mono text-[11px] text-muted">{b.sub}</span>}
+                {b.sub && <span className="mt-1.5 block font-mono text-xs font-medium text-muted">{b.sub}</span>}
                 {b.time && (
-                  <span className={`mt-1 flex items-center justify-end gap-1 font-mono text-[10px] ${mine ? 'opacity-60' : 'text-muted'}`}>
+                  <span className={`mt-1 flex items-center justify-end gap-1 font-mono text-xs ${mine ? 'opacity-75' : 'text-muted'}`}>
                     {b.time}
-                    {mine && <CheckCheck className="size-3" />}
+                    {mine && <CheckCheck className="size-3.5" />}
                   </span>
                 )}
               </div>

@@ -636,18 +636,153 @@
   @keyframes reveal-reduced { to { opacity: 1; transform: none; } }
 }
 
-/* ─── RTL & Urdu Typography ────────────────────────────────────── */
+/* ─── RTL & Urdu Typography (Big, Bold & High Legibility) ────────── */
 
 [dir="rtl"] {
-  font-family: var(--font-body), "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
+  --font-label: "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
+  --tracking-display: 0em;
+  --tracking-label: 0em;
+  font-family: "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
+  line-height: 1.85;
+  font-size: 1.05rem;
+}
+
+[dir="rtl"] * {
+  letter-spacing: 0 !important;
+}
+
+[dir="rtl"] .uppercase {
+  text-transform: none !important;
+}
+
+[dir="rtl"] .font-mono,
+[dir="rtl"] code,
+[dir="rtl"] pre {
+  font-family: "Noto Sans Arabic", "JetBrains Mono", monospace;
+  letter-spacing: 0 !important;
 }
 
 [dir="rtl"] .display,
 [dir="rtl"] .font-display,
 [dir="rtl"] h1,
 [dir="rtl"] h2,
-[dir="rtl"] h3 {
-  font-family: var(--font-display), "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
+[dir="rtl"] h3,
+[dir="rtl"] h4 {
+  font-family: "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: 0 !important;
+  line-height: 1.45;
+}
+
+/* Make labels prominent, readable, and bold instead of microscopic monospace */
+[dir="rtl"] .label {
+  font-family: "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
+  font-size: 0.95rem !important; /* ~15.2px instead of 11px */
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  color: var(--color-ink) !important;
+  line-height: 1.6;
+}
+
+/* Adjust small text helpers for Arabic/Urdu scripts so dots & diacritics are clear */
+[dir="rtl"] .text-xs,
+[dir="rtl"] .text-\[10px\],
+[dir="rtl"] .text-\[11px\],
+[dir="rtl"] .text-\[12px\] {
+  font-size: 0.875rem !important; /* 14px */
+  line-height: 1.65;
+  font-weight: 600;
+}
+
+[dir="rtl"] .text-sm,
+[dir="rtl"] .text-\[13px\] {
+  font-size: 1rem !important; /* 16px */
+  line-height: 1.75;
+  font-weight: 500;
+}
+
+[dir="rtl"] .text-base {
+  font-size: 1.125rem !important; /* 18px */
+  line-height: 1.85;
+}
+
+[dir="rtl"] .text-lg {
+  font-size: 1.25rem !important; /* 20px */
+  line-height: 1.9;
+  font-weight: 500;
+}
+
+/* Navigation items */
+[dir="rtl"] nav a {
+  font-size: 1rem;
+  font-weight: 700;
   letter-spacing: 0;
 }
+
+/* Interactive Action Buttons */
+[dir="rtl"] .btn {
+  font-family: "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
+  font-size: 1.025rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+[dir="rtl"] .btn--lg {
+  font-size: 1.125rem;
+  padding-block: 0.85rem;
+  padding-inline: 1.6rem;
+}
+
+[dir="rtl"] .btn--sm {
+  font-size: 0.925rem;
+  font-weight: 700;
+}
+
+/* Stats list dd numbers and labels */
+[dir="rtl"] dt.label {
+  font-size: 0.925rem !important;
+  font-weight: 700 !important;
+  color: var(--color-ink-2) !important;
+}
+
+[dir="rtl"] dd {
+  font-weight: 800 !important;
+  font-size: 1.25rem !important;
+}
+
+/* Urdu highlighter adjustment so color sits nicely behind the word */
+[dir="rtl"] .hl {
+  background-size: 100% 0.42em;
+  background-position: 0 82%;
+  padding-inline: 0.15em;
+}
+
+/* Audio meter strip labels */
+[dir="rtl"] aside[aria-label="Voice note readout"] .label {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  color: var(--color-ink) !important;
+}
+
+/* Voice ledger hero preview & callouts */
+[dir="rtl"] figure[aria-label="A voice note becoming a ledger entry"] .label {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  color: var(--color-ink) !important;
+}
+
+[dir="rtl"] figure[aria-label="A voice note becoming a ledger entry"] p {
+  font-size: 1.025rem;
+  font-weight: 600;
+  line-height: 1.7;
+}
+
+[dir="rtl"] figure[aria-label="A voice note becoming a ledger entry"] dl {
+  font-size: 0.975rem;
+  font-weight: 600;
+}
+
 

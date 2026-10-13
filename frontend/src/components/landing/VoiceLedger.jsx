@@ -107,7 +107,7 @@ export function VoiceLedger() {
           </div>
         </div>
 
-        <p className="mt-4 border-t border-dashed border-rule-2 pt-3 text-sm text-ink-2">
+        <p className="mt-4 border-t border-dashed border-rule-2 pt-3 text-sm font-medium text-ink-2">
           {t.noteTranscript}
         </p>
       </div>
@@ -123,8 +123,8 @@ export function VoiceLedger() {
         style={{ transitionTimingFunction: 'var(--ease-out)' }}
       >
         <div className="flex items-center justify-between">
-          <span className="label">{t.orderNum}</span>
-          <span className="rounded-pill bg-pear px-2 py-0.5 text-[11px] font-semibold text-on-pear">{t.logged}</span>
+          <span className="label font-bold">{t.orderNum}</span>
+          <span className="rounded-pill bg-pear px-2.5 py-0.5 text-xs font-bold text-on-pear">{t.logged}</span>
         </div>
         <dl className="mt-3 space-y-1.5 font-tabular">
           <div className="flex justify-between gap-3">
@@ -160,7 +160,7 @@ function Callout({ top, text }) {
     >
       <span className="h-px w-7 bg-rule-2" />
       <span className="size-1.5 rounded-pill bg-primary" />
-      <span className="label whitespace-nowrap">{text}</span>
+      <span className="label whitespace-nowrap font-bold text-ink">{text}</span>
     </li>
   );
 }
