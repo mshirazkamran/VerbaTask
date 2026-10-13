@@ -662,61 +662,71 @@ export function SettingsPage() {
             </div>
 
             {/* Shop Code Display & Sharing Box */}
-            <div className="rounded-xl border border-hairline bg-paper-2/50 p-5 sm:p-6 mb-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted">Your Shop Reference Code</span>
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-3xl font-bold tracking-wider text-primary-deep dark:text-primary">
-                      {staffData?.shopCode || profile?.shopCode || 'VT-....'}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleCopyCode(staffData?.shopCode || profile?.shopCode)}
-                      leftIcon={<Copy className="w-3.5 h-3.5" />}
-                    >
-                      Copy Code
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleRegenerateCode}
-                      loading={regenerateCodeMutation.isPending}
-                      className="text-xs text-muted hover:text-ink"
-                      title="Generate a new reference code"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                    </Button>
+            {/* Shop Reference Code Card */}
+            {(() => {
+              const effectiveShopCode =
+                staffData?.shopCode ||
+                profile?.shopCode ||
+                `VT-${(profile?._id || profile?.id || '1098').slice(-4).toUpperCase()}`;
+
+              return (
+                <div className="rounded-xl border border-hairline bg-paper-2/50 p-5 sm:p-6 mb-6">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted">Your Shop Reference Code</span>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-3xl font-bold tracking-wider text-primary-deep dark:text-primary">
+                          {effectiveShopCode}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCopyCode(effectiveShopCode)}
+                          leftIcon={<Copy className="w-3.5 h-3.5" />}
+                        >
+                          Copy Code
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleRegenerateCode}
+                          loading={regenerateCodeMutation.isPending}
+                          className="text-xs text-muted hover:text-ink"
+                          title="Generate a new reference code"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2.5">
+                      <Button
+                        type="button"
+                        variant="primary"
+                        onClick={() => handleShareInvite(effectiveShopCode)}
+                        leftIcon={<WhatsAppIcon className="w-4 h-4 fill-current" />}
+                      >
+                        Invite Assistant via WhatsApp
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Instructions banner */}
+                  <div className="mt-4 pt-4 border-t border-hairline/60 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-muted">
+                    <div className="flex items-start gap-2">
+                      <span className="font-bold text-ink">1. How staff join:</span>
+                      <span>Assistant texts <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {effectiveShopCode} Ali</code> to the VerbaTask WhatsApp bot.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="font-bold text-ink">2. How sales work:</span>
+                      <span>Any voice note or text they send records an order under your shop with their name tagged.</span>
+                    </div>
                   </div>
                 </div>
-
-                <div className="flex flex-col sm:flex-row gap-2.5">
-                  <Button
-                    type="button"
-                    variant="primary"
-                    onClick={() => handleShareInvite(staffData?.shopCode || profile?.shopCode)}
-                    leftIcon={<WhatsAppIcon className="w-4 h-4 fill-current" />}
-                  >
-                    Invite Assistant via WhatsApp
-                  </Button>
-                </div>
-              </div>
-
-              {/* Instructions banner */}
-              <div className="mt-4 pt-4 border-t border-hairline/60 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-muted">
-                <div className="flex items-start gap-2">
-                  <span className="font-bold text-ink">1. How staff join:</span>
-                  <span>Assistant texts <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {staffData?.shopCode || 'VT-XXXX'} Ali</code> to the VerbaTask WhatsApp bot.</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="font-bold text-ink">2. How sales work:</span>
-                  <span>Any voice note or text they send records an order under your shop with their name tagged.</span>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Quick Add Form */}
             <form onSubmit={handleAddStaff} className="rounded-xl border border-hairline bg-paper p-4 sm:p-5 mb-6">
@@ -764,7 +774,7 @@ export function SettingsPage() {
                 </span>
               </div>
 
-              {staffLoading ? (
+              {staffLoading && !staffData ? (
                 <div className="space-y-2">
                   <Skeleton className="h-14 w-full" />
                   <Skeleton className="h-14 w-full" />

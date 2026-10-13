@@ -17,6 +17,7 @@ import { useGenerateReport } from '../hooks/useDashboard';
 import { useMerchant } from '../hooks/useMerchant';
 import { useUiStore } from '../lib/store';
 import { api } from '../lib/api';
+import { generateClientReportPdf } from '../lib/pdfReportGenerator';
 
 const REPORTS = [
   {
@@ -90,7 +91,12 @@ export function ReportDropdown() {
       setDownloadingType(type);
       toast.info(isUrdu ? `${label} ڈاؤن لوڈ ہو رہی ہے...` : `Preparing ${label} PDF...`);
       const dateStr = new Date().toISOString().slice(0, 10);
-      await api.download(`/api/reports/download/${type}`, `${type}_report_${dateStr}.pdf`);
+      try {
+        await api.download(`/api/reports/download/${type}`, `${type}_report_${dateStr}.pdf`);
+      } catch (dlErr) {
+        console.warn('Server download route not available, generating client PDF:', dlErr.message);
+        await generateClientReportPdf(type, merchant);
+      }
       toast.success(isUrdu ? `${label} پی ڈی ایف محفوظ ہو گئی!` : `${label} PDF downloaded successfully!`);
     } catch (err) {
       console.error('Download report error:', err);
