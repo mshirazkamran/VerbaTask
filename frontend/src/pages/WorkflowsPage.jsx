@@ -11,6 +11,7 @@ import {
   Bell,
   Zap,
   Info,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -183,26 +184,47 @@ function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <fieldset className="flex flex-col gap-1.5">
+        <legend className="mb-1.5 text-xs font-medium text-ink-secondary">{t.actionLabel}</legend>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            ['notify', Bell, isUrdu ? 'الرٹ بھیجیں' : 'Send alert'],
+            ['send_report', FileText, isUrdu ? 'رپورٹ بھیجیں' : 'Send report'],
+          ].map(([value, Icon, label]) => (
+            <label
+              key={value}
+              className={`flex h-11 cursor-pointer items-center justify-center gap-2 rounded-sm border px-3 text-sm font-medium transition-colors has-focus-visible:ring-2 has-focus-visible:ring-primary/20 ${
+                form.actionType === value
+                  ? 'border-primary bg-primary-tint text-primary-deep dark:text-primary'
+                  : 'border-hairline-input bg-canvas text-ink-2 hover:bg-canvas-soft'
+              }`}
+            >
+              <input
+                type="radio"
+                name="actionType"
+                value={value}
+                checked={form.actionType === value}
+                onChange={handleChange}
+                className="sr-only"
+              />
+              <Icon className="size-4 shrink-0" />
+              {label}
+            </label>
+          ))}
+        </div>
+        <p className="text-xs text-ink-mute">{isUrdu ? 'واٹس ایپ پر بھیجا جائے گا' : 'Sent to you on WhatsApp'}</p>
+      </fieldset>
+
+      {form.actionType === 'send_report' && (
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-ink-secondary">{t.actionLabel}</label>
-          <select name="actionType" value={form.actionType} onChange={handleChange} className={selectClass}>
-            <option value="notify">{t.sendWhatsAppNotif}</option>
-            <option value="send_report">{isUrdu ? 'واٹس ایپ پر رپورٹ بھیجیں' : 'Send WhatsApp report'}</option>
+          <label className="text-xs font-medium text-ink-secondary">{isUrdu ? 'کون سی رپورٹ' : 'Which report'}</label>
+          <select name="reportType" value={form.reportType} onChange={handleChange} className={selectClass}>
+            {REPORTS.map(([value, en, ur]) => (
+              <option key={value} value={value}>{isUrdu ? ur : en}</option>
+            ))}
           </select>
         </div>
-
-        {form.actionType === 'send_report' && (
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-ink-secondary">{isUrdu ? 'رپورٹ' : 'Report'}</label>
-            <select name="reportType" value={form.reportType} onChange={handleChange} className={selectClass}>
-              {REPORTS.map(([value, en, ur]) => (
-                <option key={value} value={value}>{isUrdu ? ur : en}</option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
+      )}
 
       {form.actionType === 'notify' && (
         <Input
