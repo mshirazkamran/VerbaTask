@@ -1,0 +1,2 @@
+/api/*  https://verbatask-api.mshiraz.com/api/:splat  200!
+/*      /index.html                                   200
