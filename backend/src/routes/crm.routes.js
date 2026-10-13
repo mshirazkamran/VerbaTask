@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/requireAuth.js';
 import {
     getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem,
-    getOrders, getOrderById, createOrder, sendReportToWhatsapp
+    getOrders, getOrderById, createOrder, sendReportToWhatsapp, downloadReportPdf
 } from '../controllers/crm.controller.js';
 
 const router = Router();
@@ -20,5 +20,6 @@ router.get('/orders/:id', getOrderById);
 router.post('/orders', createOrder);
 
 router.post('/reports/whatsapp', sendReportToWhatsapp);
+router.get('/reports/download/:type', downloadReportPdf);
 
 export default router;

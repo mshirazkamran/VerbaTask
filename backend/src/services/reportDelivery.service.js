@@ -45,10 +45,11 @@ export async function deliverReport(merchant, reportType, language = 'ur', { ann
       report.filename,
       caption || (en ? 'Here is your requested report! 📄' : 'یہ رہی آپ کی رپورٹ! 📄')
     );
-    return true;
+    return { success: true, filename: report.filename };
   } catch (err) {
-    console.error('Report generation failed:', err);
+    const errorDetails = err.response?.data?.error?.message || err.message;
+    console.error('Report generation failed:', errorDetails);
     await send(en ? 'Sorry, something went wrong while generating your report.' : 'معذرت، رپورٹ تیار کرنے میں کچھ مسئلہ پیش آیا۔');
-    return false;
+    return { success: false, error: errorDetails };
   }
 }

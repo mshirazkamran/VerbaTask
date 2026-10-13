@@ -14,6 +14,7 @@ import {
 } from '../services/report.service.js';
 import { invalidateMerchantCatalog } from '../services/catalogCache.service.js';
 import { evaluateThresholdWorkflows } from '../workflows/workflow.service.js';
+import { deliverReport } from '../services/reportDelivery.service.js';
 
 // Stock edited from the dashboard — fire or re-arm low-stock automations.
 const checkThresholds = (merchantId, item) =>
@@ -156,10 +157,52 @@ export const sendReportToWhatsapp = async (req, res) => {
             return res.status(404).json({ success: false, error: { message: 'Merchant not found' } });
         }
 
+        if (!merchant.whatsappNumber || merchant.whatsappNumber.startsWith('unlinked_')) {
+            return res.status(400).json({
+                success: false,
+                error: {
+                    message: 'No WhatsApp number is linked to this account. Please link your WhatsApp in Settings or click Download PDF.'
+                }
+            });
+        }
+
         const { reportType } = req.body;
+        const result = await deliverReport(merchant, reportType, merchant.language || 'ur', { announce: true });
+
+        if (!result || result.success === false) {
+            const errDetail = result?.error ? ` (${result.error})` : '';
+            return res.status(500).json({
+                success: false,
+                error: { message: `Failed to deliver report to WhatsApp${errDetail}. Please try again or download the PDF directly.` }
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: {
+                message: `Report sent to WhatsApp (+${merchant.whatsappNumber})`,
+                recipient: merchant.whatsappNumber,
+            },
+            message: `Report sent to WhatsApp (+${merchant.whatsappNumber})`,
+            recipient: merchant.whatsappNumber
+        });
+    } catch (error) {
+        console.error('sendReportToWhatsapp failed:', error);
+        res.status(500).json({ success: false, error: { message: error.message } });
+    }
+};
+
+export const downloadReportPdf = async (req, res) => {
+    try {
+        const merchant = await Merchant.findById(req.merchantId);
+        if (!merchant) {
+            return res.status(404).json({ success: false, error: { message: 'Merchant not found' } });
+        }
+
+        const { type } = req.params;
         let report;
 
-        switch (reportType) {
+        switch (type) {
             case 'low_stock':
                 report = await generateLowStockReport(merchant);
                 break;
@@ -178,18 +221,12 @@ export const sendReportToWhatsapp = async (req, res) => {
                 break;
         }
 
-        const { id: mediaId } = await uploadMedia(report.buffer, 'application/pdf', report.filename);
-        
-        await sendDocumentMessage(
-            merchant.whatsappNumber,
-            mediaId,
-            report.filename,
-            merchant.language === 'en' ? 'Here is your requested report! 📄' : 'یہ رہی آپ کی رپورٹ! 📄'
-        );
-
-        res.status(200).json({ success: true, message: 'Report sent to WhatsApp' });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${report.filename}"`);
+        res.setHeader('Content-Length', report.buffer.length);
+        return res.end(report.buffer);
     } catch (error) {
-        console.error('sendReportToWhatsapp failed:', error);
-        res.status(500).json({ success: false, error: { message: error.message } });
+        console.error('downloadReportPdf failed:', error);
+        return res.status(500).json({ success: false, error: { message: error.message } });
     }
 };

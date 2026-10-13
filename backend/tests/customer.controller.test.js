@@ -1,6 +1,12 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { getCustomers, settleBalance } from '../src/controllers/customer.controller.js';
+import {
+  getCustomers,
+  createCustomer,
+  updateCustomer,
+  deleteCustomer,
+  settleBalance,
+} from '../src/controllers/customer.controller.js';
 import Customer from '../src/models/Customer.js';
 
 describe('Customer Controller Tests', () => {
@@ -83,4 +89,102 @@ describe('Customer Controller Tests', () => {
     assert.equal(statusCode, 400);
     assert.equal(mockResponse.success, false);
   });
+
+  test('createCustomer creates a new customer entry', async () => {
+    let mockResponse = {};
+    let statusCode = 200;
+    const req = {
+      merchantId: 'merchant_123',
+      body: { name: 'Hamza', phone: '03001234567', balance: 1500 }
+    };
+    const res = {
+      status: (code) => { statusCode = code; return res; },
+      json: (data) => { mockResponse = data; }
+    };
+
+    const origFindOne = Customer.findOne;
+    const origCreate = Customer.create;
+
+    Customer.findOne = async () => null; // No duplicate
+    Customer.create = async (doc) => ({
+      _id: 'cust_new',
+      ...doc
+    });
+
+    try {
+      await createCustomer(req, res);
+      assert.equal(statusCode, 201);
+      assert.equal(mockResponse.success, true);
+      assert.equal(mockResponse.data.name, 'hamza');
+      assert.equal(mockResponse.data.balance, 1500);
+    } finally {
+      Customer.findOne = origFindOne;
+      Customer.create = origCreate;
+    }
+  });
+
+  test('updateCustomer modifies existing customer details', async () => {
+    let mockResponse = {};
+    const req = {
+      merchantId: 'merchant_123',
+      params: { id: 'cust_123' },
+      body: { name: 'Hamza Updated', balance: 2000 }
+    };
+    const res = {
+      status: () => res,
+      json: (data) => { mockResponse = data; }
+    };
+
+    const origFindOne = Customer.findOne;
+    let callCount = 0;
+    Customer.findOne = async (query) => {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          _id: 'cust_123',
+          merchantId: 'merchant_123',
+          name: 'hamza',
+          balance: 1500,
+          save: async function() {}
+        };
+      }
+      return null; // No name collision
+    };
+
+    try {
+      await updateCustomer(req, res);
+      assert.equal(mockResponse.success, true);
+      assert.equal(mockResponse.data.name, 'hamza updated');
+      assert.equal(mockResponse.data.balance, 2000);
+    } finally {
+      Customer.findOne = origFindOne;
+    }
+  });
+
+  test('deleteCustomer removes customer from ledger', async () => {
+    let mockResponse = {};
+    const req = {
+      merchantId: 'merchant_123',
+      params: { id: 'cust_123' }
+    };
+    const res = {
+      status: () => res,
+      json: (data) => { mockResponse = data; }
+    };
+
+    const origFindOneAndDelete = Customer.findOneAndDelete;
+    Customer.findOneAndDelete = async (query) => ({
+      _id: query._id,
+      name: 'hamza'
+    });
+
+    try {
+      await deleteCustomer(req, res);
+      assert.equal(mockResponse.success, true);
+      assert.equal(mockResponse.message, 'Customer deleted from ledger');
+    } finally {
+      Customer.findOneAndDelete = origFindOneAndDelete;
+    }
+  });
 });
+
