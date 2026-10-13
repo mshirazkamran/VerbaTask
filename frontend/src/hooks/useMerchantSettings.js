@@ -78,3 +78,46 @@ export function useResendPhoneChangeCode() {
       api.post('/api/merchant/phone/resend-code', { newPhoneNumber }),
   });
 }
+
+export function useStaffMembers() {
+  const token = useAuthStore((state) => state.token);
+  return useQuery({
+    queryKey: queryKeys.staff(),
+    queryFn: () => api.get('/api/merchant/staff'),
+    enabled: !!token,
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useAddStaffMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload) => api.post('/api/merchant/staff', payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.staff() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
+    },
+  });
+}
+
+export function useRemoveStaffMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (staffId) => api.delete(`/api/merchant/staff/${staffId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.staff() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
+    },
+  });
+}
+
+export function useRegenerateShopCode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post('/api/merchant/shop-code/regenerate'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.staff() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
+    },
+  });
+}

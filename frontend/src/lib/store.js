@@ -84,9 +84,13 @@ if (typeof localStorage !== 'undefined') {
 const initialTheme = typeof localStorage !== 'undefined' ? (localStorage.getItem(THEME_KEY) || 'system') : 'dark';
 applyTheme(initialTheme);
 
+const LANG_KEY = 'verbatask_language';
+const initialLang = typeof localStorage !== 'undefined' ? (localStorage.getItem(LANG_KEY) || 'en') : 'en';
+
 export const useUiStore = create((set) => ({
   sidebarCollapsed: false,
   theme: initialTheme,
+  language: initialLang,
 
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
@@ -96,4 +100,16 @@ export const useUiStore = create((set) => ({
     applyTheme(theme);
     set({ theme });
   },
+
+  setLanguage: (language) => {
+    localStorage.setItem(LANG_KEY, language);
+    set({ language });
+  },
+
+  toggleLanguage: () =>
+    set((state) => {
+      const next = state.language === 'ur' ? 'en' : 'ur';
+      localStorage.setItem(LANG_KEY, next);
+      return { language: next };
+    }),
 }));

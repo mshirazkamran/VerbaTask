@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import {
   Mail,
@@ -18,6 +18,7 @@ import { api } from '../lib/api';
 
 export function ForgotPasswordPage() {
  const navigate = useNavigate();
+ const [searchParams] = useSearchParams();
 
  // Flow states: 'request' (enter email/phone) | 'verify' (enter code & new password)
  const [step, setStep] = useState('request');
@@ -27,6 +28,17 @@ export function ForgotPasswordPage() {
  const [code, setCode] = useState('');
  const [newPassword, setNewPassword] = useState('');
  const [confirmPassword, setConfirmPassword] = useState('');
+
+ useEffect(() => {
+   const urlCode = searchParams.get('code');
+   const urlIdentifier = searchParams.get('identifier');
+   if (urlCode && urlCode.length === 6) {
+     setCode(urlCode);
+     if (urlIdentifier) setIdentifier(urlIdentifier);
+     setStep('verify');
+     toast.info('Verification code pre-filled from WhatsApp link');
+   }
+ }, [searchParams]);
 
  const [loading, setLoading] = useState(false);
  const [resending, setResending] = useState(false);

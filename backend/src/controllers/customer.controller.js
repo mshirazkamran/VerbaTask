@@ -1,4 +1,5 @@
 import Customer from '../models/Customer.js';
+import { emitDashboardUpdate } from '../socket.js';
 
 export async function getCustomers(req, res) {
   try {
@@ -24,6 +25,15 @@ export async function settleBalance(req, res) {
 
     customer.balance = Math.max(0, customer.balance - amountNum);
     await customer.save();
+
+    emitDashboardUpdate(req.merchantId, {
+      type: 'customer',
+      action: 'settle',
+      customerId: customer._id,
+      customerName: customer.name,
+      amount: amountNum,
+      balance: customer.balance,
+    });
 
     res.json({ success: true, data: customer });
   } catch (err) {

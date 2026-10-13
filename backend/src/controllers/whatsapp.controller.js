@@ -2,6 +2,10 @@ import Merchant from '../models/Merchant.js';
 import InventoryItem from '../models/InventoryItem.js';
 import ConversationState from '../models/ConversationState.js';
 import Workflow from '../models/Workflow.js';
+import Customer from '../models/Customer.js';
+import Order from '../models/Order.js';
+import PasswordResetCode from '../models/PasswordResetCode.js';
+import crypto from 'crypto';
 
 import { createOrder } from '../crm/order.service.js';
 import { restockItemViaCrm, checkStockViaCrm, getStockListSummary, updateItemPriceViaCrm } from '../crm/inventory.service.js';
@@ -9,6 +13,7 @@ import { evaluateMessageWorkflows, prepareWorkflow, createWorkflow, WorkflowVali
 import { describeWorkflow, explainWorkflowError, capabilitiesText } from '../workflows/workflow.rules.js';
 import { respond as respondToApproval, findPendingByOrderId } from '../approvals/approval.service.js';
 import { generateLinkCode } from './auth.controller.js';
+import { getStaffLimit } from './merchant.controller.js';
 import { emitDashboardUpdate } from '../socket.js';
 import { parseIntent, extractBusinessDetails, extractInventoryItems, resolveItemName } from '../services/qwen.service.js';
 import { findSimilarInventoryItems, cleanAndStandardizeItemName } from '../crm/item-matching.js';
@@ -81,7 +86,11 @@ async function sendInteractiveList(to, body, buttonText, sections) {
  * Respects merchant preferences (replyPreference) and environment configuration.
  */
 function shouldReplyWithVoice(merchant, source) {
-  // Hard-disabled to save WhatsApp credits. Text-only bot responses.
+  if (!merchant || merchant.voiceReplies === false) return false;
+  const pref = merchant.replyPreference || 'voice_on_voice';
+  if (pref === 'text_only') return false;
+  if (pref === 'always_voice') return true;
+  if (pref === 'voice_on_voice') return source === 'audio';
   return false;
 }
 
@@ -90,13 +99,19 @@ function shouldReplyWithVoice(merchant, source) {
  * or text message if text was used.
  */
 async function replyToMerchant(merchant, phrases, source = 'text', languageOverride = null) {
+  const recipient = merchant?._replyToNumber || merchant?.whatsappNumber;
   const language = languageOverride || merchant?.language || 'ur';
-  const spokenText = typeof phrases === 'string' ? phrases : phrases?.spoken || phrases?.text;
-  const textReceipt = typeof phrases === 'string' ? phrases : phrases?.text;
+  let spokenText = typeof phrases === 'string' ? phrases : phrases?.spoken || phrases?.text;
+  let textReceipt = typeof phrases === 'string' ? phrases : phrases?.text;
+
+  // If order was logged by a staff member, append staff tag
+  if (merchant?._staffMember && textReceipt && (textReceipt.includes('✅') || textReceipt.includes('آرڈر #') || textReceipt.includes('Order #'))) {
+    textReceipt += `\n\n👤 *Salesperson:* ${merchant._staffMember.name}`;
+  }
 
   if (shouldReplyWithVoice(merchant, source)) {
     const isReceipt = !!(textReceipt && (textReceipt.includes('✅') || textReceipt.includes('آرڈر #')));
-    return sendVoiceReply(merchant.whatsappNumber, {
+    return sendVoiceReply(recipient, {
       spokenText,
       textReceipt: isReceipt ? textReceipt : null,
       language,
@@ -104,7 +119,7 @@ async function replyToMerchant(merchant, phrases, source = 'text', languageOverr
     });
   }
 
-  return sendTextMessage(merchant.whatsappNumber, textReceipt);
+  return sendTextMessage(recipient, textReceipt);
 }
 
 function friendlyFallback(err, language = 'ur') {
@@ -160,17 +175,158 @@ export async function handleIncomingMessage(req, res) {
     if (alreadyProcessed(message.id)) return;
 
     const from = message.from; // WhatsApp number, no '+' prefix
-    const merchant = await Merchant.findOne({ whatsappNumber: from });
+    let merchant = await Merchant.findOne({ whatsappNumber: from });
+    let staffMember = null;
+
+    if (!merchant) {
+      // Check if this number is an active staff member for any store
+      const staffOwner = await Merchant.findOne({
+        'staffMembers.whatsappNumber': from,
+        'staffMembers.active': true,
+      });
+
+      if (staffOwner) {
+        merchant = staffOwner;
+        staffMember = staffOwner.staffMembers.find((s) => s.whatsappNumber === from && s.active);
+      }
+    }
+
+    if (!merchant) {
+      // Check if this message is attempting to join a shop via reference code
+      const rawText = message.text?.body?.trim() || '';
+      const joinHandled = await handleStaffJoinFlow(from, rawText);
+      if (joinHandled) return;
+
+      return await handleUnregisteredNumber(from);
+    }
+
+    // Attach staff context if message is from a linked assistant
+    if (staffMember) {
+      merchant._staffMember = staffMember;
+      merchant._replyToNumber = from;
+    }
 
     // `return await` throughout — a bare `return promise()` would let a
     // rejection skip this catch entirely and surface as an unhandled
     // rejection (which kills the Node process by default).
-    if (!merchant) return await handleUnregisteredNumber(from);
     if (!merchant.onboardingComplete) return await handleOnboarding(merchant, message);
     return await handleOnboardedMerchant(merchant, message);
   } catch (err) {
     console.error('handleIncomingMessage error:', err);
   }
+}
+
+/**
+ * Handles an unregistered WhatsApp number attempting to join a shop via Shop Code.
+ * (e.g. "join VT-1234 Ali", "shamil VT-1234 Ali", "join VT1234")
+ */
+async function handleStaffJoinFlow(from, text) {
+  if (!text) return false;
+
+  const joinMatch = text.match(/^(?:join|shamil|connect|شامل|جوائن)\s+([a-zA-Z0-9-]+)(?:\s+(.+))?$/i);
+  if (!joinMatch) return false;
+
+  const rawCode = joinMatch[1].trim().toUpperCase();
+  const staffName = (joinMatch[2] || '').trim();
+
+  const codeWithoutDash = rawCode.replace(/-/g, '');
+  const codeRegex = new RegExp(`^VT[-]?${codeWithoutDash.replace(/^VT/i, '')}$`, 'i');
+
+  const merchant = await Merchant.findOne({
+    $or: [
+      { shopCode: new RegExp(`^${rawCode}$`, 'i') },
+      { shopCode: codeRegex },
+    ],
+  });
+
+  if (!merchant) {
+    await sendTextMessage(
+      from,
+      `❌ *Ghalat Shop Code*\n\nYeh shop code (*${rawCode}*) kisi dukaan se match nahi karta. Barah-e-karam dukaan k malik se sahi Shop Reference Code lein.`
+    );
+    return true;
+  }
+
+  // Owner cannot join their own store as staff
+  if (merchant.whatsappNumber === from) {
+    await sendTextMessage(
+      from,
+      `Aap is dukaan (*${merchant.businessName || 'Dukaan'}*) ke malik hain! Aap pehle se is account par full access rakhte hain.`
+    );
+    return true;
+  }
+
+  // Check plan limits
+  const tier = merchant.subscriptionTier || 'pro';
+  const limit = getStaffLimit(tier);
+  const activeStaff = (merchant.staffMembers || []).filter((s) => s.active);
+
+  // Check if already registered
+  const existingIndex = (merchant.staffMembers || []).findIndex((s) => s.whatsappNumber === from);
+  if (existingIndex >= 0) {
+    const existing = merchant.staffMembers[existingIndex];
+    if (existing.active) {
+      await sendTextMessage(
+        from,
+        `✅ Aap pehle se *${merchant.businessName || 'Dukaan'}* ke staff member (*${existing.name}*) hain.\n\nAap kisi bhi waqt sales, stock, ya hisab voice note ya text k zariye darj kar sakte hain.`
+      );
+      return true;
+    } else {
+      // Reactivate
+      existing.active = true;
+      if (staffName) existing.name = staffName;
+      await merchant.save();
+      emitDashboardUpdate(merchant._id, { type: 'staff', action: 'reactivated', staffMember: existing });
+      await sendTextMessage(
+        from,
+        `🎉 Mubarak! Aap ka account *${merchant.businessName || 'Dukaan'}* ke sath dobara active kar diya gaya hai.`
+      );
+      return true;
+    }
+  }
+
+  if (activeStaff.length >= limit) {
+    await sendTextMessage(
+      from,
+      `⚠️ *Staff Limit Reached*\n\nIs dukaan par staff members ki hadd (${limit}) mukammal ho chuki hai. Dukaan k malik se bolein ke VerbaTask Pro plan upgrade karein.`
+    );
+    return true;
+  }
+
+  const finalName = staffName || 'Assistant';
+  merchant.staffMembers.push({
+    name: finalName,
+    whatsappNumber: from,
+    active: true,
+    addedAt: new Date(),
+    addedBy: 'whatsapp_code',
+  });
+
+  await merchant.save();
+
+  // Notify assistant
+  await sendTextMessage(
+    from,
+    `🎉 *Mubarak! Aap VerbaTask Team mein shamil ho gaye hain!*\n\n🏪 Dukaan: *${merchant.businessName || 'Store'}*\n👤 Naam: *${finalName}*\n\nAb aap yahan se direct sales, inventory check, aur udhaar darj kar sakte hain. Shuru karne ke liye koi bhi sale bolain ya likhein (maslan: *2 doodh 400* ya *ali ne 500 udhaar liye*).`
+  );
+
+  // Notify store owner
+  try {
+    await sendTextMessage(
+      merchant.whatsappNumber,
+      `🔔 *Naya Staff Member Connected!*\n\n👤 *${finalName}* (${from}) aapki dukaan se connect ho gaya hai.\nAb unki tamam sales aur entries aapke store ledger aur dashboard par synced hongi.`
+    );
+  } catch (e) {
+    console.warn('Failed to notify merchant owner of new staff join:', e.message);
+  }
+
+  emitDashboardUpdate(merchant._id, {
+    type: 'staff',
+    action: 'joined',
+    staffMember: { name: finalName, whatsappNumber: from },
+  });
+
+  return true;
 }
 
 /**
@@ -604,7 +760,7 @@ async function handleTextMessage(merchant, text) {
   }
 
   // Voice toggle
-  const voiceMatch = text.match(/^voice\s+(on|off)$/i) || text.match(/^وائس\s+(آن|بند|اف)$/i);
+  const voiceMatch = text.match(/^(?:voice|voice\s*reply|voice\s*note|awaz|aawaz)\s+(on|off)$/i) || text.match(/^(?:وائس|آواز)\s*(?:جواب)?\s+(آن|بند|اف)$/i);
   if (voiceMatch) {
     const isVoiceOn = /^(on|آن)$/i.test(voiceMatch[1]);
     merchant.voiceReplies = isVoiceOn;
@@ -672,6 +828,69 @@ async function handleTextMessage(merchant, text) {
       { id: 'set_lang_ur', title: 'اردو' },
       { id: 'set_lang_en', title: 'English' },
     ]);
+  }
+
+  // 9. Daily Hisab / Sales Summary (e.g. "aaj ka hisab", "today summary", "daily sales", "آج کا حساب")
+  if (/^(?:aaj\s*ka\s*hisab|today\s*summary|daily\s*sales|daily\s*report|آج\s*کا\s*حساب|آج\s*کی\s*سیل)$/i.test(normalized)) {
+    return await handleDailyHisab(merchant);
+  }
+
+  // 10. Low Stock Check (e.g. "low stock", "kam maal", "کم اسٹاک", "کم مال")
+  if (/^(?:low\s*stock|kam\s*maal|کم\s*اسٹاک|کم\s*مال)$/i.test(normalized)) {
+    return await handleLowStockCheck(merchant);
+  }
+
+  // 11. Forgot Password via WhatsApp (e.g. "forgot password", "reset password", "password bhool gaya", "پاسورڈ بھول گیا")
+  if (/^(?:forgot\s*password|reset\s*password|password\s*(?:bhool|change|reset)|پاسورڈ\s*(?:بھول|ری\s*سیٹ))$/i.test(normalized)) {
+    return await handleForgotPassword(merchant);
+  }
+
+  // 12. Khata Settlement via WhatsApp (e.g. "ali ne 500 diye", "settle 500 ali", "ali paid 500", "علی نے 500 دیے")
+  const settleMatch1 = text.match(/^([a-zA-Z\s\u0600-\u06FF-]+?)\s+(?:ne\s*)?(\d+)\s*(?:rupay|rs|روپے)?\s*(?:diye|jama|wapis|de\s*diye|paid|settle)$/i);
+  const settleMatch2 = text.match(/^(?:settle|jama)\s*(\d+)\s+([a-zA-Z\s\u0600-\u06FF-]+)$/i);
+  if (settleMatch1) {
+    return await handleKhataSettle(merchant, settleMatch1[1], settleMatch1[2]);
+  } else if (settleMatch2) {
+    return await handleKhataSettle(merchant, settleMatch2[2], settleMatch2[1]);
+  }
+
+  // 13. Khata Inquiry via WhatsApp (e.g. "ali ka khata", "check khata ali", "ali ka kitna baqi hai", "علی کا کھاتہ")
+  const khataCheckMatch1 = text.match(/^(?:check\s*khata|khata|udhar|udhaar|باقی|کھاتہ)\s+([a-zA-Z\s\u0600-\u06FF-]+)$/i);
+  const khataCheckMatch2 = text.match(/^([a-zA-Z\s\u0600-\u06FF-]+)\s+(?:ka\s*khata|ka\s*kitna\s*(?:baqi|hai)|کے\s*کتنے\s*باقی|کا\s*ادھار)$/i);
+  if (khataCheckMatch1) {
+    return await handleKhataInquiry(merchant, khataCheckMatch1[1]);
+  } else if (khataCheckMatch2) {
+    return await handleKhataInquiry(merchant, khataCheckMatch2[1]);
+  }
+
+  // 14. Shop Reference Code (e.g. "shop code", "dukaan code", "دکان کوڈ", "ریفرنس کوڈ")
+  if (/^(?:shop\s*code|dukaan\s*code|reference\s*code|دکان\s*کوڈ|کوڈ|ریفرنس\s*کوڈ)$/i.test(normalized)) {
+    if (!merchant.shopCode) {
+      merchant.shopCode = `VT-${Math.floor(1000 + Math.random() * 9000)}`;
+      await merchant.save();
+    }
+    const msg = merchant.language === 'ur'
+      ? `🏪 *آپ کی دکان کا ریفرنس کوڈ:*\n\n🔑 *${merchant.shopCode}*\n\nاپنے دکان کے اسسٹنٹس/لڑکوں کو یہ کوڈ دیں تاکہ وہ ایک ہی کھاتے میں سیلز درج کر سکیں۔\nوہ واٹس ایپ پر صرف یہ میسج بھیجیں:\n👉 *join ${merchant.shopCode} [ان کا نام]*`
+      : `🏪 *Your Shop Reference Code:*\n\n🔑 *${merchant.shopCode}*\n\nShare this code with your shop assistants so all sales sync to your store account.\nThey simply text:\n👉 *join ${merchant.shopCode} [Their Name]*`;
+    return sendTextMessage(merchant._replyToNumber || merchant.whatsappNumber, msg);
+  }
+
+  // 15. Staff / Team List (e.g. "staff", "staff list", "team", "ہماری ٹیم", "ہمارا سٹاف")
+  if (/^(?:staff|staff\s*list|team|hamara\s*staff|ہماری\s*ٹیم|ہمارا\s*سٹاف|عملہ)$/i.test(normalized)) {
+    const activeStaff = (merchant.staffMembers || []).filter((s) => s.active);
+    const limit = getStaffLimit(merchant.subscriptionTier || 'pro');
+    if (activeStaff.length === 0) {
+      const msg = merchant.language === 'ur'
+        ? `👥 *دکان سٹاف:*\nابھی تک کوئی اسسٹنٹ شامل نہیں ہوا۔\n\nاسسٹنٹ شامل کرنے کے لیے انہیں اپنا دکان کوڈ دیں: *${merchant.shopCode || 'VT-XXXX'}*\nوہ لکھ کر بھیجیں: *join ${merchant.shopCode || 'VT-XXXX'} [نام]*`
+        : `👥 *Store Team:*\nNo assistants connected yet.\n\nTo link staff, share your shop code: *${merchant.shopCode || 'VT-XXXX'}*\nThey text: *join ${merchant.shopCode || 'VT-XXXX'} [Name]*`;
+      return sendTextMessage(merchant._replyToNumber || merchant.whatsappNumber, msg);
+    }
+
+    const lines = activeStaff.map((s, idx) => `${idx + 1}. *${s.name}* (${s.whatsappNumber})`).join('\n');
+    const msg = merchant.language === 'ur'
+      ? `👥 *دکان کی ٹیم (${activeStaff.length}/${limit}):*\n\n${lines}\n\nنئے ملازم شامل کرنے کے لیے کوڈ: *${merchant.shopCode}*`
+      : `👥 *Store Team (${activeStaff.length}/${limit}):*\n\n${lines}\n\nTo add more staff: *join ${merchant.shopCode} [Name]*`;
+    return sendTextMessage(merchant._replyToNumber || merchant.whatsappNumber, msg);
   }
 
   // Check stored message workflows first — if any fire, skip NLP entirely
@@ -793,6 +1012,7 @@ async function routeParsedCommand(merchant, intent, source) {
       type: 'update_stock',
       merchantId: merchant._id,
       item: intent.item,
+      items: intent.items || (intent.item ? [intent.item] : []),
       source,
       language: effectiveLanguage,
     });
@@ -1202,6 +1422,11 @@ async function finalizeGuidedOrder(merchant, state) {
 async function createOrderViaCrm(merchant, command) {
   const source = command.source || 'text';
   const language = command.language || merchant.language || 'ur';
+
+  if (merchant?._staffMember) {
+    command.staffName = merchant._staffMember.name;
+    command.staffPhone = merchant._staffMember.whatsappNumber;
+  }
 
   try {
     const order = await createOrder(command);
@@ -1792,6 +2017,220 @@ async function sendWorkflowsList(merchant) {
   const text = language === 'ur'
     ? `⚡ *فعال آٹومیشن الرٹس (${workflows.length}):*\n\n${lines.join('\n')}\n\n💡 نیا الرٹ بنانے کے لیے میسج بھیجیں: "جب چینی 5 سے کم ہو الرٹ کرو"`
     : `⚡ *Your Active Automations (${workflows.length}):*\n\n${lines.join('\n')}\n\n💡 To add a new alert, say or type: "alert me when oil is below 5"`;
+
+  return sendTextMessage(merchant.whatsappNumber, text);
+}
+
+/**
+ * Handles checking a customer's Khata (ledger) balance and generating a payment reminder.
+ */
+async function handleKhataInquiry(merchant, rawCustomerName) {
+  const isUrdu = merchant.language === 'ur';
+  const cleanName = rawCustomerName.trim().toLowerCase();
+
+  const customer = await Customer.findOne({
+    merchantId: merchant._id,
+    name: new RegExp(`^${cleanName}$`, 'i'),
+  });
+
+  if (!customer || customer.balance <= 0) {
+    const msg = isUrdu
+      ? `ℹ️ *${rawCustomerName.trim()}* کا کوئی بقایا ادھار/کھاتہ نہیں ہے۔`
+      : `ℹ️ *${rawCustomerName.trim()}* has no outstanding balance.`;
+    return sendTextMessage(merchant.whatsappNumber, msg);
+  }
+
+  const balanceFormatted = `Rs. ${customer.balance.toLocaleString()}`;
+  const storeName = merchant.businessName || (isUrdu ? 'ہماری دکان' : 'our store');
+
+  const text = isUrdu
+    ? `📋 *کھاتہ تفصیل — ${customer.name.toUpperCase()}*\nکل واجب الادا رقم: *${balanceFormatted}*\n\n📩 *گاہک کو بھیجنے کے لیے یاد دہانی (Copy & Forward):*\n"محترم ${customer.name}، آپ کی طرف ${storeName} کا ${balanceFormatted} بقایا کھاتہ ہے۔ برائے مہربانی جلد از جلد ادائیگی فرمائیں۔ شکریہ!"`
+    : `📋 *Ledger Summary — ${customer.name.toUpperCase()}*\nOutstanding Balance: *${balanceFormatted}*\n\n📩 *Customer Reminder (Copy & Forward):*\n"Dear ${customer.name}, your outstanding balance at ${storeName} is ${balanceFormatted}. Please arrange payment at your earliest convenience. Thank you!"`;
+
+  return sendTextMessage(merchant.whatsappNumber, text);
+}
+
+/**
+ * Handles settling/recording a cash payment towards a customer's Khata (ledger).
+ */
+async function handleKhataSettle(merchant, rawCustomerName, amount) {
+  const isUrdu = merchant.language === 'ur';
+  const cleanName = rawCustomerName.trim().toLowerCase();
+  const amountNum = Number(amount);
+
+  if (!amountNum || amountNum <= 0) {
+    const err = isUrdu ? 'براہ کرم درست رقم درج کریں۔' : 'Please provide a valid payment amount.';
+    return sendTextMessage(merchant.whatsappNumber, err);
+  }
+
+  let customer = await Customer.findOne({
+    merchantId: merchant._id,
+    name: new RegExp(`^${cleanName}$`, 'i'),
+  });
+
+  if (!customer) {
+    const notFound = isUrdu
+      ? `❌ *${rawCustomerName.trim()}* نامی گاہک کھاتے میں نہیں ملا۔`
+      : `❌ Customer *${rawCustomerName.trim()}* not found in ledger.`;
+    return sendTextMessage(merchant.whatsappNumber, notFound);
+  }
+
+  const previousBalance = customer.balance;
+  customer.balance = Math.max(0, customer.balance - amountNum);
+  await customer.save();
+
+  emitDashboardUpdate(merchant._id, {
+    type: 'customer',
+    action: 'settle',
+    customerId: customer._id,
+    customerName: customer.name,
+    amount: amountNum,
+    balance: customer.balance,
+  });
+
+  const text = isUrdu
+    ? `✅ *کھاتہ وصولی درج ہو گئی!*\nگاہک: *${customer.name.toUpperCase()}*\nوصول شدہ رقم: *Rs. ${amountNum.toLocaleString()}*\nپہلا بقایا: Rs. ${previousBalance.toLocaleString()}\nنیا بقایا: *Rs. ${customer.balance.toLocaleString()}*`
+    : `✅ *Ledger payment recorded!*\nCustomer: *${customer.name.toUpperCase()}*\nAmount Received: *Rs. ${amountNum.toLocaleString()}*\nPrevious Balance: Rs. ${previousBalance.toLocaleString()}\nRemaining Balance: *Rs. ${customer.balance.toLocaleString()}*`;
+
+  return sendTextMessage(merchant.whatsappNumber, text);
+}
+
+/**
+ * Handles merchant requesting a password reset directly in WhatsApp chat.
+ */
+async function handleForgotPassword(merchant) {
+  const isUrdu = merchant.language === 'ur';
+  const now = new Date();
+  const code = crypto.randomInt(100000, 999999).toString();
+  const expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
+
+  let resetRecord = await PasswordResetCode.findOne({ merchantId: merchant._id });
+  if (!resetRecord) {
+    resetRecord = await PasswordResetCode.create({
+      merchantId: merchant._id,
+      whatsappNumber: merchant.whatsappNumber,
+      code,
+      expiresAt,
+      usedAt: null,
+      requestHistory: [now],
+    });
+  } else {
+    resetRecord.code = code;
+    resetRecord.expiresAt = expiresAt;
+    resetRecord.usedAt = null;
+    resetRecord.whatsappNumber = merchant.whatsappNumber;
+    resetRecord.requestHistory.push(now);
+    await resetRecord.save();
+  }
+
+  const baseUrl = (process.env.SIGNUP_BASE_URL || 'https://verba-task.netlify.app/signup')
+    .replace(/\/signup\/?$/, '')
+    .trim();
+  const identifier = encodeURIComponent(merchant.email || merchant.whatsappNumber);
+  const resetLink = `${baseUrl}/forgot-password?code=${code}&identifier=${identifier}`;
+
+  const text = isUrdu
+    ? `🔐 *پاسورڈ ری سیٹ کوڈ*\n\nآپ کا تصدیقی کوڈ ہے: *${code}*\n(یہ کوڈ اگلے 10 منٹ تک کارآمد ہے)\n\nیا ڈائریکٹ نیا پاسورڈ رکھنے کے لیے اس لنک پر کلک کریں:\n${resetLink}`
+    : `🔐 *Password Reset Code*\n\nYour verification code is: *${code}*\n(Expires in 10 minutes)\n\nOr click here to reset your password directly:\n${resetLink}`;
+
+  return sendTextMessage(merchant.whatsappNumber, text);
+}
+
+/**
+ * Handles daily sales hisab / end-of-day summary calculation.
+ */
+async function handleDailyHisab(merchant) {
+  const isUrdu = merchant.language === 'ur';
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const todayOrders = await Order.find({
+    merchantId: merchant._id,
+    createdAt: { $gte: startOfDay },
+  });
+
+  if (!todayOrders || todayOrders.length === 0) {
+    const emptyMsg = isUrdu
+      ? '📊 آج کی تاریخ میں ابھی تک کوئی سیل درج نہیں ہوئی۔'
+      : '📊 No sales have been recorded for today yet.';
+    return sendTextMessage(merchant.whatsappNumber, emptyMsg);
+  }
+
+  let totalRevenue = 0;
+  const paymentBreakdown = {};
+  const itemCounts = {};
+
+  for (const o of todayOrders) {
+    totalRevenue += o.total || 0;
+    const pm = o.paymentMethod || 'cash';
+    paymentBreakdown[pm] = (paymentBreakdown[pm] || 0) + (o.total || 0);
+
+    for (const itm of o.items || []) {
+      const name = itm.name || 'Item';
+      itemCounts[name] = (itemCounts[name] || 0) + (itm.quantity || 1);
+    }
+  }
+
+  let topItem = null;
+  let topCount = 0;
+  for (const [name, count] of Object.entries(itemCounts)) {
+    if (count > topCount) {
+      topCount = count;
+      topItem = name;
+    }
+  }
+
+  const storeName = merchant.businessName || (isUrdu ? 'آپ کی دکان' : 'Store');
+  let summary = isUrdu
+    ? `📊 *آج کا حساب کتاب — ${storeName}*\n\n💰 کل فروخت: *Rs. ${totalRevenue.toLocaleString()}*\n📦 کل آرڈرز: *${todayOrders.length}*\n`
+    : `📊 *Today's Sales Summary — ${storeName}*\n\n💰 Total Sales: *Rs. ${totalRevenue.toLocaleString()}*\n📦 Total Orders: *${todayOrders.length}*\n`;
+
+  summary += isUrdu ? '\n💳 *ادائیگی کا طریقہ:*' : '\n💳 *Payment Methods:*';
+  for (const [pm, amt] of Object.entries(paymentBreakdown)) {
+    const pmName = isUrdu
+      ? (pm === 'udhaar' ? 'ادھار / کھاتہ' : pm)
+      : pm.toUpperCase();
+    summary += `\n• ${pmName}: Rs. ${amt.toLocaleString()}`;
+  }
+
+  if (topItem) {
+    summary += isUrdu
+      ? `\n\n🔥 سب سے زیادہ فروخت: *${topItem}* (${topCount} عدد)`
+      : `\n\n🔥 Top Selling: *${topItem}* (${topCount} units)`;
+  }
+
+  return sendTextMessage(merchant.whatsappNumber, summary);
+}
+
+/**
+ * Handles proactive low stock inquiries.
+ */
+async function handleLowStockCheck(merchant) {
+  const isUrdu = merchant.language === 'ur';
+  const items = await InventoryItem.find({
+    merchantId: merchant._id,
+    quantity: { $lte: 5 },
+  }).sort({ quantity: 1 });
+
+  if (!items || items.length === 0) {
+    const okMsg = isUrdu
+      ? '✅ ماشاءاللہ، تمام اشیاء کا اسٹاک مناسب ہے۔ کوئی چیز کم نہیں ہے۔'
+      : '✅ All inventory items are well-stocked. No items are currently low.';
+    return sendTextMessage(merchant.whatsappNumber, okMsg);
+  }
+
+  let text = isUrdu
+    ? `⚠️ *کم اسٹاک والی اشیاء کی لسٹ:*\n`
+    : `⚠️ *Low Stock Warning List:*\n`;
+
+  for (const itm of items) {
+    const unitStr = itm.unit ? ` ${itm.unit}` : '';
+    text += `\n• *${itm.name}*: صرف ${itm.quantity}${unitStr} باقی`;
+  }
+
+  text += isUrdu
+    ? `\n\nنیا مال شامل کرنے کے لیے بولیں یا لکھیں (مثلاً: "add 20 ${items[0].name}")`
+    : `\n\nTo restock, reply (e.g. "add 20 ${items[0].name}")`;
 
   return sendTextMessage(merchant.whatsappNumber, text);
 }

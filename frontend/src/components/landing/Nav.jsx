@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import { Menu, X, ArrowRight } from 'lucide-react';
 import { Logo } from './Logo';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { LanguageToggle } from '../ui/LanguageToggle';
 import { scrollToHash } from '../../lib/scroll';
 
 const links = [
@@ -68,6 +69,7 @@ export function Nav() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2 lg:ml-0">
+          <LanguageToggle className="hidden sm:inline-flex" />
           <ThemeToggle className="hidden sm:inline-flex" />
           <Link
             to="/login"
@@ -117,6 +119,7 @@ export function Nav() {
               <Link to="/login" onClick={() => setOpen(false)} className="btn btn--soft flex-1">
                 Sign in
               </Link>
+              <LanguageToggle />
               <ThemeToggle />
             </div>
           </nav>

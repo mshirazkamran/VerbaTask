@@ -179,10 +179,20 @@ export const createOrder = async (command) => {
       customer.balance += total;
       await customer.save();
       customerId = customer._id;
+      emitDashboardUpdate(merchantId, {
+        type: 'customer',
+        action: 'update',
+        customerId: customer._id,
+        customerName: customer.name,
+        balance: customer.balance,
+      });
     }
   }
 
   const orderNumber = `VT-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+
+  const staffName = command.staffName || null;
+  const staffPhone = command.staffPhone || null;
 
   // 5. Construct and save the order
   const order = await Order.create({
@@ -195,6 +205,8 @@ export const createOrder = async (command) => {
     customerName: finalCustomerName,
     source,
     status,
+    staffName,
+    staffPhone,
   });
 
   // 6. If pending approval, create the approval record and notify the merchant
@@ -208,7 +220,7 @@ export const createOrder = async (command) => {
   }
 
   // 7. Emit WebSocket event to refresh dashboard
-  emitDashboardUpdate(merchantId, { type: 'order', orderId: order._id, total, status });
+  emitDashboardUpdate(merchantId, { type: 'order', orderId: order._id, total, status, staffName, staffPhone });
 
   return order;
 };

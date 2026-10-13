@@ -1,11 +1,13 @@
 import { useLocation, Link } from 'react-router';
 import { Menu, ArrowUpRight } from 'lucide-react';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { LanguageToggle } from '../ui/LanguageToggle';
 
 const ROUTE_TITLES = {
   '/dashboard': 'Overview',
   '/dashboard/inventory': 'Inventory',
   '/dashboard/orders': 'Orders',
+  '/dashboard/ledger': 'Ledger (Khata)',
   '/dashboard/workflows': 'Workflows',
   '/dashboard/approvals': 'Approvals',
   '/dashboard/settings': 'Shop settings',
@@ -43,6 +45,7 @@ export function TopBar({ onOpenMobileMenu }) {
           Site
           <ArrowUpRight className="size-3.5" />
         </Link>
+        <LanguageToggle />
         <ThemeToggle />
       </div>
     </header>

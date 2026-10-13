@@ -27,7 +27,9 @@ const orderSchema = new mongoose.Schema({
     type: String, 
     enum: ['pending_approval', 'approved', 'completed', 'rejected'], 
     default: 'completed' 
-  }
+  },
+  staffName: { type: String, trim: true },
+  staffPhone: { type: String, trim: true },
 }, { 
   timestamps: true 
 });

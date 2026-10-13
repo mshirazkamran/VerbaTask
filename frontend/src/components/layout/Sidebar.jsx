@@ -17,12 +17,12 @@ import {
 import { Logo } from '../landing/Logo';
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Overview', icon: LayoutDashboard, end: true },
-  { to: '/dashboard/orders', label: 'Orders', icon: Receipt },
-  { to: '/dashboard/inventory', label: 'Inventory', icon: Package },
-  { to: '/dashboard/ledger', label: 'Ledger', icon: Wallet },
-  { to: '/dashboard/approvals', label: 'Approvals', icon: ClipboardCheck },
-  { to: '/dashboard/workflows', label: 'Workflows', icon: GitBranch },
+  { to: '/dashboard', label: 'Overview', labelUr: 'ڈیش بورڈ', icon: LayoutDashboard, end: true },
+  { to: '/dashboard/orders', label: 'Orders', labelUr: 'آرڈرز', icon: Receipt },
+  { to: '/dashboard/inventory', label: 'Inventory', labelUr: 'انوینٹری', icon: Package },
+  { to: '/dashboard/ledger', label: 'Ledger', labelUr: 'کھاتہ (ادھار)', icon: Wallet },
+  { to: '/dashboard/approvals', label: 'Approvals', labelUr: 'منظوریاں', icon: ClipboardCheck },
+  { to: '/dashboard/workflows', label: 'Workflows', labelUr: 'آٹومیشن', icon: GitBranch },
 ];
 
 function initials(name = '') {
@@ -34,14 +34,15 @@ function initials(name = '') {
     .join('') || 'VT';
 }
 
-function NavItem({ item, compact, onNavigate }) {
+function NavItem({ item, compact, onNavigate, language }) {
   const Icon = item.icon;
+  const displayLabel = language === 'ur' && item.labelUr ? item.labelUr : item.label;
   return (
     <NavLink
       to={item.to}
       end={item.end}
       onClick={onNavigate}
-      title={compact ? item.label : undefined}
+      title={compact ? displayLabel : undefined}
       className={({ isActive }) =>
         `group flex items-center gap-3 rounded-pill text-sm font-medium transition-colors duration-150 ${
           compact ? 'size-11 justify-center' : 'h-11 px-4'
@@ -51,7 +52,7 @@ function NavItem({ item, compact, onNavigate }) {
       {({ isActive }) => (
         <>
           <Icon className="size-[18px] shrink-0" strokeWidth={isActive ? 2.2 : 1.8} />
-          {!compact && <span className="truncate">{item.label}</span>}
+          {!compact && <span className="truncate">{displayLabel}</span>}
           {!compact && isActive && <span className="ml-auto size-1.5 rounded-pill bg-pear" aria-hidden="true" />}
         </>
       )}
@@ -60,7 +61,7 @@ function NavItem({ item, compact, onNavigate }) {
 }
 
 export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
-  const { sidebarCollapsed, toggleSidebar } = useUiStore();
+  const { sidebarCollapsed, toggleSidebar, language } = useUiStore();
   const { merchant, logout } = useAuthStore();
 
   const businessName = merchant?.businessName || 'My shop';
@@ -88,7 +89,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
       <NavLink
         to="/dashboard/settings"
         onClick={onMobileClose}
-        title={compact ? businessName : 'Shop settings'}
+        title={compact ? businessName : (language === 'ur' ? 'دکان کی ترتیبات' : 'Shop settings')}
         className={({ isActive }) =>
           `mx-3 mt-2 flex items-center gap-3 rounded-card border transition-colors duration-150 ${
             compact ? 'size-11 justify-center self-center p-0' : 'p-3'
@@ -108,9 +109,9 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
       </NavLink>
 
       <nav className={`mt-6 flex flex-1 flex-col gap-1 ${compact ? 'items-center px-0' : 'px-3'}`} aria-label="Dashboard">
-        {!compact && <p className="label mb-2 px-4">Shop</p>}
+        {!compact && <p className="label mb-2 px-4">{language === 'ur' ? 'دکان' : 'Shop'}</p>}
         {NAV_ITEMS.map((item) => (
-          <NavItem key={item.to} item={item} compact={compact} onNavigate={onMobileClose} />
+          <NavItem key={item.to} item={item} compact={compact} onNavigate={onMobileClose} language={language} />
         ))}
       </nav>
 
@@ -125,19 +126,19 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
             aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {sidebarCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
-            {!compact && <span>Collapse</span>}
+            {!compact && <span>{language === 'ur' ? 'بند کریں' : 'Collapse'}</span>}
           </button>
         )}
         <button
           type="button"
           onClick={logout}
-          title={compact ? 'Sign out' : undefined}
+          title={compact ? (language === 'ur' ? 'لاگ آؤٹ' : 'Sign out') : undefined}
           className={`flex items-center gap-3 rounded-pill text-xs font-medium text-danger-ink transition-colors hover:bg-coral-tint ${
             compact ? 'size-11 justify-center' : 'h-10 px-4'
           }`}
         >
           <LogOut className="size-4" />
-          {!compact && <span>Sign out</span>}
+          {!compact && <span>{language === 'ur' ? 'لاگ آؤٹ' : 'Sign out'}</span>}
         </button>
       </div>
     </div>

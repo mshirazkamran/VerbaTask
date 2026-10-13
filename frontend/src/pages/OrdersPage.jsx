@@ -296,8 +296,20 @@ export function OrdersPage() {
  },
  {
  accessorKey: 'source',
- header: 'Source',
- cell: ({ getValue }) => <Badge variant={getValue()} dot>{getValue()}</Badge>,
+ header: 'Source / Staff',
+ cell: ({ row, getValue }) => {
+   const staffName = row.original?.staffName;
+   return (
+     <div className="flex flex-col gap-1 items-start">
+       <Badge variant={getValue()} dot>{getValue()}</Badge>
+       {staffName && (
+         <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary-deep dark:text-primary bg-primary-tint/60 px-1.5 py-0.5 rounded">
+           👤 {staffName}
+         </span>
+       )}
+     </div>
+   );
+ },
  },
  {
  accessorKey: 'status',

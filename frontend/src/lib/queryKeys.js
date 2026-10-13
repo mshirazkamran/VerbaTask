@@ -8,4 +8,6 @@ export const queryKeys = {
   dashboard: () => ['dashboard'],
   profile: () => ['merchant', 'profile'],
   paymentMethods: () => ['merchant', 'payment-methods'],
+  customers: () => ['customers'],
+  staff: () => ['merchant', 'staff'],
 };

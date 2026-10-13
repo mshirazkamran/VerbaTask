@@ -12,6 +12,13 @@ import {
   X,
   ArrowRight,
   Zap,
+  Users,
+  Copy,
+  UserPlus,
+  Trash2,
+  Share2,
+  ShieldCheck,
+  UserCheck,
 } from 'lucide-react';
 import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { Card } from '../components/ui/Card';
@@ -28,6 +35,10 @@ import {
   useRequestPhoneChange,
   useVerifyPhoneChange,
   useResendPhoneChangeCode,
+  useStaffMembers,
+  useAddStaffMember,
+  useRemoveStaffMember,
+  useRegenerateShopCode,
 } from '../hooks/useMerchantSettings';
 
 const BUSINESS_TYPES = [
@@ -54,6 +65,80 @@ export function SettingsPage() {
   const requestPhoneChangeMutation = useRequestPhoneChange();
   const verifyPhoneChangeMutation = useVerifyPhoneChange();
   const resendPhoneCodeMutation = useResendPhoneChangeCode();
+
+  // Team & Staff State & Mutations
+  const { data: staffData, isLoading: staffLoading } = useStaffMembers();
+  const addStaffMutation = useAddStaffMember();
+  const removeStaffMutation = useRemoveStaffMember();
+  const regenerateCodeMutation = useRegenerateShopCode();
+
+  const [staffNameInput, setStaffNameInput] = useState('');
+  const [staffPhoneInput, setStaffPhoneInput] = useState('');
+  const [isAddingStaff, setIsAddingStaff] = useState(false);
+
+  const handleCopyCode = (code) => {
+    if (!code) return;
+    navigator.clipboard.writeText(code);
+    toast.success(`Shop code ${code} copied to clipboard!`);
+  };
+
+  const handleShareInvite = (code) => {
+    if (!code) return;
+    const msg = `As-salamu alaykum! Join our shop account on VerbaTask by sending: join ${code} [Your Name]`;
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  const handleAddStaff = async (e) => {
+    e.preventDefault();
+    if (!staffNameInput.trim()) {
+      toast.error('Please enter the staff member name');
+      return;
+    }
+    if (!staffPhoneInput.trim()) {
+      toast.error('Please enter the staff member WhatsApp number');
+      return;
+    }
+
+    try {
+      setIsAddingStaff(true);
+      await addStaffMutation.mutateAsync({
+        name: staffNameInput.trim(),
+        whatsappNumber: staffPhoneInput.trim(),
+      });
+      toast.success(`${staffNameInput.trim()} added to your shop staff!`);
+      setStaffNameInput('');
+      setStaffPhoneInput('');
+    } catch (err) {
+      toast.error(err.message || 'Failed to add staff member');
+    } finally {
+      setIsAddingStaff(false);
+    }
+  };
+
+  const handleRemoveStaff = async (staffId, name) => {
+    if (!window.confirm(`Are you sure you want to remove ${name} from your store team?`)) {
+      return;
+    }
+    try {
+      await removeStaffMutation.mutateAsync(staffId);
+      toast.success(`${name} removed from store team`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to remove staff member');
+    }
+  };
+
+  const handleRegenerateCode = async () => {
+    if (!window.confirm('Regenerate Shop Code? Existing staff remain connected, but new staff will need to use the new code.')) {
+      return;
+    }
+    try {
+      const res = await regenerateCodeMutation.mutateAsync();
+      toast.success(`New Shop Code generated: ${res.shopCode}`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to regenerate code');
+    }
+  };
 
   // Store Profile State
   const [businessName, setBusinessName] = useState('');
@@ -270,6 +355,7 @@ export function SettingsPage() {
         >
           {[
             { id: 'profile', label: 'Shop profile', hint: 'Name, area, what you sell', icon: Store },
+            { id: 'team', label: 'Team & Staff', hint: `${staffData?.activeCount ?? profile?.staffMembers?.length ?? 0} connected (Pro)`, icon: Users },
             { id: 'payments', label: 'Payments', hint: `${activePaymentIds.length} accepted`, icon: CreditCard },
             { id: 'voice', label: 'Voice & language', hint: 'How the bot talks', icon: Mic },
           ].map((t) => {
@@ -544,6 +630,196 @@ export function SettingsPage() {
             </Button>
           </div>
         </form>
+      )}
+
+      {/* Tab: Team & Multi-Staff (Pro) */}
+      {activeTab === 'team' && (
+        <div className="space-y-6">
+          {/* Shop Reference Code Card */}
+          <Card>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 pb-4 border-b border-hairline">
+              <div className="flex items-center gap-3">
+                <div className="grid size-10 shrink-0 place-items-center rounded-pill bg-primary-tint text-primary-deep dark:text-primary">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-display text-lg font-semibold tracking-tight text-ink">Shop Reference Code & Team</h2>
+                    <Badge variant="pro">PRO FEATURE</Badge>
+                  </div>
+                  <p className="text-xs text-muted mt-0.5">
+                    Connect 3–5 assistants' personal WhatsApp numbers to log sales into your unified shop ledger
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200">
+                  <ShieldCheck className="w-3.5 h-3.5 mr-1" />
+                  {staffData?.subscriptionTier?.toUpperCase() || 'PRO'} PLAN ({staffData?.activeCount ?? 0}/{staffData?.staffLimit ?? 5} Active)
+                </Badge>
+              </div>
+            </div>
+
+            {/* Shop Code Display & Sharing Box */}
+            <div className="rounded-xl border border-hairline bg-paper-2/50 p-5 sm:p-6 mb-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted">Your Shop Reference Code</span>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-3xl font-bold tracking-wider text-primary-deep dark:text-primary">
+                      {staffData?.shopCode || profile?.shopCode || 'VT-....'}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCopyCode(staffData?.shopCode || profile?.shopCode)}
+                      leftIcon={<Copy className="w-3.5 h-3.5" />}
+                    >
+                      Copy Code
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRegenerateCode}
+                      loading={regenerateCodeMutation.isPending}
+                      className="text-xs text-muted hover:text-ink"
+                      title="Generate a new reference code"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2.5">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => handleShareInvite(staffData?.shopCode || profile?.shopCode)}
+                    leftIcon={<WhatsAppIcon className="w-4 h-4 fill-current" />}
+                  >
+                    Invite Assistant via WhatsApp
+                  </Button>
+                </div>
+              </div>
+
+              {/* Instructions banner */}
+              <div className="mt-4 pt-4 border-t border-hairline/60 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-muted">
+                <div className="flex items-start gap-2">
+                  <span className="font-bold text-ink">1. How staff join:</span>
+                  <span>Assistant texts <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {staffData?.shopCode || 'VT-XXXX'} Ali</code> to the VerbaTask WhatsApp bot.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="font-bold text-ink">2. How sales work:</span>
+                  <span>Any voice note or text they send records an order under your shop with their name tagged.</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Add Form */}
+            <form onSubmit={handleAddStaff} className="rounded-xl border border-hairline bg-paper p-4 sm:p-5 mb-6">
+              <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-primary" />
+                Add Staff Member Directly
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                <div className="sm:col-span-5">
+                  <Input
+                    placeholder="Assistant Name (e.g. Ali, Hamza)"
+                    value={staffNameInput}
+                    onChange={(e) => setStaffNameInput(e.target.value)}
+                  />
+                </div>
+                <div className="sm:col-span-5">
+                  <Input
+                    placeholder="WhatsApp Phone (e.g. 03001234567)"
+                    value={staffPhoneInput}
+                    onChange={(e) => setStaffPhoneInput(e.target.value)}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    loading={isAddingStaff}
+                    className="w-full justify-center"
+                  >
+                    Add Staff
+                  </Button>
+                </div>
+              </div>
+            </form>
+
+            {/* Staff Members List */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-muted" />
+                  Active Team Members ({staffData?.staffMembers?.length || 0})
+                </h3>
+                <span className="text-xs text-muted">
+                  Max {staffData?.staffLimit || 5} staff members allowed
+                </span>
+              </div>
+
+              {staffLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-14 w-full" />
+                  <Skeleton className="h-14 w-full" />
+                </div>
+              ) : (!staffData?.staffMembers || staffData.staffMembers.length === 0) ? (
+                <div className="text-center py-8 px-4 rounded-xl border border-dashed border-hairline bg-paper-2/30">
+                  <Users className="w-8 h-8 text-muted mx-auto mb-2 opacity-50" />
+                  <p className="text-sm font-medium text-ink">No staff assistants linked yet</p>
+                  <p className="text-xs text-muted max-w-sm mx-auto mt-1">
+                    Share your shop code <strong className="text-ink">{staffData?.shopCode || profile?.shopCode}</strong> with your shop boys or enter their phone number above to get started.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-hairline rounded-xl border border-hairline bg-paper overflow-hidden">
+                  {staffData.staffMembers.map((member) => (
+                    <div key={member._id} className="flex items-center justify-between p-3.5 sm:px-4 hover:bg-paper-2/40 transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="grid size-9 shrink-0 place-items-center rounded-pill bg-paper-2 text-ink font-semibold text-xs border border-hairline">
+                          {member.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm text-ink truncate">{member.name}</span>
+                            <Badge variant={member.active ? 'success' : 'muted'} className="text-[10px] px-1.5 py-0">
+                              {member.active ? 'Active' : 'Inactive'}
+                            </Badge>
+                            {member.addedBy === 'whatsapp_code' && (
+                              <span className="text-[10px] text-muted hidden sm:inline">via WhatsApp Code</span>
+                            )}
+                          </div>
+                          <span className="text-xs font-mono text-muted block truncate">
+                            +{member.whatsappNumber}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveStaff(member._id, member.name)}
+                          className="text-danger hover:bg-danger-tint hover:text-danger-deep p-2"
+                          title="Remove staff member"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
       )}
 
       {/* Tab 2: Pakistani Banks & Payment Methods */}

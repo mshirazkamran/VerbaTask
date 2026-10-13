@@ -26,8 +26,34 @@ const merchantSchema = new mongoose.Schema({
     of: mongoose.Schema.Types.Mixed,
     default: {},
   },
+  shopCode: {
+    type: String,
+    unique: true,
+    sparse: true,
+    uppercase: true,
+    trim: true,
+  },
+  subscriptionTier: {
+    type: String,
+    enum: ['free', 'starter', 'pro', 'enterprise'],
+    default: 'pro',
+  },
+  staffMembers: [{
+    name: { type: String, required: true, trim: true },
+    whatsappNumber: { type: String, required: true, trim: true },
+    active: { type: Boolean, default: true },
+    addedAt: { type: Date, default: Date.now },
+    addedBy: { type: String, enum: ['owner', 'whatsapp_code'], default: 'owner' },
+  }],
 }, { 
   timestamps: true 
+});
+
+merchantSchema.pre('save', function (next) {
+  if (!this.shopCode) {
+    this.shopCode = `VT-${Math.floor(1000 + Math.random() * 9000)}`;
+  }
+  next();
 });
 
 export default mongoose.model('Merchant', merchantSchema);

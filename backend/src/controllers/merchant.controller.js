@@ -29,6 +29,11 @@ export async function getProfile(req, res) {
       return res.status(404).json({ success: false, error: { message: 'Merchant not found' } });
     }
 
+    if (!merchant.shopCode) {
+      merchant.shopCode = `VT-${Math.floor(1000 + Math.random() * 9000)}`;
+      await merchant.save();
+    }
+
     return res.status(200).json({
       success: true,
       data: {
@@ -39,6 +44,9 @@ export async function getProfile(req, res) {
         sells: merchant.sells || '',
         whatsappNumber: merchant.whatsappNumber,
         email: merchant.email,
+        shopCode: merchant.shopCode,
+        subscriptionTier: merchant.subscriptionTier || 'pro',
+        staffMembers: merchant.staffMembers || [],
         language: merchant.language || 'ur',
         voiceReplies: merchant.voiceReplies ?? true,
         replyPreference: merchant.replyPreference || 'voice_on_voice',
@@ -473,4 +481,213 @@ export async function verifyPhoneChange(req, res) {
  */
 export async function resendPhoneChangeCode(req, res) {
   return requestPhoneChange(req, res);
+}
+
+/**
+ * Returns the maximum allowed staff numbers based on subscription tier.
+ */
+export function getStaffLimit(tier = 'pro') {
+  switch (tier) {
+    case 'free':
+      return 1;
+    case 'starter':
+      return 2;
+    case 'pro':
+      return 5;
+    case 'enterprise':
+      return 50;
+    default:
+      return 5;
+  }
+}
+
+/**
+ * GET /api/merchant/staff
+ * Returns the shop reference code, current subscription tier, max allowed staff, and current staff list.
+ */
+export async function getStaffMembers(req, res) {
+  try {
+    const merchant = await Merchant.findById(req.merchantId);
+    if (!merchant) {
+      return res.status(404).json({ success: false, error: { message: 'Merchant not found.' } });
+    }
+
+    if (!merchant.shopCode) {
+      merchant.shopCode = `VT-${Math.floor(1000 + Math.random() * 9000)}`;
+      await merchant.save();
+    }
+
+    const tier = merchant.subscriptionTier || 'pro';
+    const limit = getStaffLimit(tier);
+    const activeCount = (merchant.staffMembers || []).filter((s) => s.active).length;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        shopCode: merchant.shopCode,
+        subscriptionTier: tier,
+        staffLimit: limit,
+        activeCount,
+        staffMembers: merchant.staffMembers || [],
+      },
+    });
+  } catch (error) {
+    console.error('getStaffMembers error:', error);
+    return res.status(500).json({ success: false, error: { message: 'Server error fetching staff members.' } });
+  }
+}
+
+/**
+ * POST /api/merchant/staff
+ * Adds a new staff member to the merchant's store.
+ */
+export async function addStaffMember(req, res) {
+  try {
+    const { name, whatsappNumber } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, error: { message: 'Staff member name is required.' } });
+    }
+    if (!whatsappNumber || !whatsappNumber.trim()) {
+      return res.status(400).json({ success: false, error: { message: 'WhatsApp phone number is required.' } });
+    }
+
+    const normalized = normalizePhone(whatsappNumber.trim());
+    if (!normalized || normalized.length < 10) {
+      return res.status(400).json({ success: false, error: { message: 'Please provide a valid Pakistani phone number.' } });
+    }
+
+    const merchant = await Merchant.findById(req.merchantId);
+    if (!merchant) {
+      return res.status(404).json({ success: false, error: { message: 'Merchant not found.' } });
+    }
+
+    // Owner cannot add their own primary WhatsApp number as staff
+    if (merchant.whatsappNumber === normalized) {
+      return res.status(400).json({ success: false, error: { message: 'This is the primary store owner phone number.' } });
+    }
+
+    // Check plan limits
+    const tier = merchant.subscriptionTier || 'pro';
+    const limit = getStaffLimit(tier);
+    const activeStaff = (merchant.staffMembers || []).filter((s) => s.active);
+    if (activeStaff.length >= limit) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          message: `Staff limit reached (${limit} members). Upgrade to the Pro plan to add more team members.`,
+          code: 'UPGRADE_REQUIRED',
+        },
+      });
+    }
+
+    // Check if phone number is already registered in this store
+    const existing = (merchant.staffMembers || []).find((s) => s.whatsappNumber === normalized);
+    if (existing) {
+      if (existing.active) {
+        return res.status(400).json({ success: false, error: { message: 'This phone number is already an active staff member.' } });
+      } else {
+        // Reactivate
+        existing.active = true;
+        existing.name = name.trim();
+        await merchant.save();
+        emitDashboardUpdate(merchant._id, { type: 'staff', action: 'updated', staff: merchant.staffMembers });
+        return res.status(200).json({ success: true, data: { staffMembers: merchant.staffMembers } });
+      }
+    }
+
+    merchant.staffMembers.push({
+      name: name.trim(),
+      whatsappNumber: normalized,
+      active: true,
+      addedAt: new Date(),
+      addedBy: 'owner',
+    });
+
+    await merchant.save();
+
+    // Send welcome message to new staff member via WhatsApp (safe try-catch)
+    try {
+      await sendTextMessage(
+        normalized,
+        `Welcome to *${merchant.businessName || 'VerbaTask'}*! 🎉\n\nYou have been added as a store assistant. You can now send voice notes or text messages here to log sales, restock inventory, or check stock directly into the shop ledger.`
+      );
+    } catch (e) {
+      console.warn('Failed to send welcome SMS to staff member:', e.message);
+    }
+
+    emitDashboardUpdate(merchant._id, { type: 'staff', action: 'updated', staff: merchant.staffMembers });
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        staffMembers: merchant.staffMembers,
+      },
+    });
+  } catch (error) {
+    console.error('addStaffMember error:', error);
+    return res.status(500).json({ success: false, error: { message: 'Server error adding staff member.' } });
+  }
+}
+
+/**
+ * DELETE /api/merchant/staff/:staffId
+ * Removes a staff member from the store.
+ */
+export async function removeStaffMember(req, res) {
+  try {
+    const { staffId } = req.params;
+    const merchant = await Merchant.findById(req.merchantId);
+    if (!merchant) {
+      return res.status(404).json({ success: false, error: { message: 'Merchant not found.' } });
+    }
+
+    const staff = merchant.staffMembers.id(staffId) || merchant.staffMembers.find((s) => s._id.toString() === staffId || s.whatsappNumber === staffId);
+    if (!staff) {
+      return res.status(404).json({ success: false, error: { message: 'Staff member not found.' } });
+    }
+
+    merchant.staffMembers.pull(staff._id);
+    await merchant.save();
+
+    emitDashboardUpdate(merchant._id, { type: 'staff', action: 'removed', staffId });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        message: 'Staff member removed successfully.',
+        staffMembers: merchant.staffMembers,
+      },
+    });
+  } catch (error) {
+    console.error('removeStaffMember error:', error);
+    return res.status(500).json({ success: false, error: { message: 'Server error removing staff member.' } });
+  }
+}
+
+/**
+ * POST /api/merchant/shop-code/regenerate
+ * Generates a new unique shop code.
+ */
+export async function regenerateShopCode(req, res) {
+  try {
+    const merchant = await Merchant.findById(req.merchantId);
+    if (!merchant) {
+      return res.status(404).json({ success: false, error: { message: 'Merchant not found.' } });
+    }
+
+    merchant.shopCode = `VT-${Math.floor(1000 + Math.random() * 9000)}`;
+    await merchant.save();
+
+    emitDashboardUpdate(merchant._id, { type: 'shop_code', action: 'regenerated', shopCode: merchant.shopCode });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        shopCode: merchant.shopCode,
+      },
+    });
+  } catch (error) {
+    console.error('regenerateShopCode error:', error);
+    return res.status(500).json({ success: false, error: { message: 'Server error regenerating shop code.' } });
+  }
 }

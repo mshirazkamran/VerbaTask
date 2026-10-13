@@ -24,6 +24,8 @@ export function useRealtimeSync() {
       queryClient.invalidateQueries({ queryKey: queryKeys.workflows() });
       queryClient.invalidateQueries({ queryKey: queryKeys.merchant() });
       queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.staff() });
       setLastSync(Date.now());
 
       // Debounce notifications slightly (min 1.5s between toasts)
@@ -33,10 +35,23 @@ export function useRealtimeSync() {
 
         if (meta?.type === 'order') {
           const totalStr = meta.total ? `Rs. ${Number(meta.total).toLocaleString()}` : '';
-          toast.success('⚡ Live: New sale recorded via WhatsApp!', {
+          const staffTag = meta.staffName ? ` (Staff: ${meta.staffName})` : '';
+          toast.success(`⚡ Live: New sale recorded via WhatsApp!${staffTag}`, {
             id: 'realtime-order',
             description: totalStr ? `Amount: ${totalStr} — Dashboard updated.` : 'Stock and metrics updated.',
             duration: 4000,
+          });
+        } else if (meta?.type === 'customer') {
+          toast.info('⚡ Live: Customer ledger updated', {
+            id: 'realtime-customer',
+            description: meta.customerName ? `${meta.customerName}'s balance updated.` : 'Khata ledger updated.',
+            duration: 3500,
+          });
+        } else if (meta?.type === 'staff') {
+          toast.success('⚡ Live: Store staff team updated', {
+            id: 'realtime-staff',
+            description: meta.staffMember?.name ? `${meta.staffMember.name} joined via Shop Code!` : 'Team members updated.',
+            duration: 3500,
           });
         } else if (meta?.type === 'approval') {
           toast.info('⚡ Live: Approval decision processed', {
