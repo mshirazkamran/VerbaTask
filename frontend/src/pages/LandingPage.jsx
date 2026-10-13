@@ -11,15 +11,27 @@ import { Pricing } from '../components/landing/Pricing';
 import { Faq } from '../components/landing/Faq';
 import { FinalCta } from '../components/landing/FinalCta';
 
+import { useUiStore } from '../lib/store';
+
 export function LandingPage() {
   const { hash } = useLocation();
+  const language = useUiStore((s) => s.language);
+  const isUrdu = language === 'ur';
 
   useEffect(() => {
     if (hash) requestAnimationFrame(() => scrollToHash(hash));
   }, [hash]);
 
+  useEffect(() => {
+    document.documentElement.dir = isUrdu ? 'rtl' : 'ltr';
+    document.documentElement.lang = isUrdu ? 'ur' : 'en';
+  }, [isUrdu]);
+
   return (
-    <div className="min-h-screen bg-paper text-ink">
+    <div
+      className={`min-h-screen bg-paper text-ink ${isUrdu ? 'font-urdu' : ''}`}
+      dir={isUrdu ? 'rtl' : 'ltr'}
+    >
       <Nav />
       <main>
         <Hero />

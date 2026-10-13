@@ -5,13 +5,8 @@ import { Logo } from './Logo';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { LanguageToggle } from '../ui/LanguageToggle';
 import { scrollToHash } from '../../lib/scroll';
-
-const links = [
-  { label: 'How it works', hash: '#how-it-works' },
-  { label: 'Features', hash: '#features' },
-  { label: 'Pricing', hash: '#pricing' },
-  { label: 'FAQ', hash: '#faq' },
-];
+import { useUiStore } from '../../lib/store';
+import { getTranslations } from '../../lib/translations';
 
 // N1b · canonical three-section bar. Knobs: centre links=4, dropdowns=none, scroll=always-solid.
 export function Nav() {
@@ -19,6 +14,15 @@ export function Nav() {
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const language = useUiStore((s) => s.language);
+  const t = getTranslations(language).nav;
+
+  const links = [
+    { label: t.howItWorks, hash: '#how-it-works' },
+    { label: t.features, hash: '#features' },
+    { label: t.pricing, hash: '#pricing' },
+    { label: t.faq, hash: '#faq' },
+  ];
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -68,17 +72,17 @@ export function Nav() {
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2 lg:ml-0">
+        <div className="ms-auto flex items-center gap-2 lg:ms-0">
           <LanguageToggle className="hidden sm:inline-flex" />
           <ThemeToggle className="hidden sm:inline-flex" />
           <Link
             to="/login"
             className="hidden whitespace-nowrap rounded-pill px-3.5 py-2 text-sm font-medium text-ink-2 transition-colors hover:bg-paper-2 hover:text-ink sm:inline-flex"
           >
-            Sign in
+            {t.signIn}
           </Link>
           <Link to="/signup" className="btn btn--sm">
-            Start free
+            {t.startFree}
           </Link>
           <button
             type="button"
@@ -104,7 +108,7 @@ export function Nav() {
                 style={{ '--i': i }}
               >
                 {l.label}
-                <ArrowRight className="size-5 text-muted" />
+                <ArrowRight className="size-5 text-muted rtl:rotate-180" />
               </a>
             ))}
             <Link
@@ -112,12 +116,12 @@ export function Nav() {
               onClick={() => setOpen(false)}
               className="flex items-center justify-between border-b border-rule py-4 font-display text-2xl font-semibold tracking-tight text-ink"
             >
-              Contact
-              <ArrowRight className="size-5 text-muted" />
+              {t.contact}
+              <ArrowRight className="size-5 text-muted rtl:rotate-180" />
             </Link>
             <div className="mt-8 flex items-center gap-3">
               <Link to="/login" onClick={() => setOpen(false)} className="btn btn--soft flex-1">
-                Sign in
+                {t.signIn}
               </Link>
               <LanguageToggle />
               <ThemeToggle />

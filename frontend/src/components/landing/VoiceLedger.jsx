@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Play, Pause } from 'lucide-react';
+import { useUiStore } from '../../lib/store';
+import { getTranslations } from '../../lib/translations';
 
 /* The hero apparatus: one voice note in, one ledger line out.
    Built from tokens + DOM — no image, no device frame. The pear recording dot
@@ -22,6 +24,9 @@ export function VoiceLedger() {
   const [bursts, setBursts] = useState([]);
   const raf = useRef(0);
   const dotRef = useRef(null);
+
+  const language = useUiStore((s) => s.language);
+  const t = getTranslations(language).voiceLedger;
 
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
 
@@ -66,7 +71,7 @@ export function VoiceLedger() {
       {/* 1 · the voice note */}
       <div className="relative rounded-slab border border-rule bg-surface p-4 shadow-[var(--shadow-lift)] sm:p-5">
         <div className="flex items-center justify-between">
-          <p className="label">Voice note · Urdu</p>
+          <p className="label">{t.voiceNoteUrdu}</p>
           <p className="label font-tabular">0:{String(playing || progress ? seconds : 7).padStart(2, '0')}</p>
         </div>
 
@@ -103,7 +108,7 @@ export function VoiceLedger() {
         </div>
 
         <p className="mt-4 border-t border-dashed border-rule-2 pt-3 text-sm text-ink-2">
-          “Do carton Dalda bech diye, cash mil gaya.”
+          {t.noteTranscript}
         </p>
       </div>
 
@@ -118,30 +123,30 @@ export function VoiceLedger() {
         style={{ transitionTimingFunction: 'var(--ease-out)' }}
       >
         <div className="flex items-center justify-between">
-          <span className="label">Ord-2842 · 11:15</span>
-          <span className="rounded-pill bg-pear px-2 py-0.5 text-[11px] font-semibold text-on-pear">Logged</span>
+          <span className="label">{t.orderNum}</span>
+          <span className="rounded-pill bg-pear px-2 py-0.5 text-[11px] font-semibold text-on-pear">{t.logged}</span>
         </div>
         <dl className="mt-3 space-y-1.5 font-tabular">
           <div className="flex justify-between gap-3">
-            <dt className="truncate">Dalda Oil 5L × 2</dt>
-            <dd className="shrink-0">5,300</dd>
+            <dt className="truncate">{t.itemRow}</dt>
+            <dd className="shrink-0">{t.amount}</dd>
           </div>
           <div className="flex justify-between gap-3 text-muted">
-            <dt>Paid</dt>
-            <dd>Cash</dd>
+            <dt>{t.paidLabel}</dt>
+            <dd>{t.paidVal}</dd>
           </div>
           <div className="flex justify-between gap-3 border-t border-dashed border-rule-2 pt-1.5">
-            <dt>Stock left</dt>
-            <dd className="text-coral-deep dark:text-coral">3 cartons</dd>
+            <dt>{t.stockLeftLabel}</dt>
+            <dd className="text-coral-deep dark:text-coral">{t.stockLeftVal}</dd>
           </div>
         </dl>
       </div>
 
       {/* leader-line callouts — desktop only; the same facts are in the copy for mobile */}
       <ul aria-hidden="true" className="pointer-events-none absolute inset-0 hidden xl:block">
-        <Callout top="44%" text="Heard · Roman Urdu" />
-        <Callout top="68%" text="Rate · confirmed" />
-        <Callout top="88%" text="Stock · −2 cartons" />
+        <Callout top="44%" text={t.calloutHeard} />
+        <Callout top="68%" text={t.calloutRate} />
+        <Callout top="88%" text={t.calloutStock} />
       </ul>
     </figure>
   );

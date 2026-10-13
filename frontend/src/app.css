@@ -635,3 +635,19 @@
   .btn:active { transform: none; }
   @keyframes reveal-reduced { to { opacity: 1; transform: none; } }
 }
+
+/* ─── RTL & Urdu Typography ────────────────────────────────────── */
+
+[dir="rtl"] {
+  font-family: var(--font-body), "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
+}
+
+[dir="rtl"] .display,
+[dir="rtl"] .font-display,
+[dir="rtl"] h1,
+[dir="rtl"] h2,
+[dir="rtl"] h3 {
+  font-family: var(--font-display), "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0;
+}
+
