@@ -26,6 +26,7 @@ const REPORTS = [
     labelUr: 'سیلز رپورٹ',
     icon: TrendingUp,
     desc: 'Revenue, payments & orders',
+    descUr: 'آمدنی، ادائیگیاں اور آرڈرز',
   },
   {
     type: 'top_selling',
@@ -33,6 +34,7 @@ const REPORTS = [
     labelUr: 'ٹاپ سیلرز',
     icon: Star,
     desc: 'Fastest moving stock',
+    descUr: 'سب سے زیادہ فروخت ہونے والا مال',
   },
   {
     type: 'inventory',
@@ -40,6 +42,7 @@ const REPORTS = [
     labelUr: 'مکمل انوینٹری',
     icon: Package,
     desc: 'Complete items catalog',
+    descUr: 'دکان کی تمام اشیاء کی لسٹ',
   },
   {
     type: 'low_stock',
@@ -47,6 +50,7 @@ const REPORTS = [
     labelUr: 'کم اسٹاک',
     icon: AlertTriangle,
     desc: 'Items needing reorder',
+    descUr: 'مال جو ختم ہونے کے قریب ہے',
   },
   {
     type: 'expiring',
@@ -54,6 +58,7 @@ const REPORTS = [
     labelUr: 'ختم ہونے والا مال',
     icon: Clock,
     desc: 'Batches reaching expiry',
+    descUr: 'ایکسپائری کے قریب اشیاء',
   },
 ];
 
@@ -146,7 +151,7 @@ export function ReportDropdown() {
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        <span>{isUrdu ? 'رپورٹس / Reports' : 'Reports'}</span>
+        <span>{isUrdu ? 'رپورٹس' : 'Reports'}</span>
       </Button>
 
       {open && (
@@ -184,6 +189,7 @@ export function ReportDropdown() {
               const isDownloading = downloadingType === r.type;
               const isSending = sendingType === r.type;
               const title = isUrdu ? r.labelUr : r.label;
+              const description = isUrdu && r.descUr ? r.descUr : r.desc;
 
               return (
                 <div
@@ -198,7 +204,7 @@ export function ReportDropdown() {
                       <p className={`text-sm font-medium text-ink truncate ${isUrdu ? 'font-urdu text-base' : ''}`}>
                         {title}
                       </p>
-                      <p className="text-[11px] text-muted truncate">{r.desc}</p>
+                      <p className="text-[11px] text-muted truncate">{description}</p>
                     </div>
                   </div>
 

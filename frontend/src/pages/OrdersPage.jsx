@@ -25,25 +25,25 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useOrders, useCreateOrder } from '../hooks/useOrders';
 import { useInventory } from '../hooks/useInventory';
+import { useUiStore } from '../lib/store';
+import { getTranslations } from '../lib/translations';
 import { formatPKR, formatDate, formatQuantity } from '../lib/format';
 
-const PAYMENT_METHODS = ['easypaisa', 'jazzcash', 'bank', 'cash'];
-
-const STATUS_TABS = [
- { id: 'all', label: 'All' },
- { id: 'completed', label: 'Completed' },
- { id: 'pending_approval', label: 'Waiting for approval' },
- { id: 'rejected', label: 'Rejected' },
-];
+const PAYMENT_METHODS = ['cash', 'easypaisa', 'jazzcash', 'bank'];
 
 function NewOrderModal({ isOpen, onClose }) {
- const { data: inventory } = useInventory();
- const createOrder = useCreateOrder();
+  const language = useUiStore((s) => s.language);
+  const isUrdu = language === 'ur';
+  const t = getTranslations(language).ordersPage;
+  const tDash = getTranslations(language).dashboard;
 
- const [paymentMethod, setPaymentMethod] = useState('cash');
- const [items, setItems] = useState([
- { inventoryItemId: '', name: '', quantity: 1, price: 0 },
- ]);
+  const { data: inventory } = useInventory();
+  const createOrder = useCreateOrder();
+
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [items, setItems] = useState([
+    { inventoryItemId: '', name: '', quantity: 1, price: 0 },
+  ]);
 
  const inventoryMap = useMemo(() => {
  const map = new Map();
@@ -82,7 +82,7 @@ function NewOrderModal({ isOpen, onClose }) {
  e.preventDefault();
  const validItems = items.filter((i) => i.inventoryItemId && Number(i.quantity) > 0);
  if (!validItems.length) {
- toast.error('Add at least one item');
+ toast.error(isUrdu ? 'کم از کم ایک چیز شامل کریں' : 'Add at least one item');
  return;
  }
 
@@ -98,12 +98,12 @@ function NewOrderModal({ isOpen, onClose }) {
  paymentMethod,
  source: 'dashboard',
  });
- toast.success('Order created');
+ toast.success(isUrdu ? 'نیا آرڈر کامیابی سے درج ہو گیا' : 'Order created');
  setItems([{ inventoryItemId: '', name: '', quantity: 1, price: 0 }]);
  setPaymentMethod('cash');
  onClose();
  } catch (err) {
- toast.error(err.message || 'Failed to create order');
+ toast.error(err.message || (isUrdu ? 'آرڈر درج کرنے میں ناکامی' : 'Failed to create order'));
  }
  };
 
@@ -111,8 +111,8 @@ function NewOrderModal({ isOpen, onClose }) {
  <Modal
  isOpen={isOpen}
  onClose={onClose}
- title="New order"
- description="Create an order directly from the dashboard."
+ title={t.createOrderModalTitle}
+ description={t.createOrderModalDesc}
  maxWidth="max-w-xl"
  >
  <form onSubmit={handleSubmit} className="space-y-4">
@@ -127,7 +127,7 @@ function NewOrderModal({ isOpen, onClose }) {
  required
  >
  <option value="" disabled>
- Select item
+ {t.selectItem}
  </option>
  {(inventory || []).map((inv) => (
  <option key={inv._id} value={inv._id}>
@@ -170,12 +170,12 @@ function NewOrderModal({ isOpen, onClose }) {
  leftIcon={<Plus className="w-4 h-4" />}
  onClick={addLine}
  >
- Add item
+ {t.addItem}
  </Button>
 
  <div className="grid grid-cols-2 gap-4 pt-2 border-t border-hairline">
  <div className="flex flex-col gap-1.5">
- <label className="text-xs font-medium text-ink-secondary">Payment method</label>
+ <label className="text-xs font-medium text-ink-secondary">{t.paymentMethod}</label>
  <select
  value={paymentMethod}
  onChange={(e) => setPaymentMethod(e.target.value)}
@@ -183,23 +183,23 @@ function NewOrderModal({ isOpen, onClose }) {
  >
  {PAYMENT_METHODS.map((m) => (
  <option key={m} value={m}>
- {m.charAt(0).toUpperCase() + m.slice(1)}
+ {tDash[m] || (m.charAt(0).toUpperCase() + m.slice(1))}
  </option>
  ))}
  </select>
  </div>
  <div className="flex flex-col justify-center rounded-input bg-pear-tint px-4 py-2">
- <p className="label">Total</p>
+ <p className="label">{t.total}</p>
  <p className="font-mono text-lg font-semibold text-ink">{formatPKR(total)}</p>
  </div>
  </div>
 
  <div className="flex justify-end gap-2 pt-2">
  <Button type="button" variant="ghost" onClick={onClose} disabled={createOrder.isPending}>
- Cancel
+ {t.cancel}
  </Button>
  <Button type="submit" loading={createOrder.isPending}>
- Create order
+ {t.createOrderBtn}
  </Button>
  </div>
  </form>
@@ -208,144 +208,165 @@ function NewOrderModal({ isOpen, onClose }) {
 }
 
 export function OrdersPage() {
- const { data: orders, isLoading, error } = useOrders();
- const [search, setSearch] = useState('');
- const [statusFilter, setStatusFilter] = useState('all');
- const [selectedOrder, setSelectedOrder] = useState(null);
- const [newOrderOpen, setNewOrderOpen] = useState(false);
+  const language = useUiStore((s) => s.language);
+  const isUrdu = language === 'ur';
+  const t = getTranslations(language).ordersPage;
+  const tDash = getTranslations(language).dashboard;
 
- const counts = useMemo(() => {
- const list = orders || [];
- return {
- all: list.length,
- completed: list.filter((o) => o.status === 'completed' || o.status === 'approved').length,
- pending_approval: list.filter((o) => o.status === 'pending_approval').length,
- rejected: list.filter((o) => o.status === 'rejected').length,
- };
- }, [orders]);
+  const { data: orders, isLoading, error } = useOrders();
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [newOrderOpen, setNewOrderOpen] = useState(false);
 
- const filteredOrders = useMemo(() => {
- if (!orders) return [];
- if (statusFilter === 'all') return orders;
- if (statusFilter === 'completed') {
- return orders.filter((o) => o.status === 'completed' || o.status === 'approved');
- }
- return orders.filter((o) => o.status === statusFilter);
- }, [orders, statusFilter]);
+  const statusTabs = useMemo(
+    () => [
+      { id: 'all', label: t.all },
+      { id: 'completed', label: t.completed },
+      { id: 'pending_approval', label: t.waitingApproval },
+      { id: 'rejected', label: t.rejected },
+    ],
+    [t]
+  );
 
- const totalRevenue = useMemo(() => {
- return (orders || []).reduce((sum, o) => sum + (o.total || 0), 0);
- }, [orders]);
+  const counts = useMemo(() => {
+    const list = orders || [];
+    return {
+      all: list.length,
+      completed: list.filter((o) => o.status === 'completed' || o.status === 'approved').length,
+      pending_approval: list.filter((o) => o.status === 'pending_approval').length,
+      rejected: list.filter((o) => o.status === 'rejected').length,
+    };
+  }, [orders]);
 
- const paymentDots = {
- cash: 'bg-primary',
- easypaisa: 'bg-pear-deep',
- jazzcash: 'bg-coral',
- bank: 'bg-sky',
- };
+  const filteredOrders = useMemo(() => {
+    if (!orders) return [];
+    if (statusFilter === 'all') return orders;
+    if (statusFilter === 'completed') {
+      return orders.filter((o) => o.status === 'completed' || o.status === 'approved');
+    }
+    return orders.filter((o) => o.status === statusFilter);
+  }, [orders, statusFilter]);
 
- const columns = useMemo(
- () => [
- {
- accessorKey: 'createdAt',
- header: 'Date',
- cell: ({ getValue }) => (
- <span className="whitespace-nowrap font-mono text-xs text-muted">
- {formatDate(getValue())}
- </span>
- ),
- },
- {
- accessorKey: 'items',
- header: 'Items',
- cell: ({ getValue }) => {
- const items = getValue() || [];
- const count = items.length;
- const summary = items.map((i) => `${i.name} x${i.quantity}`).join(', ');
- return (
- <div className="flex items-center gap-2 max-w-[260px]">
- <span className="shrink-0 font-mono text-[11px] text-muted">{count}×</span>
- <span className="truncate text-ink text-xs" title={summary}>
- {summary || '-'}
- </span>
- </div>
- );
- },
- },
- {
- accessorKey: 'total',
- header: 'Total',
- cell: ({ getValue }) => (
- <span className="font-mono text-sm font-semibold text-ink">
- {formatPKR(getValue())}
- </span>
- ),
- },
- {
- accessorKey: 'paymentMethod',
- header: 'Payment',
- cell: ({ getValue }) => {
- const key = (getValue() || 'cash').toLowerCase();
- return (
- <span className="inline-flex items-center gap-2 text-xs font-medium capitalize text-ink-2">
- <span className={`size-2 rounded-pill ${paymentDots[key] || 'bg-muted'}`} />
- {key}
- </span>
- );
- },
- },
- {
- accessorKey: 'source',
- header: 'Source / Staff',
- cell: ({ row, getValue }) => {
-   const staffName = row.original?.staffName;
-   return (
-     <div className="flex flex-col gap-1 items-start">
-       <Badge variant={getValue()} dot>{getValue()}</Badge>
-       {staffName && (
-         <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary-deep dark:text-primary bg-primary-tint/60 px-1.5 py-0.5 rounded">
-           👤 {staffName}
-         </span>
-       )}
-     </div>
-   );
- },
- },
- {
- accessorKey: 'status',
- header: 'Status',
- cell: ({ getValue }) => <Badge variant={getValue()} dot>{getValue()}</Badge>,
- },
- ],
- []
- );
+  const totalRevenue = useMemo(() => {
+    return (orders || []).reduce((sum, o) => sum + (o.total || 0), 0);
+  }, [orders]);
 
- const table = useReactTable({
- data: filteredOrders,
- columns,
- state: { globalFilter: search },
- onGlobalFilterChange: setSearch,
- getCoreRowModel: getCoreRowModel(),
- getSortedRowModel: getSortedRowModel(),
- getFilteredRowModel: getFilteredRowModel(),
- initialState: { sorting: [{ id: 'createdAt', desc: true }] },
- });
+  const paymentDots = {
+    cash: 'bg-primary',
+    easypaisa: 'bg-pear-deep',
+    jazzcash: 'bg-coral',
+    bank: 'bg-sky',
+  };
 
- if (error) {
- return (
- <div className="space-y-6">
- <div>
- <p className="label">Ledger</p>
- <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink">Orders</h1>
- </div>
- <Card padding="lg" className="text-center py-12">
- <AlertCircle className="mx-auto mb-3 size-9 text-coral" />
- <h3 className="font-display text-lg font-semibold text-ink">Orders didn’t load</h3>
- <p className="mt-1 text-sm text-muted">{error.message}. Refresh to try again.</p>
- </Card>
- </div>
- );
- }
+  const columns = useMemo(
+    () => [
+      {
+        accessorKey: 'createdAt',
+        header: t.date,
+        cell: ({ getValue }) => (
+          <span className="whitespace-nowrap font-mono text-xs text-muted">
+            {formatDate(getValue(), language)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'items',
+        header: t.items,
+        cell: ({ getValue }) => {
+          const items = getValue() || [];
+          const count = items.length;
+          const summary = items.map((i) => `${i.name} x${i.quantity}`).join(', ');
+          return (
+            <div className="flex items-center gap-2 max-w-[260px]">
+              <span className="shrink-0 font-mono text-[11px] text-muted">{count}×</span>
+              <span className="truncate text-ink text-xs" title={summary}>
+                {summary || '-'}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'total',
+        header: t.total,
+        cell: ({ getValue }) => (
+          <span className="font-mono text-sm font-semibold text-ink">
+            {formatPKR(getValue())}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'paymentMethod',
+        header: t.payment,
+        cell: ({ getValue }) => {
+          const key = (getValue() || 'cash').toLowerCase();
+          return (
+            <span className="inline-flex items-center gap-2 text-xs font-medium capitalize text-ink-2">
+              <span className={`size-2 rounded-pill ${paymentDots[key] || 'bg-muted'}`} />
+              {tDash[key] || key}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: 'source',
+        header: t.sourceStaff,
+        cell: ({ row, getValue }) => {
+          const staffName = row.original?.staffName;
+          const val = getValue();
+          const displayVal = val === 'whatsapp' ? 'WhatsApp' : val === 'dashboard' ? (isUrdu ? 'ڈیش بورڈ' : 'Dashboard') : val;
+          return (
+            <div className="flex flex-col gap-1 items-start">
+              <Badge variant={val} dot>{displayVal}</Badge>
+              {staffName && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary-deep dark:text-primary bg-primary-tint/60 px-1.5 py-0.5 rounded">
+                  👤 {staffName}
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'status',
+        header: t.status,
+        cell: ({ getValue }) => {
+          const val = getValue();
+          const label = tDash[val] || (val === 'pending_approval' ? tDash.pendingApproval : val);
+          return <Badge variant={val} dot>{label}</Badge>;
+        },
+      },
+    ],
+    [t, tDash, language, isUrdu]
+  );
+
+  const table = useReactTable({
+    data: filteredOrders,
+    columns,
+    state: { globalFilter: search },
+    onGlobalFilterChange: setSearch,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    initialState: { sorting: [{ id: 'createdAt', desc: true }] },
+  });
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <p className="label">{t.ledger}</p>
+          <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink">{t.orders}</h1>
+        </div>
+        <Card padding="lg" className="text-center py-12">
+          <AlertCircle className="mx-auto mb-3 size-9 text-coral" />
+          <h3 className="font-display text-lg font-semibold text-ink">{t.ordersFailedTitle}</h3>
+          <p className="mt-1 text-sm text-muted">{error.message}. {t.ordersFailedDesc}</p>
+        </Card>
+      </div>
+    );
+  }
 
  const statusTone = {
  all: 'bg-ink',
@@ -358,30 +379,30 @@ export function OrdersPage() {
  <div className="space-y-5 sm:space-y-6">
  <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
  <div>
- <p className="label">Ledger</p>
- <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)]">Orders</h1>
+ <p className="label">{t.ledger}</p>
+ <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)]">{t.orders}</h1>
  </div>
  <Button leftIcon={<Plus className="size-4" />} onClick={() => setNewOrderOpen(true)}>
- New order
+ {t.newOrder}
  </Button>
  </div>
 
  {/* Volume slab (5) beside a status ledger that filters the table (7) */}
  <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
  <div className="flex flex-col justify-between gap-8 rounded-card bg-ink p-5 text-paper sm:p-7 lg:col-span-5">
- <p className="font-mono text-[11px] uppercase tracking-[0.1em] opacity-70">Volume recorded</p>
+ <p className="font-mono text-[11px] uppercase tracking-[0.1em] opacity-70">{t.volumeRecorded}</p>
  <div>
  <p className="font-display text-[clamp(2.25rem,4vw+1rem,3.5rem)] font-semibold leading-none tracking-[-0.04em] font-tabular">
  {isLoading ? '—' : formatPKR(totalRevenue)}
  </p>
  <p className="mt-3 text-sm opacity-75">
- across {isLoading ? '—' : counts.all} order{counts.all === 1 ? '' : 's'}
+ {isUrdu ? `${isLoading ? '—' : counts.all} آرڈرز پر مشتمل` : `across ${isLoading ? '—' : counts.all} order${counts.all === 1 ? '' : 's'}`}
  </p>
  </div>
  </div>
 
  <div className="surface-card p-2 lg:col-span-7" role="group" aria-label="Filter by status">
- {STATUS_TABS.map((tab) => {
+ {statusTabs.map((tab) => {
  const active = statusFilter === tab.id;
  const n = counts[tab.id] ?? 0;
  const share = counts.all ? (n / counts.all) * 100 : 0;
@@ -415,16 +436,16 @@ export function OrdersPage() {
  <div className="flex flex-col gap-3 px-5 pb-2 pt-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
  <div>
  <h2 className="font-display text-base font-semibold tracking-tight text-ink sm:text-lg">
- {STATUS_TABS.find((t) => t.id === statusFilter)?.label} orders
+ {statusTabs.find((item) => item.id === statusFilter)?.label} {t.orders}
  </h2>
- <p className="label mt-0.5">Tap a row for the full receipt</p>
+ <p className="label mt-0.5">{t.tapRowHint}</p>
  </div>
  <div className="relative w-full sm:w-64">
  <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
  <input
  type="search"
- placeholder="Search orders…"
- aria-label="Search orders"
+ placeholder={t.searchPlaceholder}
+ aria-label={t.searchPlaceholder}
  value={search}
  onChange={(e) => setSearch(e.target.value)}
  className="h-10 w-full rounded-pill border border-rule-2 bg-paper pl-10 pr-4 text-sm text-ink transition-colors placeholder:text-muted/70 hover:border-muted focus:border-ink focus:outline-none"
@@ -441,19 +462,19 @@ export function OrdersPage() {
  ) : filteredOrders.length === 0 && !search ? (
  <EmptyState
  icon={<Receipt className="size-6" />}
- title={statusFilter === 'all' ? 'No orders yet' : `No ${statusFilter.replace('_', ' ')} orders`}
+ title={statusFilter === 'all' ? t.noOrdersYet : (isUrdu ? 'اس کیٹیگری میں کوئی آرڈر نہیں ہے' : `No ${statusFilter.replace('_', ' ')} orders`)}
  description={
  statusFilter === 'all'
- ? 'Orders from WhatsApp voice notes, guided chat or this dashboard land here.'
- : 'Nothing has this status right now.'
+ ? t.noOrdersDesc
+ : t.noFilteredOrdersDesc
  }
- actionLabel={statusFilter === 'all' ? 'New order' : undefined}
+ actionLabel={statusFilter === 'all' ? t.newOrder : undefined}
  actionIcon={statusFilter === 'all' ? <Plus className="size-4" /> : undefined}
  onAction={statusFilter === 'all' ? () => setNewOrderOpen(true) : undefined}
  />
  ) : (
  <div className="pb-2">
- <Table table={table} onRowClick={(order) => setSelectedOrder(order)} emptyText="No orders match that search" />
+ <Table table={table} onRowClick={(order) => setSelectedOrder(order)} emptyText={t.noMatchSearch} />
  </div>
  )}
  </Card>
@@ -463,43 +484,43 @@ export function OrdersPage() {
  <Modal
  isOpen={!!selectedOrder}
  onClose={() => setSelectedOrder(null)}
- title="Order details"
+ title={t.orderDetails}
  maxWidth="max-w-lg"
  >
  {selectedOrder && (
  <div className="space-y-5">
  <div className="flex items-end justify-between gap-4 rounded-card bg-paper-2 p-4">
  <div>
- <p className="label">Total</p>
+ <p className="label">{t.total}</p>
  <p className="mt-1 font-display text-3xl font-semibold tracking-tight text-ink font-tabular">{formatPKR(selectedOrder.total)}</p>
  </div>
- <Badge variant={selectedOrder.status} dot>{selectedOrder.status}</Badge>
+ <Badge variant={selectedOrder.status} dot>{tDash[selectedOrder.status] || selectedOrder.status}</Badge>
  </div>
 
  <div className="space-y-3">
  <div className="flex items-center justify-between text-sm">
- <span className="text-ink-secondary">Payment method</span>
- <span className="capitalize text-ink font-medium">{selectedOrder.paymentMethod}</span>
+ <span className="text-ink-secondary">{t.paymentMethod}</span>
+ <span className="capitalize text-ink font-medium">{tDash[selectedOrder.paymentMethod] || selectedOrder.paymentMethod}</span>
  </div>
  <div className="flex items-center justify-between text-sm">
- <span className="text-ink-secondary">Source</span>
- <Badge variant={selectedOrder.source}>{selectedOrder.source}</Badge>
+ <span className="text-ink-secondary">{t.source}</span>
+ <Badge variant={selectedOrder.source}>{selectedOrder.source === 'dashboard' ? (isUrdu ? 'ڈیش بورڈ' : 'Dashboard') : selectedOrder.source}</Badge>
  </div>
  <div className="flex items-center justify-between text-sm">
- <span className="text-ink-secondary">Created</span>
- <span className="text-ink font-medium">{formatDate(selectedOrder.createdAt)}</span>
+ <span className="text-ink-secondary">{t.created}</span>
+ <span className="text-ink font-medium">{formatDate(selectedOrder.createdAt, language)}</span>
  </div>
  </div>
 
  <div>
- <p className="label mb-2">Items</p>
+ <p className="label mb-2">{t.items}</p>
  <ul className="divide-y divide-dashed divide-rule-2 border-y border-rule font-mono">
  {(selectedOrder.items || []).map((item, idx) => (
  <li key={idx} className="flex items-center justify-between gap-4 py-3">
  <div>
  <p className="text-sm text-ink">{item.name}</p>
  <p className="text-[11px] text-ink-mute">
- {formatPKR(item.price)} each
+ {formatPKR(item.price)} {t.each}
  </p>
  </div>
  <div className="text-right">
@@ -515,7 +536,7 @@ export function OrdersPage() {
 
  <div className="flex justify-end pt-2">
  <Button variant="outline" onClick={() => setSelectedOrder(null)} leftIcon={<X className="w-4 h-4" />}>
- Close
+ {t.close}
  </Button>
  </div>
  </div>

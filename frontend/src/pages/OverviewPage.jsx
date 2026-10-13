@@ -13,7 +13,8 @@ import { CountUp } from '../components/ui/CountUp';
 import { useDashboard, useNotifyExpiries } from '../hooks/useDashboard';
 import { useUpdateInventoryItem } from '../hooks/useInventory';
 import { ReportDropdown } from '../components/ReportDropdown';
-import { useAuthStore } from '../lib/store';
+import { useAuthStore, useUiStore } from '../lib/store';
+import { getTranslations } from '../lib/translations';
 import { formatPKR, formatDate, formatQuantity } from '../lib/format';
 
 import cashLogo from '../assets/cash-logo.jpeg';
@@ -39,13 +40,14 @@ function capitalise(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function PaymentMethod({ method }) {
+function PaymentMethod({ method, isUrdu, t }) {
   const key = (method || 'cash').toLowerCase();
   const logo = PAYMENT_LOGOS[key];
+  const label = t?.[key] || capitalise(key);
   return (
     <span className="inline-flex items-center gap-2">
       {logo && <img src={logo} alt="" className="size-5 shrink-0 rounded-[5px] object-cover" />}
-      <span className="whitespace-nowrap text-xs font-medium text-ink-2">{capitalise(key)}</span>
+      <span className={`whitespace-nowrap text-xs font-medium text-ink-2 ${isUrdu ? 'font-urdu' : ''}`}>{label}</span>
     </span>
   );
 }
@@ -103,6 +105,10 @@ function AttentionRow({ to, label, hint, value, tone, loading }) {
 }
 
 export function OverviewPage() {
+  const language = useUiStore((s) => s.language);
+  const isUrdu = language === 'ur';
+  const t = getTranslations(language).dashboard;
+
   const { data, isLoading, error } = useDashboard();
   const updateItem = useUpdateInventoryItem();
   const notifyExpiries = useNotifyExpiries();
@@ -128,10 +134,27 @@ export function OverviewPage() {
     };
   }, [data]);
 
+  const URDU_DAYS = useMemo(
+    () => ({
+      Sun: 'اتوار',
+      Mon: 'پیر',
+      Tue: 'منگل',
+      Wed: 'بدھ',
+      Thu: 'جمعرات',
+      Fri: 'جمعہ',
+      Sat: 'ہفتہ',
+    }),
+    []
+  );
+
   // 7-day trend: use the backend series when present, else roll up recent orders by day.
   const revenueChartData = useMemo(() => {
     if (data?.salesTrend && Array.isArray(data.salesTrend) && data.salesTrend.length > 0) {
-      return data.salesTrend;
+      if (!isUrdu) return data.salesTrend;
+      return data.salesTrend.map((pt) => ({
+        ...pt,
+        date: URDU_DAYS[pt.date] || pt.date,
+      }));
     }
     const trend = [];
     const dateMap = {};
@@ -146,14 +169,15 @@ export function OverviewPage() {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateKey = d.toISOString().split('T')[0];
+      const enDay = d.toLocaleDateString('en-PK', { weekday: 'short' });
       trend.push({
-        date: d.toLocaleDateString('en-PK', { weekday: 'short' }),
+        date: isUrdu ? (URDU_DAYS[enDay] || enDay) : enDay,
         fullDate: dateKey,
         revenue: dateMap[dateKey] ?? (i === 0 ? data?.todaySales || 0 : 0),
       });
     }
     return trend;
-  }, [data]);
+  }, [data, isUrdu, URDU_DAYS]);
 
   const paymentBreakdown = useMemo(() => {
     const counts = {};
@@ -174,12 +198,12 @@ export function OverviewPage() {
     () => [
       {
         accessorKey: 'createdAt',
-        header: 'Time',
-        cell: ({ getValue }) => <span className="font-mono text-xs text-muted">{formatDate(getValue())}</span>,
+        header: t.time,
+        cell: ({ getValue }) => <span className="font-mono text-xs text-muted">{formatDate(getValue(), language)}</span>,
       },
       {
         accessorKey: 'items',
-        header: 'Items',
+        header: t.items,
         cell: ({ getValue }) => {
           const items = getValue() || [];
           const summary = items.map((i) => `${i.name} ×${i.quantity}`).join(', ');
@@ -192,21 +216,25 @@ export function OverviewPage() {
       },
       {
         accessorKey: 'total',
-        header: 'Total',
+        header: t.total,
         cell: ({ getValue }) => <span className="font-mono text-sm font-semibold text-ink">{formatPKR(getValue())}</span>,
       },
       {
         accessorKey: 'status',
-        header: 'Status',
-        cell: ({ getValue }) => <Badge variant={getValue()} dot>{getValue()}</Badge>,
+        header: t.status,
+        cell: ({ getValue }) => {
+          const val = getValue();
+          const label = t[val] || (val === 'pending_approval' ? t.pendingApproval : val);
+          return <Badge variant={val} dot>{label}</Badge>;
+        },
       },
       {
         accessorKey: 'paymentMethod',
-        header: 'Paid by',
-        cell: ({ getValue }) => <PaymentMethod method={getValue()} />,
+        header: t.paymentMethod,
+        cell: ({ getValue }) => <PaymentMethod method={getValue()} isUrdu={isUrdu} t={t} />,
       },
     ],
-    []
+    [t, isUrdu, language]
   );
 
   const recentOrdersTable = useReactTable({
@@ -218,16 +246,21 @@ export function OverviewPage() {
   });
 
   const greetingName = merchant?.businessName;
-  const todayLabel = new Date().toLocaleDateString('en-PK', { weekday: 'long', day: 'numeric', month: 'long' });
+  const todayLabel = new Date().toLocaleDateString(isUrdu ? 'ur-PK' : 'en-PK', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 
   if (error) {
     return (
       <div className="space-y-6">
-        <h1 className="display text-[length:var(--fs-xl)] text-ink">Today</h1>
+        <h1 className="display text-[length:var(--fs-xl)] text-ink">{t.today}</h1>
         <Card padding="lg" className="py-14 text-center">
           <AlertCircle className="mx-auto mb-3 size-9 text-coral" />
-          <h2 className="font-display text-lg font-semibold text-ink">The dashboard didn’t load</h2>
-          <p className="mt-1 text-sm text-muted">{error.message}. Refresh the page to try again.</p>
+          <h2 className="font-display text-lg font-semibold text-ink">{t.dashboardErrorTitle}</h2>
+          <p className="mt-1 text-sm text-muted">{error.message}. {t.dashboardErrorDesc}</p>
         </Card>
       </div>
     );
@@ -243,7 +276,7 @@ export function OverviewPage() {
         <div className="min-w-0">
           <p className="label">{todayLabel}</p>
           <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)]">
-            {greetingName ? `Today at ${greetingName}` : 'Today at your shop'}
+            {greetingName ? (isUrdu ? `${t.todayAt} ${greetingName}` : `Today at ${greetingName}`) : t.todayAtShop}
           </h1>
         </div>
         <ReportDropdown />
@@ -254,12 +287,12 @@ export function OverviewPage() {
         <Card padding="none" className="overflow-hidden lg:col-span-7">
           <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 px-5 pt-5 sm:px-7 sm:pt-7">
             <div className="min-w-0">
-              <p className="label">Sales today</p>
+              <p className="label">{t.salesToday}</p>
               {isLoading ? (
                 <Skeleton className="mt-3 h-14 w-56" />
               ) : (
                 <p className="mt-2 font-display text-[clamp(2.75rem,5vw+1rem,4.5rem)] font-semibold leading-[0.95] tracking-[-0.04em] text-ink font-tabular">
-                  <span className="mr-2 align-top text-[0.4em] font-medium text-muted">Rs.</span>
+                  <span className="mr-2 align-top text-[0.4em] font-medium text-muted">{isUrdu ? 'روپے' : 'Rs.'}</span>
                   <span className="hl">
                     <CountUp to={stats?.todaySales ?? 0} separator="," />
                   </span>
@@ -268,11 +301,11 @@ export function OverviewPage() {
             </div>
             <dl className="flex gap-6 pb-1.5">
               <div>
-                <dt className="label">Orders</dt>
+                <dt className="label">{t.orders}</dt>
                 <dd className="mt-1 font-mono text-lg font-semibold text-ink">{isLoading ? '—' : data?.todayOrdersCount ?? 0}</dd>
               </div>
               <div>
-                <dt className="label">Items sold</dt>
+                <dt className="label">{t.itemsSold}</dt>
                 <dd className="mt-1 font-mono text-lg font-semibold text-ink">{isLoading ? '—' : stats?.itemsSoldToday ?? 0}</dd>
               </div>
             </dl>
@@ -321,27 +354,27 @@ export function OverviewPage() {
         </Card>
 
         <div className="flex flex-col gap-3 lg:col-span-5">
-          <p className="label px-1">Needs you</p>
+          <p className="label px-1">{t.needsYou}</p>
           <AttentionRow
             to="/dashboard/approvals"
-            label="Approvals waiting"
-            hint={pending ? 'Big sales held until you decide' : 'Nothing is waiting on you'}
+            label={t.approvalsWaiting}
+            hint={pending ? t.approvalsPendingHint : t.approvalsNoneHint}
             value={pending}
             tone={pending ? 'coral' : 'calm'}
             loading={isLoading}
           />
           <AttentionRow
             to="/dashboard/inventory"
-            label="Running low"
-            hint={lowStock ? 'Items under their alert level' : 'Every shelf is above its level'}
+            label={t.runningLow}
+            hint={lowStock ? t.runningLowHint : t.allStockedHint}
             value={lowStock}
             tone={lowStock ? 'pear' : 'calm'}
             loading={isLoading}
           />
           <AttentionRow
             to="/dashboard/workflows"
-            label="Workflows on"
-            hint="Automations watching your stock"
+            label={t.workflowsOn}
+            hint={t.workflowsHint}
             value={stats?.activeWorkflows ?? 0}
             tone="calm"
             loading={isLoading}
@@ -353,11 +386,11 @@ export function OverviewPage() {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-6">
         <Card padding="none" className="min-w-0 overflow-hidden lg:col-span-8">
           <SectionHead
-            title="Recent orders"
-            meta="From WhatsApp and the dashboard"
+            title={t.recentOrders}
+            meta={t.fromWhatsAppAndDashboard}
             action={
               <Link to="/dashboard/orders" className="link-type text-sm">
-                All orders <ArrowUpRight className="size-3.5" />
+                {t.allOrders} <ArrowUpRight className="size-3.5 rtl:rotate-90" />
               </Link>
             }
           />
@@ -369,14 +402,14 @@ export function OverviewPage() {
                 <Skeleton variant="tableRow" />
               </div>
             ) : (
-              <Table table={recentOrdersTable} emptyText="No orders yet. Send your first voice note to see it here." />
+              <Table table={recentOrdersTable} emptyText={t.noOrdersYet} />
             )}
           </div>
         </Card>
 
         <div className="flex min-w-0 flex-col gap-5 lg:col-span-4 lg:gap-6">
           <Card padding="none">
-            <SectionHead title="Paid by" meta={paymentBreakdown.total ? `${paymentBreakdown.total} recent orders` : 'No orders yet'} />
+            <SectionHead title={t.paidBy} meta={paymentBreakdown.total ? `${paymentBreakdown.total} ${t.recentOrdersCount}` : t.noOrdersYet} />
             <div className="px-5 pb-5 pt-4 sm:px-6">
               {isLoading ? (
                 <Skeleton className="h-3 w-full" />
@@ -395,7 +428,7 @@ export function OverviewPage() {
                       <li key={r.method} className="flex items-center justify-between gap-3">
                         <span className="flex items-center gap-2.5">
                           <span className="size-2.5 rounded-pill" style={{ background: PAYMENT_COLORS[r.method] || 'var(--color-muted)' }} />
-                          <PaymentMethod method={r.method} />
+                          <PaymentMethod method={r.method} isUrdu={isUrdu} t={t} />
                         </span>
                         <span className="font-mono text-xs text-muted">
                           {r.value} · {Math.round(r.share * 100)}%
@@ -405,19 +438,19 @@ export function OverviewPage() {
                   </ul>
                 </>
               ) : (
-                <p className="text-sm text-muted">The split appears after your first few sales.</p>
+                <p className="text-sm text-muted">{t.noOrdersSplit}</p>
               )}
             </div>
           </Card>
 
           <Card padding="none" className="flex-1">
             <SectionHead
-              title="Running low"
-              meta={lowStock ? `${lowStock} item${lowStock === 1 ? '' : 's'}` : 'All stocked'}
+              title={t.runningLow}
+              meta={lowStock ? `${lowStock} ${lowStock === 1 ? t.itemCount : t.itemsCount}` : t.allStocked}
               action={
                 lowStock ? (
                   <Link to="/dashboard/inventory" className="link-type text-sm">
-                    Restock
+                    {t.restock}
                   </Link>
                 ) : null
               }
@@ -435,7 +468,7 @@ export function OverviewPage() {
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-ink">{item.name}</p>
                         <p className="font-mono text-[11px] text-muted">
-                          {item.price ? formatPKR(item.price) : 'No price'} / {item.unit || 'unit'}
+                          {item.price ? formatPKR(item.price) : t.noPrice} / {item.unit || 'unit'}
                         </p>
                       </div>
                       <Badge variant={item.quantity === 0 ? 'danger' : 'warning'} dot>
@@ -449,7 +482,7 @@ export function OverviewPage() {
                   <span className="grid size-9 place-items-center rounded-pill bg-success-tint text-success-ink">
                     <Package className="size-4" />
                   </span>
-                  <p className="text-sm text-ink-2">Nothing is under its alert level.</p>
+                  <p className="text-sm text-ink-2">{t.nothingUnderAlert}</p>
                 </div>
               )}
             </div>
@@ -460,8 +493,8 @@ export function OverviewPage() {
       {data?.expiringItems?.length > 0 && (
         <Card padding="none">
           <SectionHead
-            title="Expiring soon"
-            meta={`${data.expiringItems.length} batch${data.expiringItems.length === 1 ? '' : 'es'} within 45 days`}
+            title={t.expiringSoon}
+            meta={`${data.expiringItems.length} ${t.batchesWithin45Days}`}
             action={
               <button
                 type="button"
@@ -471,7 +504,7 @@ export function OverviewPage() {
                 title="Send the list to your WhatsApp"
               >
                 <WhatsAppIcon className="size-3.5" />
-                {notifyExpiries.isPending ? 'Sending…' : 'Send to WhatsApp'}
+                {notifyExpiries.isPending ? t.sending : t.sendToWhatsApp}
               </button>
             }
           />
@@ -491,7 +524,7 @@ export function OverviewPage() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-ink">{item.name}</p>
                       <p className="font-mono text-[11px] text-muted">
-                        Expires <span className="text-danger-ink">{dateToShow}</span>
+                        {t.expires} <span className="text-danger-ink">{dateToShow}</span>
                       </p>
                     </div>
                   </div>
@@ -501,7 +534,7 @@ export function OverviewPage() {
                     className="btn btn--ghost btn--sm"
                     title="Mark this batch as sold or removed"
                   >
-                    Cleared
+                    {t.cleared}
                   </button>
                 </li>
               );

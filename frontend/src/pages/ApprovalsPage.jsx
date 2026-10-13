@@ -19,40 +19,51 @@ import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useApprovals, useRespondApproval } from '../hooks/useApprovals';
+import { useUiStore } from '../lib/store';
+import { getTranslations } from '../lib/translations';
 import { formatDate } from '../lib/format';
 
 export function ApprovalsPage() {
- const { data: approvals, isLoading, error } = useApprovals();
- const respond = useRespondApproval();
- const [acting, setActing] = useState({ id: null, decision: null });
+  const language = useUiStore((s) => s.language);
+  const isUrdu = language === 'ur';
+  const t = getTranslations(language).approvalsPage;
+  const tDash = getTranslations(language).dashboard;
 
- const handleRespond = useCallback(
- async (id, decision) => {
- setActing({ id, decision });
- try {
- await respond.mutateAsync({ id, decision });
- toast.success(decision === 'approved' ? 'Order approved' : 'Order rejected');
- } catch (err) {
- toast.error(err.message || 'Failed to respond');
- } finally {
- setActing({ id: null, decision: null });
- }
- },
- [respond]
- );
+  const { data: approvals, isLoading, error } = useApprovals();
+  const respond = useRespondApproval();
+  const [acting, setActing] = useState({ id: null, decision: null });
+
+  const handleRespond = useCallback(
+    async (id, decision) => {
+      setActing({ id, decision });
+      try {
+        await respond.mutateAsync({ id, decision });
+        toast.success(
+          decision === 'approved'
+            ? (isUrdu ? 'آرڈر منظور ہو گیا' : 'Order approved')
+            : (isUrdu ? 'آرڈر مسترد کر دیا گیا' : 'Order rejected')
+        );
+      } catch (err) {
+        toast.error(err.message || (isUrdu ? 'فیصلہ ریکارڈ کرنے میں ناکامی' : 'Failed to respond'));
+      } finally {
+        setActing({ id: null, decision: null });
+      }
+    },
+    [respond, isUrdu]
+  );
 
  const columns = useMemo(
  () => [
  {
  accessorKey: 'type',
- header: 'Type',
+ header: t.type,
  cell: ({ getValue }) => (
  <Badge variant="neutral">{getValue()}</Badge>
  ),
  },
  {
  accessorKey: 'summary',
- header: 'Order Details',
+ header: t.orderDetails,
  cell: ({ getValue }) => (
  <div className="min-w-0 py-1">
  <span className="text-sm font-medium text-ink block truncate max-w-[340px]" title={getValue()}>
@@ -60,22 +71,26 @@ export function ApprovalsPage() {
  </span>
  <span className="mt-0.5 flex items-center gap-1 font-mono text-[11px] text-danger-ink">
  <AlertCircle className="size-3.5" />
- Over your Rs. 10,000 limit
+ {t.overLimitNotice}
  </span>
  </div>
  ),
  },
  {
  accessorKey: 'status',
- header: 'Status',
- cell: ({ getValue }) => <Badge variant={getValue()} dot>{getValue()}</Badge>,
+ header: t.status,
+ cell: ({ getValue }) => {
+ const val = getValue();
+ const label = tDash[val] || (val === 'pending_approval' ? tDash.pendingApproval : val);
+ return <Badge variant={val} dot>{label}</Badge>;
+ },
  },
  {
  accessorKey: 'createdAt',
- header: 'Requested',
+ header: t.requested,
  cell: ({ getValue }) => (
  <span className="text-xs text-ink-secondary whitespace-nowrap">
- {formatDate(getValue())}
+ {formatDate(getValue(), language)}
  </span>
  ),
  },
@@ -97,7 +112,7 @@ export function ApprovalsPage() {
  leftIcon={<Check className="w-4 h-4" />}
  onClick={() => handleRespond(id, 'approved')}
  >
- Approve
+ {t.approve}
  </Button>
  <Button
  variant="secondary"
@@ -107,14 +122,14 @@ export function ApprovalsPage() {
  leftIcon={<X className="w-4 h-4" />}
  onClick={() => handleRespond(id, 'rejected')}
  >
- Reject
+ {t.reject}
  </Button>
  </div>
  );
  },
  },
  ],
- [acting, respond.isPending, handleRespond]
+ [acting, respond.isPending, handleRespond, t, tDash, language]
  );
 
  const table = useReactTable({
@@ -129,12 +144,12 @@ export function ApprovalsPage() {
  return (
  <div className="space-y-6">
  <div>
- <p className="label">Held for you</p>
- <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink">Approvals</h1>
+ <p className="label">{t.heldForYou}</p>
+ <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink">{t.approvals}</h1>
  </div>
  <Card padding="lg" className="text-center py-12">
  <AlertCircle className="mx-auto mb-3 size-9 text-coral" />
- <h3 className="text-base font-medium text-ink">Failed to load approvals</h3>
+ <h3 className="text-base font-medium text-ink">{t.approvalsFailedTitle}</h3>
  <p className="text-xs text-ink-mute mt-1">{error.message}</p>
  </Card>
  </div>
@@ -146,29 +161,28 @@ export function ApprovalsPage() {
  return (
  <div className="space-y-5 sm:space-y-6">
  <div>
- <p className="label">Held for you</p>
- <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)]">Approvals</h1>
+ <p className="label">{t.heldForYou}</p>
+ <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)]">{t.approvals}</h1>
  </div>
 
  {/* 4/8 — the rule on the left, the queue on the right */}
  <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-6">
  <aside className="lg:sticky lg:top-24 lg:col-span-4 lg:self-start">
  <div className={`rounded-card p-5 sm:p-6 ${pendingCount ? 'bg-coral-tint' : 'bg-paper-2'}`}>
- <p className="label">Waiting on you</p>
+ <p className="label">{t.waitingOnYou}</p>
  <p className={`mt-2 font-display text-6xl font-semibold leading-none tracking-[-0.04em] font-tabular ${pendingCount ? 'text-danger-ink' : 'text-ink'}`}>
  {isLoading ? '—' : pendingCount}
  </p>
  <p className="mt-6 border-t border-current/15 pt-4 text-sm leading-relaxed text-ink-2">
- Sales of <span className="font-mono font-semibold text-ink">Rs. 10,000</span> or more wait here before
- any stock comes off the shelf. Rejecting one leaves your stock exactly as it was.
+ {t.limitRuleNotice}
  </p>
  </div>
  </aside>
 
  <Card padding="none" className="min-w-0 overflow-hidden lg:col-span-8">
  <div className="px-5 pb-2 pt-5 sm:px-6">
- <h2 className="font-display text-base font-semibold tracking-tight text-ink sm:text-lg">Queue</h2>
- <p className="label mt-0.5">Newest first</p>
+ <h2 className="font-display text-base font-semibold tracking-tight text-ink sm:text-lg">{t.queue}</h2>
+ <p className="label mt-0.5">{t.newestFirst}</p>
  </div>
  {isLoading ? (
  <div className="space-y-2 px-5 pb-5 sm:px-6">
@@ -179,12 +193,12 @@ export function ApprovalsPage() {
  ) : pendingCount === 0 ? (
  <EmptyState
  icon={<ClipboardCheck className="size-6" />}
- title="Nothing to approve"
- description="Big sales and automated actions that need your say will show up here."
+ title={t.nothingToApprove}
+ description={t.nothingToApproveDesc}
  />
  ) : (
  <div className="pb-2">
- <Table table={table} emptyText="Nothing to approve" />
+ <Table table={table} emptyText={t.nothingToApprove} />
  </div>
  )}
  </Card>

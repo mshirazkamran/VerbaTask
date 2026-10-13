@@ -13,22 +13,33 @@ export function formatPKR(amount) {
 /**
  * Formats ISO date or timestamp to relative or compact readable string.
  * @param {string | Date} dateInput
- * @returns {string} e.g. "2h ago", "Yesterday", "24 Aug"
+ * @param {string} [language='en']
+ * @returns {string} e.g. "2h ago", "Yesterday", "24 Aug" or "2 گھنٹے پہلے"
  */
-export function formatDate(dateInput) {
+export function formatDate(dateInput, language = 'en') {
   if (!dateInput) return '-';
   const date = new Date(dateInput);
   if (isNaN(date.getTime())) return '-';
 
+  const isUrdu = language === 'ur';
   const now = new Date();
   const diffSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  if (diffSeconds < 60) return 'Just now';
-  if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m ago`;
-  if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)}h ago`;
-  if (diffSeconds < 86400 * 7) return `${Math.floor(diffSeconds / 86400)}d ago`;
+  if (diffSeconds < 60) return isUrdu ? 'ابھی' : 'Just now';
+  if (diffSeconds < 3600) {
+    const mins = Math.floor(diffSeconds / 60);
+    return isUrdu ? `${mins} منٹ پہلے` : `${mins}m ago`;
+  }
+  if (diffSeconds < 86400) {
+    const hours = Math.floor(diffSeconds / 3600);
+    return isUrdu ? `${hours} گھنٹے پہلے` : `${hours}h ago`;
+  }
+  if (diffSeconds < 86400 * 7) {
+    const days = Math.floor(diffSeconds / 86400);
+    return isUrdu ? `${days} دن پہلے` : `${days}d ago`;
+  }
 
-  return date.toLocaleDateString('en-PK', {
+  return date.toLocaleDateString(isUrdu ? 'ur-PK' : 'en-PK', {
     month: 'short',
     day: 'numeric',
     year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,

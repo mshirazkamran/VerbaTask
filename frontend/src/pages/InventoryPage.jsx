@@ -29,14 +29,19 @@ import {
  useUpdateInventoryItem,
  useDeleteInventoryItem,
 } from '../hooks/useInventory';
-import { useAuthStore } from '../lib/store';
+import { useAuthStore, useUiStore } from '../lib/store';
+import { getTranslations } from '../lib/translations';
 import { formatPKR, formatQuantity } from '../lib/format';
 import { ReportDropdown } from '../components/ReportDropdown';
 
 const emptyItem = { name: '', quantity: '', price: '', unit: '', expiryDates: [] };
 
 function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, loading }) {
- const [form, setForm] = useState(initial);
+  const language = useUiStore((s) => s.language);
+  const isUrdu = language === 'ur';
+  const t = getTranslations(language).inventoryPage;
+
+  const [form, setForm] = useState(initial);
 
  const nameRef = useRef(null);
  const quantityRef = useRef(null);
@@ -127,16 +132,16 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
  return (
  <form onSubmit={handleSubmit} className="space-y-4">
  <Input
- label="Item name"
+ label={t.itemNameLabel}
  value={form.name}
  onChange={handleChange}
- placeholder="e.g. Daal channa"
+ placeholder={isUrdu ? 'مثلاً دال چنا' : 'e.g. Daal channa'}
  required
  {...fieldKeyDown('name')}
  />
  <div className="grid grid-cols-3 gap-3">
  <Input
- label="Quantity"
+ label={t.quantityLabel}
  type="number"
  min="0"
  value={form.quantity}
@@ -146,7 +151,7 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
  {...fieldKeyDown('quantity')}
  />
  <Input
- label="Price (Rs.)"
+ label={t.priceLabel}
  type="number"
  min="0"
  step="0.01"
@@ -156,16 +161,16 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
  {...fieldKeyDown('price')}
  />
  <Input
- label="Unit"
+ label={t.unitLabel}
  value={form.unit}
  onChange={handleChange}
- placeholder="e.g. kg, 250g, litre"
+ placeholder={isUrdu ? 'مثلاً کلو، 250 گرام، لیٹر' : 'e.g. kg, 250g, litre'}
  {...fieldKeyDown('unit')}
  />
  </div>
 
  <div className="space-y-2">
- <label className="text-xs font-semibold text-ink-2">Expiry reminders (month)</label>
+ <label className="text-xs font-semibold text-ink-2">{t.expiryReminders}</label>
  <div className="flex gap-2">
  <Input 
  type="month"
@@ -173,7 +178,7 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
  onChange={(e) => setNewExpiry(e.target.value)}
  className="flex-1"
  />
- <Button type="button" variant="secondary" onClick={handleAddExpiry}>Add</Button>
+ <Button type="button" variant="secondary" onClick={handleAddExpiry}>{t.addExpiry}</Button>
  </div>
  {form.expiryDates?.length > 0 && (
  <div className="flex flex-wrap gap-2 mt-2">
@@ -189,7 +194,7 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
 
  <div className="flex justify-end gap-2 pt-2">
  <Button type="button" variant="ghost" onClick={onCancel} disabled={loading}>
- Cancel
+ {t.cancel}
  </Button>
  <Button type="submit" loading={loading}>
  {submitLabel}
@@ -200,245 +205,246 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
 }
 
 export function InventoryPage() {
- const merchant = useAuthStore(state => state.merchant);
- const showExpiry = ['medical', 'kiryana', 'general'].includes(merchant?.businessType);
+  const language = useUiStore((state) => state.language);
+  const isUrdu = language === 'ur';
+  const t = getTranslations(language).inventoryPage;
 
- const { data: items, isLoading, error } = useInventory();
- const createItem = useCreateInventoryItem();
- const updateItem = useUpdateInventoryItem();
- const deleteItem = useDeleteInventoryItem();
+  const merchant = useAuthStore((state) => state.merchant);
+  const showExpiry = ['medical', 'kiryana', 'general'].includes(merchant?.businessType);
 
- const [search, setSearch] = useState('');
- const [stockFilter, setStockFilter] = useState('all');
- const [modalOpen, setModalOpen] = useState(false);
- const [editingItem, setEditingItem] = useState(null);
- const [deletingItem, setDeletingItem] = useState(null);
+  const { data: items, isLoading, error } = useInventory();
+  const createItem = useCreateInventoryItem();
+  const updateItem = useUpdateInventoryItem();
+  const deleteItem = useDeleteInventoryItem();
 
- const counts = useMemo(() => {
- const list = items || [];
- return {
- all: list.length,
- healthy: list.filter((i) => i.quantity >= 10).length,
- low: list.filter((i) => i.quantity > 0 && i.quantity < 10).length,
- out: list.filter((i) => i.quantity === 0).length,
- };
- }, [items]);
+  const [search, setSearch] = useState('');
+  const [stockFilter, setStockFilter] = useState('all');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [deletingItem, setDeletingItem] = useState(null);
 
- const filteredItems = useMemo(() => {
- if (!items) return [];
- if (stockFilter === 'healthy') return items.filter((i) => i.quantity >= 10);
- if (stockFilter === 'low') return items.filter((i) => i.quantity > 0 && i.quantity < 10);
- if (stockFilter === 'out') return items.filter((i) => i.quantity === 0);
- return items;
- }, [items, stockFilter]);
+  const counts = useMemo(() => {
+    const list = items || [];
+    return {
+      all: list.length,
+      healthy: list.filter((i) => i.quantity >= 10).length,
+      low: list.filter((i) => i.quantity > 0 && i.quantity < 10).length,
+      out: list.filter((i) => i.quantity === 0).length,
+    };
+  }, [items]);
 
- const handleAdd = () => {
- setEditingItem(null);
- setModalOpen(true);
- };
+  const filteredItems = useMemo(() => {
+    if (!items) return [];
+    if (stockFilter === 'healthy') return items.filter((i) => i.quantity >= 10);
+    if (stockFilter === 'low') return items.filter((i) => i.quantity > 0 && i.quantity < 10);
+    if (stockFilter === 'out') return items.filter((i) => i.quantity === 0);
+    return items;
+  }, [items, stockFilter]);
 
- const handleEdit = (item) => {
- setEditingItem(item);
- setModalOpen(true);
- };
+  const handleAdd = () => {
+    setEditingItem(null);
+    setModalOpen(true);
+  };
 
- const handleCloseModal = () => {
- setModalOpen(false);
- setEditingItem(null);
- };
+  const handleEdit = (item) => {
+    setEditingItem(item);
+    setModalOpen(true);
+  };
 
- const handleSave = async (payload) => {
- try {
- if (editingItem) {
- await updateItem.mutateAsync({ id: editingItem._id, ...payload });
- toast.success('Item updated');
- } else {
- await createItem.mutateAsync(payload);
- toast.success('Item added');
- }
- handleCloseModal();
- } catch (err) {
- toast.error(err.message || 'Something went wrong');
- }
- };
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setEditingItem(null);
+  };
 
- const handleDelete = async () => {
- if (!deletingItem) return;
- try {
- await deleteItem.mutateAsync(deletingItem._id);
- toast.success('Item deleted');
- setDeletingItem(null);
- } catch (err) {
- toast.error(err.message || 'Failed to delete item');
- }
- };
+  const handleSave = async (payload) => {
+    try {
+      if (editingItem) {
+        await updateItem.mutateAsync({ id: editingItem._id, ...payload });
+        toast.success(isUrdu ? 'آئٹم میں ترمیم ہو گئی' : 'Item updated');
+      } else {
+        await createItem.mutateAsync(payload);
+        toast.success(isUrdu ? 'نیا آئٹم شامل ہو گیا' : 'Item added');
+      }
+      handleCloseModal();
+    } catch (err) {
+      toast.error(err.message || (isUrdu ? 'کچھ غلط ہو گیا' : 'Something went wrong'));
+    }
+  };
 
- const columns = useMemo(
- () => {
- const baseCols = [
- {
- accessorKey: 'name',
- header: 'Item',
- cell: ({ getValue, row }) => {
- const name = getValue();
- const firstLetter = (name || '?').charAt(0).toUpperCase();
- return (
- <div className="flex items-center gap-3 min-w-0">
- <div className="grid size-9 shrink-0 place-items-center rounded-pill bg-paper-3 font-display text-sm font-semibold text-ink">
- {firstLetter}
- </div>
- <div className="min-w-0">
- <p className="text-sm font-medium text-ink truncate">{name}</p>
- <p className="text-[11px] text-ink-mute font-tabular">
- {formatPKR(row.original.price)} / {row.original.unit || 'unit'}
- </p>
- </div>
- </div>
- );
- },
- },
- {
- accessorKey: 'quantity',
- header: 'Stock',
- cell: ({ getValue, row }) => {
- const qty = getValue();
- const unit = (row.original.unit || '').trim();
- const variant = qty === 0 ? 'danger' : qty < 10 ? 'warning' : 'success';
- const isPackSize = /\d/.test(unit);
+  const handleDelete = async () => {
+    if (!deletingItem) return;
+    try {
+      await deleteItem.mutateAsync(deletingItem._id);
+      toast.success(isUrdu ? 'آئٹم حذف کر دیا گیا' : 'Item deleted');
+      setDeletingItem(null);
+    } catch (err) {
+      toast.error(err.message || (isUrdu ? 'آئٹم حذف کرنے میں ناکامی' : 'Failed to delete item'));
+    }
+  };
 
- return (
- <div className="flex flex-col items-start gap-0.5 py-0.5">
- <Badge variant={variant} dot className="font-tabular font-medium">
- {formatQuantity(qty, unit)}
- </Badge>
- {isPackSize && (
- <span className="text-[10px] text-ink-mute font-tabular">
- {qty === 0 ? 'Out of stock' : `${qty} in stock`}
- </span>
- )}
- </div>
- );
- },
- },
- {
- accessorKey: 'price',
- header: 'Price',
- cell: ({ getValue }) => (
- <span className="font-mono text-sm font-semibold text-ink">
- {formatPKR(getValue())}
- </span>
- ),
- },
- {
- accessorKey: 'unit',
- header: 'Unit',
- cell: ({ getValue }) => (
- <span className="font-mono text-xs text-muted">
- {getValue() || '-'}
- </span>
- ),
- },
- {
- id: 'actions',
- header: '',
- cell: ({ row }) => (
- <div className="flex items-center justify-end gap-2">
- <Button
- variant="ghost"
- size="sm"
- leftIcon={<Pencil className="w-4 h-4" />}
- onClick={(e) => {
- e.stopPropagation();
- handleEdit(row.original);
- }}
- >
- Edit
- </Button>
- <Button
- variant="ghost"
- size="sm"
- className="!text-danger-ink hover:!bg-coral-tint"
- leftIcon={<Trash2 className="w-4 h-4" />}
- onClick={(e) => {
- e.stopPropagation();
- setDeletingItem(row.original);
- }}
- >
- Delete
- </Button>
- </div>
- ),
- },
- ];
+  const columns = useMemo(() => {
+    const baseCols = [
+      {
+        accessorKey: 'name',
+        header: t.item,
+        cell: ({ getValue, row }) => {
+          const name = getValue();
+          const firstLetter = (name || '?').charAt(0).toUpperCase();
+          return (
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="grid size-9 shrink-0 place-items-center rounded-pill bg-paper-3 font-display text-sm font-semibold text-ink">
+                {firstLetter}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-ink truncate">{name}</p>
+                <p className="text-[11px] text-ink-mute font-tabular">
+                  {formatPKR(row.original.price)} / {row.original.unit || 'unit'}
+                </p>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'quantity',
+        header: t.stock,
+        cell: ({ getValue, row }) => {
+          const qty = getValue();
+          const unit = (row.original.unit || '').trim();
+          const variant = qty === 0 ? 'danger' : qty < 10 ? 'warning' : 'success';
+          const isPackSize = /\d/.test(unit);
 
- if (showExpiry) {
- baseCols.splice(baseCols.length - 1, 0, {
- accessorKey: 'expiryDates',
- header: 'Reminders',
- cell: ({ getValue }) => {
- const dates = getValue() || [];
- if (dates.length === 0) return <span className="text-xs text-ink-mute">-</span>;
- return (
- <div className="flex flex-wrap gap-1">
- {dates.map(d => (
- <Badge key={d} variant="warning" className="text-[10px] py-0 px-1.5">{d}</Badge>
- ))}
- </div>
- );
- }
- });
- }
+          return (
+            <div className="flex flex-col items-start gap-0.5 py-0.5">
+              <Badge variant={variant} dot className="font-tabular font-medium">
+                {formatQuantity(qty, unit)}
+              </Badge>
+              {isPackSize && (
+                <span className="text-[10px] text-ink-mute font-tabular">
+                  {qty === 0 ? t.outOfStock : `${qty} ${t.inStock}`}
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'price',
+        header: t.price,
+        cell: ({ getValue }) => (
+          <span className="font-mono text-sm font-semibold text-ink">
+            {formatPKR(getValue())}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'unit',
+        header: t.unit,
+        cell: ({ getValue }) => (
+          <span className="font-mono text-xs text-muted">
+            {getValue() || '-'}
+          </span>
+        ),
+      },
+      {
+        id: 'actions',
+        header: '',
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              leftIcon={<Pencil className="w-4 h-4" />}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEdit(row.original);
+              }}
+            >
+              {t.edit}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="!text-danger-ink hover:!bg-coral-tint"
+              leftIcon={<Trash2 className="w-4 h-4" />}
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeletingItem(row.original);
+              }}
+            >
+              {t.delete}
+            </Button>
+          </div>
+        ),
+      },
+    ];
 
- return baseCols;
- },
- [showExpiry]
- );
+    if (showExpiry) {
+      baseCols.splice(baseCols.length - 1, 0, {
+        accessorKey: 'expiryDates',
+        header: t.reminders,
+        cell: ({ getValue }) => {
+          const dates = getValue() || [];
+          if (dates.length === 0) return <span className="text-xs text-ink-mute">-</span>;
+          return (
+            <div className="flex flex-wrap gap-1">
+              {dates.map((d) => (
+                <Badge key={d} variant="warning" className="text-[10px] py-0 px-1.5">{d}</Badge>
+              ))}
+            </div>
+          );
+        },
+      });
+    }
 
- const table = useReactTable({
- data: filteredItems,
- columns,
- state: { globalFilter: search },
- onGlobalFilterChange: setSearch,
- getCoreRowModel: getCoreRowModel(),
- getSortedRowModel: getSortedRowModel(),
- getFilteredRowModel: getFilteredRowModel(),
- });
+    return baseCols;
+  }, [showExpiry, t]);
 
- if (error) {
- return (
- <div className="space-y-6">
- <div className="flex items-center justify-between">
- <div>
- <p className="label">Catalog</p>
- <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink">Inventory</h1>
- </div>
- </div>
- <Card padding="lg" className="text-center py-12">
- <AlertCircle className="mx-auto mb-3 size-9 text-coral" />
- <h3 className="font-display text-lg font-semibold text-ink">Inventory didn’t load</h3>
- <p className="mt-1 text-sm text-muted">{error.message}. Refresh to try again.</p>
- </Card>
- </div>
- );
- }
+  const table = useReactTable({
+    data: filteredItems,
+    columns,
+    state: { globalFilter: search },
+    onGlobalFilterChange: setSearch,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+  });
 
- const filters = [
- { id: 'healthy', label: 'Healthy', hint: '10 or more', count: counts.healthy, tone: 'bg-success-tint text-success-ink', bar: 'bg-primary' },
- { id: 'low', label: 'Running low', hint: 'Under 10', count: counts.low, tone: 'bg-pear-tint text-warn-ink', bar: 'bg-pear-deep' },
- { id: 'out', label: 'Out of stock', hint: 'Zero left', count: counts.out, tone: 'bg-coral-tint text-danger-ink', bar: 'bg-coral' },
- ];
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="label">{t.catalog}</p>
+            <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink">{t.inventory}</h1>
+          </div>
+        </div>
+        <Card padding="lg" className="text-center py-12">
+          <AlertCircle className="mx-auto mb-3 size-9 text-coral" />
+          <h3 className="font-display text-lg font-semibold text-ink">{t.inventoryFailedTitle}</h3>
+          <p className="mt-1 text-sm text-muted">{error.message}. {t.inventoryFailedDesc}</p>
+        </Card>
+      </div>
+    );
+  }
+
+  const filters = [
+    { id: 'healthy', label: t.healthy, hint: t.healthyHint, count: counts.healthy, tone: 'bg-success-tint text-success-ink', bar: 'bg-primary' },
+    { id: 'low', label: t.runningLow, hint: t.runningLowHint, count: counts.low, tone: 'bg-pear-tint text-warn-ink', bar: 'bg-pear-deep' },
+    { id: 'out', label: t.outOfStock, hint: t.outOfStockHint, count: counts.out, tone: 'bg-coral-tint text-danger-ink', bar: 'bg-coral' },
+  ];
 
  return (
  <div className="space-y-5 sm:space-y-6">
  <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
  <div>
- <p className="label">Catalog</p>
- <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)]">Inventory</h1>
+ <p className="label">{t.catalog}</p>
+ <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)]">{t.inventory}</h1>
  </div>
  <div className="flex flex-wrap items-center gap-2">
  <ReportDropdown />
  <Button leftIcon={<Plus className="size-4" />} onClick={handleAdd}>
- Add item
+ {t.addItem}
  </Button>
  </div>
  </div>
@@ -453,12 +459,12 @@ export function InventoryPage() {
  >
  <div className="flex items-start justify-between gap-4">
  <div>
- <p className="label">Items on the shelf</p>
+ <p className="label">{t.itemsOnShelf}</p>
  <p className="mt-2 font-display text-5xl font-semibold leading-none tracking-[-0.04em] text-ink font-tabular">
  {isLoading ? '—' : counts.all}
  </p>
  </div>
- <span className="label">{stockFilter === 'all' ? 'Showing all' : 'Show all'}</span>
+ <span className="label">{stockFilter === 'all' ? t.showingAll : t.showAll}</span>
  </div>
  {counts.all > 0 ? (
  <div className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-pill bg-paper-3" role="img" aria-label={`${counts.healthy} healthy, ${counts.low} low, ${counts.out} out of stock`}>
@@ -499,16 +505,16 @@ export function InventoryPage() {
  <div className="flex flex-col gap-3 px-5 pb-2 pt-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
  <div>
  <h2 className="font-display text-base font-semibold tracking-tight text-ink sm:text-lg">
- {stockFilter === 'all' ? 'Every item' : filters.find((f) => f.id === stockFilter)?.label}
+ {stockFilter === 'all' ? t.everyItem : filters.find((f) => f.id === stockFilter)?.label}
  </h2>
- <p className="label mt-0.5">{filteredItems.length} shown</p>
+ <p className="label mt-0.5">{filteredItems.length} {t.shown}</p>
  </div>
  <div className="relative w-full sm:w-64">
  <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
  <input
  type="search"
- placeholder="Search items…"
- aria-label="Search items"
+ placeholder={t.searchPlaceholder}
+ aria-label={t.searchPlaceholder}
  value={search}
  onChange={(e) => setSearch(e.target.value)}
  className="h-10 w-full rounded-pill border border-rule-2 bg-paper pl-10 pr-4 text-sm text-ink transition-colors placeholder:text-muted/70 hover:border-muted focus:border-ink focus:outline-none"
@@ -525,9 +531,9 @@ export function InventoryPage() {
  ) : items?.length === 0 && !search ? (
  <EmptyState
  icon={<Package className="size-6" />}
- title="No items yet"
- description="Add your first product, or send a voice note on WhatsApp and it will appear here."
- actionLabel="Add item"
+ title={t.noItemsYet}
+ description={t.noItemsDesc}
+ actionLabel={t.addItem}
  actionIcon={<Plus className="size-4" />}
  onAction={handleAdd}
  />
@@ -535,7 +541,7 @@ export function InventoryPage() {
  <div className="pb-2">
  <Table
  table={table}
- emptyText="No items match that search"
+ emptyText={t.noMatchSearch}
  getRowClassName={(row) =>
  row.original.quantity === 0 ? 'bg-coral-tint/45' : row.original.quantity < 10 ? 'bg-pear-tint/45' : ''
  }
@@ -547,8 +553,8 @@ export function InventoryPage() {
  <Modal
  isOpen={modalOpen}
  onClose={handleCloseModal}
- title={editingItem ? 'Edit item' : 'Add item'}
- description={editingItem ? 'Update stock, price, or unit.' : 'Add a new product to your inventory.'}
+ title={editingItem ? t.editItemModalTitle : t.addItemModalTitle}
+ description={editingItem ? t.editItemModalDesc : t.addItemModalDesc}
  >
  <InventoryForm
  key={editingItem ? editingItem._id : 'new'}
@@ -565,7 +571,7 @@ export function InventoryPage() {
  }
  onSubmit={handleSave}
  onCancel={handleCloseModal}
- submitLabel={editingItem ? 'Save changes' : 'Add item'}
+ submitLabel={editingItem ? t.saveChanges : t.addItem}
  loading={createItem.isPending || updateItem.isPending}
  />
  </Modal>
@@ -573,16 +579,16 @@ export function InventoryPage() {
  <Modal
  isOpen={!!deletingItem}
  onClose={() => setDeletingItem(null)}
- title="Delete item"
- description={`“${deletingItem?.name}” and its stock count will be removed. This can’t be undone.`}
+ title={t.deleteModalTitle}
+ description={isUrdu ? `“${deletingItem?.name}” ${t.deleteModalDesc}` : `“${deletingItem?.name}” ${t.deleteModalDesc}`}
  maxWidth="max-w-sm"
  >
  <div className="flex justify-end gap-2 pt-2">
  <Button variant="ghost" onClick={() => setDeletingItem(null)} disabled={deleteItem.isPending}>
- Cancel
+ {t.cancel}
  </Button>
  <Button variant="danger" loading={deleteItem.isPending} onClick={handleDelete}>
- Delete
+ {t.delete}
  </Button>
  </div>
  </Modal>

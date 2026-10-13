@@ -40,20 +40,24 @@ import {
   useRemoveStaffMember,
   useRegenerateShopCode,
 } from '../hooks/useMerchantSettings';
+import { useUiStore } from '../lib/store';
 
-const BUSINESS_TYPES = [
-  { value: 'kiryana', label: 'Kiryana / Grocery Store' },
-  { value: 'clothing', label: 'Clothing & Apparel / Boutique' },
-  { value: 'medical', label: 'Pharmacy / Medical Store' },
-  { value: 'electronics', label: 'Electronics & Mobile Accessories' },
-  { value: 'restaurant', label: 'Restaurant / Cafe / Dhaba' },
-  { value: 'general', label: 'General Retail Store' },
-  { value: 'auto', label: 'Auto Spare Parts & Workshop' },
-  { value: 'salon', label: 'Salon & Cosmetics' },
-  { value: 'services', label: 'Services & Trade' },
+const getBusinessTypes = (isUrdu) => [
+  { value: 'kiryana', label: isUrdu ? 'کریانہ / جنرل اسٹور' : 'Kiryana / Grocery Store' },
+  { value: 'clothing', label: isUrdu ? 'کپڑے / بوتیک' : 'Clothing & Apparel / Boutique' },
+  { value: 'medical', label: isUrdu ? 'میڈیکل اسٹور / فارمیسی' : 'Pharmacy / Medical Store' },
+  { value: 'electronics', label: isUrdu ? 'الیکٹرانکس و موبائل' : 'Electronics & Mobile Accessories' },
+  { value: 'restaurant', label: isUrdu ? 'ریسٹورنٹ / کیفے / ہوٹل' : 'Restaurant / Cafe / Dhaba' },
+  { value: 'general', label: isUrdu ? 'عام ریٹیل دکان' : 'General Retail Store' },
+  { value: 'auto', label: isUrdu ? 'آٹو پارٹس و ورکشاپ' : 'Auto Spare Parts & Workshop' },
+  { value: 'salon', label: isUrdu ? 'سیلون و کاسمیٹکس' : 'Salon & Cosmetics' },
+  { value: 'services', label: isUrdu ? 'سروسز و دیگر کاروبار' : 'Services & Trade' },
 ];
 
 export function SettingsPage() {
+  const uiLanguage = useUiStore((s) => s.language);
+  const isUrdu = uiLanguage === 'ur';
+
   const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'voice' | 'payments'
 
   const { data: profile, isLoading: profileLoading } = useMerchantProfile();
@@ -341,9 +345,9 @@ export function SettingsPage() {
   return (
     <div className="space-y-5 pb-12 sm:space-y-6">
       <div>
-        <p className="label">Your shop</p>
-        <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)]">
-          {profile?.businessName || 'Shop settings'}
+        <p className="label">{isUrdu ? 'آپ کی دکان' : 'Your shop'}</p>
+        <h1 className={`display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)] ${isUrdu ? 'font-urdu text-3xl sm:text-4xl' : ''}`}>
+          {profile?.businessName || (isUrdu ? 'دکان کی سیٹنگز' : 'Shop settings')}
         </h1>
       </div>
 
@@ -354,10 +358,10 @@ export function SettingsPage() {
           className="custom-scrollbar flex gap-1 overflow-x-auto lg:sticky lg:top-24 lg:col-span-3 lg:flex-col lg:self-start lg:overflow-visible"
         >
           {[
-            { id: 'profile', label: 'Shop profile', hint: 'Name, area, what you sell', icon: Store },
-            { id: 'team', label: 'Team & Staff', hint: `${staffData?.activeCount ?? profile?.staffMembers?.length ?? 0} connected (Pro)`, icon: Users },
-            { id: 'payments', label: 'Payments', hint: `${activePaymentIds.length} accepted`, icon: CreditCard },
-            { id: 'voice', label: 'Voice & language', hint: 'How the bot talks', icon: Mic },
+            { id: 'profile', label: isUrdu ? 'دکان کا پروفائل' : 'Shop profile', hint: isUrdu ? 'نام، پتہ، سامان' : 'Name, area, what you sell', icon: Store },
+            { id: 'team', label: isUrdu ? 'ٹیم اور ملازمین' : 'Team & Staff', hint: isUrdu ? `${staffData?.activeCount ?? profile?.staffMembers?.length ?? 0} منسلک` : `${staffData?.activeCount ?? profile?.staffMembers?.length ?? 0} connected (Pro)`, icon: Users },
+            { id: 'payments', label: isUrdu ? 'ادائیگی کے ذرائع' : 'Payments', hint: isUrdu ? `${activePaymentIds.length} فعال` : `${activePaymentIds.length} accepted`, icon: CreditCard },
+            { id: 'voice', label: isUrdu ? 'آواز اور زبان' : 'Voice & language', hint: isUrdu ? 'بوٹ کس طرح بولے' : 'How the bot talks', icon: Mic },
           ].map((t) => {
             const on = activeTab === t.id;
             const Icon = t.icon;
@@ -373,7 +377,7 @@ export function SettingsPage() {
               >
                 <Icon className="size-4 shrink-0" />
                 <span className="min-w-0">
-                  <span className="block whitespace-nowrap text-sm font-semibold">{t.label}</span>
+                  <span className={`block whitespace-nowrap text-sm font-semibold ${isUrdu ? 'font-urdu text-base' : ''}`}>{t.label}</span>
                   <span className={`hidden truncate text-xs lg:block ${on ? 'opacity-70' : 'text-muted'}`}>{t.hint}</span>
                 </span>
               </button>
@@ -391,9 +395,11 @@ export function SettingsPage() {
                 <Store className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="font-display text-lg font-semibold tracking-tight text-ink">Store Identity</h2>
+                <h2 className={`font-display text-lg font-semibold tracking-tight text-ink ${isUrdu ? 'font-urdu text-xl' : ''}`}>
+                  {isUrdu ? 'دکان کی شناخت' : 'Store Identity'}
+                </h2>
                 <p className="text-xs text-ink-mute">
-                  Rename your business and specify your location and retail specialty.
+                  {isUrdu ? 'کاروبار کا نام تبدیل کریں اور پتہ و کاروباری شعبہ منتخب کریں۔' : 'Rename your business and specify your location and retail specialty.'}
                 </p>
               </div>
             </div>
@@ -401,9 +407,9 @@ export function SettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
                 <Input
-                  label="Store / Business Name"
+                  label={isUrdu ? 'دکان / کاروبار کا نام' : 'Store / Business Name'}
                   id="settings-store-name"
-                  placeholder="e.g. Khan Kiryana & General Store"
+                  placeholder={isUrdu ? 'مثلاً: خان کریانہ اسٹور' : 'e.g. Khan Kiryana & General Store'}
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
                   required
@@ -412,8 +418,8 @@ export function SettingsPage() {
 
               <div>
                 <Select
-                  label="Business Category"
-                  options={BUSINESS_TYPES}
+                  label={isUrdu ? 'کاروباری شعبہ' : 'Business Category'}
+                  options={getBusinessTypes(isUrdu)}
                   value={businessType}
                   onChange={(val) => setBusinessType(val)}
                 />
@@ -421,9 +427,9 @@ export function SettingsPage() {
 
               <div>
                 <Input
-                  label="Store Location / City"
+                  label={isUrdu ? 'دکان کا پتہ / شہر' : 'Store Location / City'}
                   id="settings-location"
-                  placeholder="e.g. Main Market, Gulberg III, Lahore"
+                  placeholder={isUrdu ? 'مثلاً: مین مارکیٹ، گلبرگ، لاہور' : 'e.g. Main Market, Gulberg III, Lahore'}
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                 />
@@ -431,12 +437,12 @@ export function SettingsPage() {
 
               <div className="sm:col-span-2">
                 <Input
-                  label="What does your store sell?"
+                  label={isUrdu ? 'آپ کی دکان کیا فروخت کرتی ہے؟' : 'What does your store sell?'}
                   id="settings-sells"
-                  placeholder="e.g. Rice, sugar, flour, tea, cooking oil, dairy, snacks"
+                  placeholder={isUrdu ? 'مثلاً: چاول، چینی، آٹا، گھی، چائے، مصالحہ جات' : 'e.g. Rice, sugar, flour, tea, cooking oil, dairy, snacks'}
                   value={sells}
                   onChange={(e) => setSells(e.target.value)}
-                  helperText="Helps the AI voice engine understand your inventory vocabulary."
+                  helperText={isUrdu ? 'اس سے اے آئی وائس انجن کو آپ کی دکان کے سامان کے نام سمجھنے میں مدد ملتی ہے۔' : 'Helps the AI voice engine understand your inventory vocabulary.'}
                 />
               </div>
             </div>
@@ -447,8 +453,12 @@ export function SettingsPage() {
             <div className="flex items-center gap-3 mb-4">
               <Smartphone className="w-5 h-5 text-ink-secondary" />
               <div>
-                <h3 className="text-sm font-medium text-ink">Linked WhatsApp & Account</h3>
-                <p className="text-xs text-ink-mute">Identity details used for WhatsApp orders and automated alerts.</p>
+                <h3 className={`text-sm font-medium text-ink ${isUrdu ? 'font-urdu text-base' : ''}`}>
+                  {isUrdu ? 'منسلک واٹس ایپ اور اکاؤنٹ' : 'Linked WhatsApp & Account'}
+                </h3>
+                <p className="text-xs text-ink-mute">
+                  {isUrdu ? 'واٹس ایپ آرڈرز اور خودکار اطلاعات کے لیے استعمال ہونے والی شناخت۔' : 'Identity details used for WhatsApp orders and automated alerts.'}
+                </p>
               </div>
             </div>
 
@@ -456,17 +466,19 @@ export function SettingsPage() {
               <div className="p-3.5 rounded-lg bg-surface/50 border border-hairline flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-ink-mute block">Active WhatsApp Number</span>
-                    <Badge variant="success" className="text-[10px] py-0.5">Active</Badge>
+                    <span className="text-ink-mute block">{isUrdu ? 'فعال واٹس ایپ نمبر' : 'Active WhatsApp Number'}</span>
+                    <Badge variant="success" className="text-[10px] py-0.5">{isUrdu ? 'فعال' : 'Active'}</Badge>
                   </div>
                   <span className="font-mono text-sm font-medium text-ink block">
-                    {profile?.whatsappNumber || 'Unlinked'}
+                    {profile?.whatsappNumber || (isUrdu ? 'غیر منسلک' : 'Unlinked')}
                   </span>
                 </div>
 
                 {!isChangingPhone && (
                   <div className="mt-3 pt-2.5 border-t border-hairline/60 flex items-center justify-between">
-                    <span className="text-[11px] text-ink-mute">Bot orders & voice notes sent here</span>
+                    <span className="text-[11px] text-ink-mute">
+                      {isUrdu ? 'بوٹ آرڈرز اور وائس نوٹس یہاں آئیں گے' : 'Bot orders & voice notes sent here'}
+                    </span>
                     <Button
                       type="button"
                       size="sm"
@@ -480,7 +492,7 @@ export function SettingsPage() {
                       leftIcon={<Pencil className="w-3 h-3" />}
                       className="text-[11px] h-7 px-2.5"
                     >
-                      Change Number
+                      {isUrdu ? 'نمبر تبدیل کریں' : 'Change Number'}
                     </Button>
                   </div>
                 )}
@@ -488,11 +500,11 @@ export function SettingsPage() {
 
               <div className="p-3.5 rounded-lg bg-surface/50 border border-hairline flex flex-col justify-between">
                 <div>
-                  <span className="text-ink-mute block mb-1.5">Account Email</span>
-                  <span className="font-mono text-sm font-medium text-ink block">{profile?.email || 'None'}</span>
+                  <span className="text-ink-mute block mb-1.5">{isUrdu ? 'اکاؤنٹ ای میل' : 'Account Email'}</span>
+                  <span className="font-mono text-sm font-medium text-ink block">{profile?.email || (isUrdu ? 'کوئی نہیں' : 'None')}</span>
                 </div>
                 <div className="mt-3 pt-2.5 border-t border-hairline/60">
-                  <span className="text-[11px] text-ink-mute">Used for dashboard sign-in</span>
+                  <span className="text-[11px] text-ink-mute">{isUrdu ? 'ڈیش بورڈ میں لاگ اِن کے لیے استعمال ہوتا ہے' : 'Used for dashboard sign-in'}</span>
                 </div>
               </div>
             </div>
@@ -626,7 +638,7 @@ export function SettingsPage() {
               loading={updateProfileMutation.isPending}
               rightIcon={<Check className="w-4 h-4" />}
             >
-              Save Store Changes
+              {isUrdu ? 'دکان کی معلومات محفوظ کریں' : 'Save Store Changes'}
             </Button>
           </div>
         </form>
@@ -644,11 +656,15 @@ export function SettingsPage() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="font-display text-lg font-semibold tracking-tight text-ink">Shop Reference Code & Team</h2>
+                    <h2 className={`font-display text-lg font-semibold tracking-tight text-ink ${isUrdu ? 'font-urdu text-xl' : ''}`}>
+                      {isUrdu ? 'دکان کا ریفرنس کوڈ اور ٹیم' : 'Shop Reference Code & Team'}
+                    </h2>
                     <Badge variant="pro">PRO FEATURE</Badge>
                   </div>
                   <p className="text-xs text-muted mt-0.5">
-                    Connect 3–5 assistants' personal WhatsApp numbers to log sales into your unified shop ledger
+                    {isUrdu
+                      ? '3 سے 5 ملازمین کے ذاتی واٹس ایپ نمبر جوڑیں تاکہ وہ بھی کھاتہ میں سیلز درج کر سکیں'
+                      : "Connect 3–5 assistants' personal WhatsApp numbers to log sales into your unified shop ledger"}
                   </p>
                 </div>
               </div>
@@ -656,7 +672,7 @@ export function SettingsPage() {
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200">
                   <ShieldCheck className="w-3.5 h-3.5 mr-1" />
-                  {staffData?.subscriptionTier?.toUpperCase() || 'PRO'} PLAN ({staffData?.activeCount ?? 0}/{staffData?.staffLimit ?? 5} Active)
+                  {staffData?.subscriptionTier?.toUpperCase() || 'PRO'} PLAN ({staffData?.activeCount ?? 0}/{staffData?.staffLimit ?? 5} {isUrdu ? 'فعال' : 'Active'})
                 </Badge>
               </div>
             </div>
@@ -673,7 +689,9 @@ export function SettingsPage() {
                 <div className="rounded-xl border border-hairline bg-paper-2/50 p-5 sm:p-6 mb-6">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="space-y-1">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-muted">Your Shop Reference Code</span>
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+                        {isUrdu ? 'آپ کی دکان کا ریفرنس کوڈ' : 'Your Shop Reference Code'}
+                      </span>
                       <div className="flex items-center gap-3">
                         <span className="font-mono text-3xl font-bold tracking-wider text-primary-deep dark:text-primary">
                           {effectiveShopCode}
@@ -685,7 +703,7 @@ export function SettingsPage() {
                           onClick={() => handleCopyCode(effectiveShopCode)}
                           leftIcon={<Copy className="w-3.5 h-3.5" />}
                         >
-                          Copy Code
+                          {isUrdu ? 'کوڈ کاپی کریں' : 'Copy Code'}
                         </Button>
                         <Button
                           type="button"
@@ -694,7 +712,7 @@ export function SettingsPage() {
                           onClick={handleRegenerateCode}
                           loading={regenerateCodeMutation.isPending}
                           className="text-xs text-muted hover:text-ink"
-                          title="Generate a new reference code"
+                          title={isUrdu ? 'نیا ریفرنس کوڈ بنائیں' : 'Generate a new reference code'}
                         >
                           <RefreshCw className="w-3.5 h-3.5" />
                         </Button>
@@ -708,7 +726,7 @@ export function SettingsPage() {
                         onClick={() => handleShareInvite(effectiveShopCode)}
                         leftIcon={<WhatsAppIcon className="w-4 h-4 fill-current" />}
                       >
-                        Invite Assistant via WhatsApp
+                        {isUrdu ? 'واٹس ایپ پر ملازم کو دعوت دیں' : 'Invite Assistant via WhatsApp'}
                       </Button>
                     </div>
                   </div>
@@ -716,12 +734,22 @@ export function SettingsPage() {
                   {/* Instructions banner */}
                   <div className="mt-4 pt-4 border-t border-hairline/60 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-muted">
                     <div className="flex items-start gap-2">
-                      <span className="font-bold text-ink">1. How staff join:</span>
-                      <span>Assistant texts <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {effectiveShopCode} Ali</code> to the VerbaTask WhatsApp bot.</span>
+                      <span className="font-bold text-ink">{isUrdu ? '1. ملازم کیسے شامل ہو:' : '1. How staff join:'}</span>
+                      <span>
+                        {isUrdu ? (
+                          <>ملازم وربا ٹاسک بوٹ کو <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {effectiveShopCode} Ali</code> لکھ کر بھیجے۔</>
+                        ) : (
+                          <>Assistant texts <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {effectiveShopCode} Ali</code> to the VerbaTask WhatsApp bot.</>
+                        )}
+                      </span>
                     </div>
                     <div className="flex items-start gap-2">
-                      <span className="font-bold text-ink">2. How sales work:</span>
-                      <span>Any voice note or text they send records an order under your shop with their name tagged.</span>
+                      <span className="font-bold text-ink">{isUrdu ? '2. سیلز کیسے درج ہوں گی:' : '2. How sales work:'}</span>
+                      <span>
+                        {isUrdu
+                          ? 'ان کا بھیجا گیا کوئی بھی وائس نوٹ یا میسج آپ کی دکان کے کھاتے میں ان کے نام کے ساتھ درج ہو جائے گا۔'
+                          : 'Any voice note or text they send records an order under your shop with their name tagged.'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -732,19 +760,19 @@ export function SettingsPage() {
             <form onSubmit={handleAddStaff} className="rounded-xl border border-hairline bg-paper p-4 sm:p-5 mb-6">
               <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
                 <UserPlus className="w-4 h-4 text-primary" />
-                Add Staff Member Directly
+                {isUrdu ? 'ملازم کو براہ راست شامل کریں' : 'Add Staff Member Directly'}
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                 <div className="sm:col-span-5">
                   <Input
-                    placeholder="Assistant Name (e.g. Ali, Hamza)"
+                    placeholder={isUrdu ? 'ملازم کا نام (مثلاً: علی، حمزہ)' : 'Assistant Name (e.g. Ali, Hamza)'}
                     value={staffNameInput}
                     onChange={(e) => setStaffNameInput(e.target.value)}
                   />
                 </div>
                 <div className="sm:col-span-5">
                   <Input
-                    placeholder="WhatsApp Phone (e.g. 03001234567)"
+                    placeholder={isUrdu ? 'واٹس ایپ فون (مثلاً: 03001234567)' : 'WhatsApp Phone (e.g. 03001234567)'}
                     value={staffPhoneInput}
                     onChange={(e) => setStaffPhoneInput(e.target.value)}
                   />
@@ -756,7 +784,7 @@ export function SettingsPage() {
                     loading={isAddingStaff}
                     className="w-full justify-center"
                   >
-                    Add Staff
+                    {isUrdu ? 'ملازم شامل کریں' : 'Add Staff'}
                   </Button>
                 </div>
               </div>
@@ -767,10 +795,10 @@ export function SettingsPage() {
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
                   <UserCheck className="w-4 h-4 text-muted" />
-                  Active Team Members ({staffData?.staffMembers?.length || 0})
+                  {isUrdu ? `فعال ٹیم ممبران (${staffData?.staffMembers?.length || 0})` : `Active Team Members (${staffData?.staffMembers?.length || 0})`}
                 </h3>
                 <span className="text-xs text-muted">
-                  Max {staffData?.staffLimit || 5} staff members allowed
+                  {isUrdu ? `زیادہ سے زیادہ ${staffData?.staffLimit || 5} ملازمین کی اجازت ہے` : `Max ${staffData?.staffLimit || 5} staff members allowed`}
                 </span>
               </div>
 
@@ -782,9 +810,13 @@ export function SettingsPage() {
               ) : (!staffData?.staffMembers || staffData.staffMembers.length === 0) ? (
                 <div className="text-center py-8 px-4 rounded-xl border border-dashed border-hairline bg-paper-2/30">
                   <Users className="w-8 h-8 text-muted mx-auto mb-2 opacity-50" />
-                  <p className="text-sm font-medium text-ink">No staff assistants linked yet</p>
+                  <p className="text-sm font-medium text-ink">{isUrdu ? 'ابھی کوئی ملازم منسلک نہیں ہے' : 'No staff assistants linked yet'}</p>
                   <p className="text-xs text-muted max-w-sm mx-auto mt-1">
-                    Share your shop code <strong className="text-ink">{staffData?.shopCode || profile?.shopCode}</strong> with your shop boys or enter their phone number above to get started.
+                    {isUrdu ? (
+                      <>اپنی دکان کا کوڈ <strong className="text-ink">{staffData?.shopCode || profile?.shopCode}</strong> ملازمین کے ساتھ شیئر کریں یا اوپر ان کا نمبر درج کریں۔</>
+                    ) : (
+                      <>Share your shop code <strong className="text-ink">{staffData?.shopCode || profile?.shopCode}</strong> with your shop boys or enter their phone number above to get started.</>
+                    )}
                   </p>
                 </div>
               ) : (
@@ -799,10 +831,10 @@ export function SettingsPage() {
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-sm text-ink truncate">{member.name}</span>
                             <Badge variant={member.active ? 'success' : 'muted'} className="text-[10px] px-1.5 py-0">
-                              {member.active ? 'Active' : 'Inactive'}
+                              {member.active ? (isUrdu ? 'فعال' : 'Active') : (isUrdu ? 'غیر فعال' : 'Inactive')}
                             </Badge>
                             {member.addedBy === 'whatsapp_code' && (
-                              <span className="text-[10px] text-muted hidden sm:inline">via WhatsApp Code</span>
+                              <span className="text-[10px] text-muted hidden sm:inline">{isUrdu ? 'بذریعہ واٹس ایپ کوڈ' : 'via WhatsApp Code'}</span>
                             )}
                           </div>
                           <span className="text-xs font-mono text-muted block truncate">
@@ -818,7 +850,7 @@ export function SettingsPage() {
                           size="sm"
                           onClick={() => handleRemoveStaff(member._id, member.name)}
                           className="text-danger hover:bg-danger-tint hover:text-danger-deep p-2"
-                          title="Remove staff member"
+                          title={isUrdu ? 'ملازم کو ہٹائیں' : 'Remove staff member'}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -842,15 +874,19 @@ export function SettingsPage() {
                   <CreditCard className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="font-display text-lg font-semibold tracking-tight text-ink">Accepted Pakistani Payment Methods</h2>
+                  <h2 className={`font-display text-lg font-semibold tracking-tight text-ink ${isUrdu ? 'font-urdu text-xl' : ''}`}>
+                    {isUrdu ? 'قابلِ قبول پاکستانی ادائیگیاں' : 'Accepted Pakistani Payment Methods'}
+                  </h2>
                   <p className="text-xs text-ink-mute">
-                    Choose which payment platforms are active. Only selected methods are offered to your WhatsApp bot.
+                    {isUrdu
+                      ? 'منتخب کریں کہ کون سے ادائیگی کے پلیٹ فارم فعال ہیں۔ صرف منتخب کردہ طریقے واٹس ایپ بوٹ پر پیش کیے جائیں گے۔'
+                      : 'Choose which payment platforms are active. Only selected methods are offered to your WhatsApp bot.'}
                   </p>
                 </div>
               </div>
 
               <Badge variant="success" className="self-start sm:self-auto py-1 px-3">
-                {activePaymentIds.length} Channels Active
+                {activePaymentIds.length} {isUrdu ? 'چینلز فعال' : 'Channels Active'}
               </Badge>
             </div>
 
@@ -858,7 +894,7 @@ export function SettingsPage() {
               {/* Default Payment Method */}
               <div>
                 <h3 className="text-xs font-semibold text-ink-secondary uppercase tracking-wider mb-3">
-                  Default Payment Method
+                  {isUrdu ? 'بنیادی ادائیگی کا طریقہ' : 'Default Payment Method'}
                 </h3>
                 <div className="max-w-md">
                   <Select
@@ -874,7 +910,9 @@ export function SettingsPage() {
                       ))}
                   </Select>
                   <p className="text-[11px] text-ink-mute mt-1.5">
-                    If an order is logged without specifying the payment type, this method will be used automatically.
+                    {isUrdu
+                      ? 'اگر آرڈر میں ادائیگی کا طریقہ درج نہ ہو تو خود بخود یہ طریقہ استعمال ہو گا۔'
+                      : 'If an order is logged without specifying the payment type, this method will be used automatically.'}
                   </p>
                 </div>
               </div>
@@ -882,7 +920,7 @@ export function SettingsPage() {
               {/* Cash Section */}
               <div>
                 <h3 className="text-xs font-semibold text-ink-secondary uppercase tracking-wider mb-3">
-                  Cash in Hand
+                  {isUrdu ? 'نقد رقم (کیش)' : 'Cash in Hand'}
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {cashMethods.map((m) => (
@@ -894,7 +932,7 @@ export function SettingsPage() {
                         <p className="text-xs font-medium text-ink">{m.name}</p>
                         <p className="text-[11px] text-ink-mute">{m.nameUrdu}</p>
                       </div>
-                      <Badge variant="success">Always On</Badge>
+                      <Badge variant="success">{isUrdu ? 'ہمیشہ فعال' : 'Always On'}</Badge>
                     </div>
                   ))}
                 </div>
@@ -903,7 +941,9 @@ export function SettingsPage() {
               {/* Digital Wallets & EMIs */}
               <div>
                 <h3 className="text-xs font-semibold text-ink-secondary uppercase tracking-wider mb-3">
-                  Digital Wallets & EMIs (SadaPay, NayaPay, Raast, etc.)
+                  {isUrdu
+                    ? 'ڈیجیٹل والٹس اور ای ایم آئی (ایزی پیسہ، جاز کیش، نیا پے، راست وغیرہ)'
+                    : 'Digital Wallets & EMIs (SadaPay, NayaPay, Raast, etc.)'}
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {walletMethods.map((m) => {
@@ -924,7 +964,7 @@ export function SettingsPage() {
                               <p className="text-xs font-medium text-ink">{m.name}</p>
                               {m.isPopular && (
                                 <span className="text-[9px] px-1.5 py-0.2 rounded bg-pear-tint text-warn-ink font-medium">
-                                  Popular
+                                  {isUrdu ? 'مقبول' : 'Popular'}
                                 </span>
                               )}
                             </div>
@@ -947,7 +987,7 @@ export function SettingsPage() {
                           >
                             <input
                               type="text"
-                              placeholder="Optional Account / IBAN"
+                              placeholder={isUrdu ? 'اختیاری اکاؤنٹ نمبر / آئی بین' : 'Optional Account / IBAN'}
                               value={paymentDetails[m.id]?.accountNumber || ''}
                               onChange={(e) =>
                                 handlePaymentDetailChange(m.id, 'accountNumber', e.target.value)
@@ -965,7 +1005,9 @@ export function SettingsPage() {
               {/* Major Commercial & Islamic Banks */}
               <div>
                 <h3 className="text-xs font-semibold text-ink-secondary uppercase tracking-wider mb-3">
-                  Pakistani Commercial & Islamic Banks (Meezan, HBL, Alfalah, etc.)
+                  {isUrdu
+                    ? 'پاکستانی کمرشل اور اسلامی بینک (میزان، ایچ بی ایل، الفلاح وغیرہ)'
+                    : 'Pakistani Commercial & Islamic Banks (Meezan, HBL, Alfalah, etc.)'}
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {bankMethods.map((m) => {
@@ -986,7 +1028,7 @@ export function SettingsPage() {
                               <p className="text-xs font-medium text-ink">{m.name}</p>
                               {m.isPopular && (
                                 <span className="text-[9px] px-1.5 py-0.2 rounded bg-pear-tint text-warn-ink font-medium">
-                                  Popular
+                                  {isUrdu ? 'مقبول' : 'Popular'}
                                 </span>
                               )}
                             </div>
@@ -1008,7 +1050,7 @@ export function SettingsPage() {
                           >
                             <input
                               type="text"
-                              placeholder="Account Title / IBAN"
+                              placeholder={isUrdu ? 'اکاؤنٹ کا عنوان / آئی بین' : 'Account Title / IBAN'}
                               value={paymentDetails[m.id]?.accountNumber || ''}
                               onChange={(e) =>
                                 handlePaymentDetailChange(m.id, 'accountNumber', e.target.value)
@@ -1032,7 +1074,7 @@ export function SettingsPage() {
               loading={updatePaymentsMutation.isPending}
               rightIcon={<Check className="w-4 h-4" />}
             >
-              Save Payment Channels
+              {isUrdu ? 'ادائیگی کے چینلز محفوظ کریں' : 'Save Payment Channels'}
             </Button>
           </div>
         </div>
@@ -1047,9 +1089,13 @@ export function SettingsPage() {
                 <Mic className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="font-display text-lg font-semibold tracking-tight text-ink">Conversational AI Voice Configuration</h2>
+                <h2 className={`font-display text-lg font-semibold tracking-tight text-ink ${isUrdu ? 'font-urdu text-xl' : ''}`}>
+                  {isUrdu ? 'وائس اور آڈیو سیٹنگز' : 'Conversational AI Voice Configuration'}
+                </h2>
                 <p className="text-xs text-ink-mute">
-                  Control spoken Urdu voice synthesis and how WhatsApp responds to your voice notes.
+                  {isUrdu
+                    ? 'اردو وائس نوٹ کی ترکیب اور واٹس ایپ پر صوتی جوابات کی ترتیبات۔'
+                    : 'Control spoken Urdu voice synthesis and how WhatsApp responds to your voice notes.'}
                 </p>
               </div>
             </div>
@@ -1057,7 +1103,7 @@ export function SettingsPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-medium text-ink-secondary flex items-center gap-1 mb-1.5">
-                  Default Language
+                  {isUrdu ? 'بنیادی زبان' : 'Default Language'}
                 </label>
                 <div className="grid grid-cols-2 gap-3 max-w-sm">
                   <button
@@ -1090,24 +1136,30 @@ export function SettingsPage() {
 
               <div className="pt-4 border-t border-hairline">
                 <label className="text-xs font-medium text-ink-secondary block mb-2">
-                  Voice Note Responses (TTS)
+                  {isUrdu ? 'وائس نوٹ کے جوابات (TTS)' : 'Voice Note Responses (TTS)'}
                 </label>
                 <div className="space-y-2">
                   {[
                     {
                       id: 'voice_on_voice',
-                      title: 'Voice-on-Voice (Recommended)',
-                      desc: 'Bot replies with a spoken voice note only when you send a voice note. Typed text gets a text reply.',
+                      title: isUrdu ? 'وائس پر وائس جواب (تجویز کردہ)' : 'Voice-on-Voice (Recommended)',
+                      desc: isUrdu
+                        ? 'صرف وائس نوٹ کے جواب میں بول کر جواب دیں۔ لکھے ہوئے میسج پر ٹیکسٹ جواب دیں۔'
+                        : 'Bot replies with a spoken voice note only when you send a voice note. Typed text gets a text reply.',
                     },
                     {
                       id: 'always_voice',
-                      title: 'Always Voice Note',
-                      desc: 'Bot always replies with a spoken voice note, even when you send typed messages.',
+                      title: isUrdu ? 'ہمیشہ وائس نوٹ' : 'Always Voice Note',
+                      desc: isUrdu
+                        ? 'بوٹ ہر پیغام کے جواب میں ہمیشہ بول کر آڈیو بھیجے گا۔'
+                        : 'Bot always replies with a spoken voice note, even when you send typed messages.',
                     },
                     {
                       id: 'text_only',
-                      title: 'Text Messages Only (Silent)',
-                      desc: 'Bot never sends audio notes back, only text messages.',
+                      title: isUrdu ? 'صرف ٹیکسٹ میسجز (خاموش)' : 'Text Messages Only (Silent)',
+                      desc: isUrdu
+                        ? 'بوٹ کبھی بھی آڈیو نوٹ نہیں بھیجے گا، صرف تحریری جواب دے گا۔'
+                        : 'Bot never sends audio notes back, only text messages.',
                     },
                   ].map((opt) => (
                     <label
@@ -1143,9 +1195,13 @@ export function SettingsPage() {
                 <Zap className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="font-display text-lg font-semibold tracking-tight text-ink">WhatsApp Automations</h2>
+                <h2 className={`font-display text-lg font-semibold tracking-tight text-ink ${isUrdu ? 'font-urdu text-xl' : ''}`}>
+                  {isUrdu ? 'واٹس ایپ آٹومیشنز' : 'WhatsApp Automations'}
+                </h2>
                 <p className="text-xs text-ink-mute">
-                  What happens when you ask the bot to create an automation, e.g. "alert me when rice is below 5".
+                  {isUrdu
+                    ? 'جب آپ بوٹ کو کوئی اصول بنانے کو کہیں (مثلاً: جب چاول 5 سے کم ہوں تو الرٹ کرو)۔'
+                    : 'What happens when you ask the bot to create an automation, e.g. "alert me when rice is below 5".'}
                 </p>
               </div>
             </div>
@@ -1164,10 +1220,13 @@ export function SettingsPage() {
                 className="mt-0.5 text-primary focus:ring-primary"
               />
               <div>
-                <p className="text-xs font-medium text-ink">Ask me before saving automations</p>
+                <p className="text-xs font-medium text-ink">
+                  {isUrdu ? 'آٹومیشن محفوظ کرنے سے پہلے مجھ سے تصدیق کریں' : 'Ask me before saving automations'}
+                </p>
                 <p className="text-[11px] text-ink-mute mt-0.5 leading-relaxed">
-                  When on, the bot reads each new automation back with Save / Cancel buttons. When off, it saves
-                  straight away and tells you what was saved. You can also type "confirm on" or "confirm off" on WhatsApp.
+                  {isUrdu
+                    ? 'فعال ہونے پر، بوٹ ہر نئے اصول پر Save / Cancel بٹن دے گا۔ بند ہونے پر، وہ فوراً محفوظ کر لے گا۔'
+                    : 'When on, the bot reads each new automation back with Save / Cancel buttons. When off, it saves straight away and tells you what was saved. You can also type "confirm on" or "confirm off" on WhatsApp.'}
                 </p>
               </div>
             </label>
@@ -1179,7 +1238,7 @@ export function SettingsPage() {
               loading={updateProfileMutation.isPending}
               rightIcon={<Check className="w-4 h-4" />}
             >
-              Save Preferences
+              {isUrdu ? 'ترجیحات محفوظ کریں' : 'Save Preferences'}
             </Button>
           </div>
         </form>
