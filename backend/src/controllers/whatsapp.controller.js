@@ -1364,7 +1364,9 @@ async function proposeWorkflow(merchant, command) {
       return sendTextMessage(merchant.whatsappNumber, workflowRejectionText(prepared.error, language));
     }
 
-    if (!merchant.confirmAutomations) {
+    // Voice transcripts get misheard, so a spoken automation is always read
+    // back for Save / Cancel instead of being stored silently.
+    if (!merchant.confirmAutomations && command.source !== 'voice') {
       return saveWorkflowAndReply(merchant, prepared.value, language);
     }
 

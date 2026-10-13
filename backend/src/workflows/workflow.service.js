@@ -10,6 +10,7 @@ import {
   isBelowThreshold,
   computeNextRunAt,
   describeTrigger,
+  describeAction,
   describeWorkflow,
 } from './workflow.rules.js';
 
@@ -94,7 +95,13 @@ export const listWorkflows = async (merchantId) => {
   const workflows = await Workflow.find({ merchantId }).sort({ createdAt: -1 });
   return workflows.map((wf) => {
     const obj = wf.toObject();
-    return { ...obj, valid: normalizeWorkflow(obj).ok, description: describeWorkflow(obj, 'en') };
+    return {
+      ...obj,
+      valid: normalizeWorkflow(obj).ok,
+      description: describeWorkflow(obj, 'en'),
+      triggerText: describeTrigger(obj, 'en'),
+      actionText: describeAction(obj, 'en'),
+    };
   });
 };
 

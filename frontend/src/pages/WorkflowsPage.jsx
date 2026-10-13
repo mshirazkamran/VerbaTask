@@ -32,68 +32,88 @@ import { formatDate } from '../lib/format';
 
 const emptyWorkflow = {
  trigger: 'threshold',
- quantityThreshold: '',
+ item: '',
+ value: '',
  keyword: '',
- intervalMinutes: 1440,
- actionMessage: '',
+ frequency: 'daily',
+ time: '21:00',
+ dayOfWeek: '1',
  actionType: 'notify',
+ reportType: 'sales',
+ actionMessage: '',
  };
+
+const selectClass =
+ 'h-10 px-3 text-[15px] bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary';
+
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// Must stay in sync with REPORT_TYPES in backend/src/workflows/workflow.rules.js.
+const REPORTS = [
+ ['sales', "Today's sales"],
+ ['inventory', 'Inventory'],
+ ['low_stock', 'Low stock'],
+ ['top_selling', 'Top selling'],
+ ['expiring', 'Expiring items'],
+];
 
 function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel, loading }) {
  const [form, setForm] = useState(initial);
 
  const handleChange = (e) => {
  const { name, value } = e.target;
- setForm((prev) => ({
- ...prev,
- [name]: ['quantityThreshold', 'intervalMinutes'].includes(name) ? (value === '' ? '' : Number(value)) : value,
- }));
+ setForm((prev) => ({ ...prev, [name]: value }));
  };
 
  const handleSubmit = (e) => {
  e.preventDefault();
- 
+
  let condition = {};
  if (form.trigger === 'threshold') {
- condition = { quantityThreshold: Number(form.quantityThreshold) || 0 };
+ condition = { item: form.item.trim() || null, operator: '<', value: Number(form.value) };
  } else if (form.trigger === 'message') {
- condition = { keyword: form.keyword };
+ condition = { keywords: [form.keyword] };
  } else if (form.trigger === 'schedule') {
- condition = { intervalMinutes: Number(form.intervalMinutes) || 1440 };
+ condition = {
+ frequency: form.frequency,
+ time: form.time,
+ ...(form.frequency === 'weekly' && { dayOfWeek: Number(form.dayOfWeek) }),
+ };
  }
 
  onSubmit({
  trigger: form.trigger,
  condition,
- action: { type: form.actionType, message: form.actionMessage || undefined },
+ action:
+ form.actionType === 'send_report'
+ ? { type: 'send_report', reportType: form.reportType }
+ : { type: 'notify', message: form.actionMessage || undefined },
  active: true,
  });
  };
+
+ // A stock alert composes its own text; other triggers need a message to send.
+ const messageRequired = form.actionType === 'notify' && form.trigger !== 'threshold';
 
  return (
  <form onSubmit={handleSubmit} className="space-y-4">
  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
  <div className="flex flex-col gap-1.5">
  <label className="text-xs font-medium text-ink-secondary">Trigger</label>
- <select
- name="trigger"
- value={form.trigger}
- onChange={handleChange}
- className="h-10 px-3 text-[15px] bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
- >
+ <select name="trigger" value={form.trigger} onChange={handleChange} className={selectClass}>
  <option value="threshold">Stock threshold</option>
  <option value="message">Incoming message (Keyword)</option>
- <option value="schedule">Recurring schedule</option>
+ <option value="schedule">Daily / weekly schedule</option>
  </select>
  </div>
 
  {form.trigger === 'threshold' && (
  <Input
- label="Threshold quantity"
- name="quantityThreshold"
+ label="Alert when stock is below"
+ name="value"
  type="number"
  min="0"
- value={form.quantityThreshold}
+ value={form.value}
  onChange={handleChange}
  placeholder="e.g. 5"
  required
@@ -105,9 +125,10 @@ function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel
  label="Trigger keyword"
  name="keyword"
  type="text"
+ maxLength={40}
  value={form.keyword}
  onChange={handleChange}
- placeholder="e.g. status"
+ placeholder="e.g. end"
  required
  />
  )}
@@ -115,49 +136,83 @@ function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel
  {form.trigger === 'schedule' && (
  <div className="flex flex-col gap-1.5">
  <label className="text-xs font-medium text-ink-secondary">Frequency</label>
- <select
- name="intervalMinutes"
- value={form.intervalMinutes}
- onChange={handleChange}
- className="h-10 px-3 text-[15px] bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
- >
- <option value="60">Hourly</option>
- <option value="1440">Daily (24h)</option>
- <option value="10080">Weekly</option>
+ <select name="frequency" value={form.frequency} onChange={handleChange} className={selectClass}>
+ <option value="daily">Daily</option>
+ <option value="weekly">Weekly</option>
  </select>
  </div>
  )}
  </div>
 
+ {form.trigger === 'threshold' && (
+ <Input
+ label="Item (leave empty for any item)"
+ name="item"
+ type="text"
+ value={form.item}
+ onChange={handleChange}
+ placeholder="e.g. Sugar"
+ />
+ )}
+
+ {form.trigger === 'schedule' && (
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+ <Input label="Time (Pakistan)" name="time" type="time" value={form.time} onChange={handleChange} required />
+ {form.frequency === 'weekly' && (
+ <div className="flex flex-col gap-1.5">
+ <label className="text-xs font-medium text-ink-secondary">Day</label>
+ <select name="dayOfWeek" value={form.dayOfWeek} onChange={handleChange} className={selectClass}>
+ {DAYS.map((d, i) => (
+ <option key={d} value={i}>{d}</option>
+ ))}
+ </select>
+ </div>
+ )}
+ </div>
+ )}
+
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
  <div className="flex flex-col gap-1.5">
  <label className="text-xs font-medium text-ink-secondary">Action</label>
- <select
- name="actionType"
- value={form.actionType}
- onChange={handleChange}
- className="h-10 px-3 text-[15px] bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
- >
- <option value="notify">Send WhatsApp notification</option>
+ <select name="actionType" value={form.actionType} onChange={handleChange} className={selectClass}>
+ <option value="notify">Send WhatsApp alert</option>
+ <option value="send_report">Send WhatsApp report</option>
  </select>
  </div>
 
- <div className="flex flex-col gap-1.5 mt-2">
+ {form.actionType === 'send_report' && (
+ <div className="flex flex-col gap-1.5">
+ <label className="text-xs font-medium text-ink-secondary">Report</label>
+ <select name="reportType" value={form.reportType} onChange={handleChange} className={selectClass}>
+ {REPORTS.map(([value, label]) => (
+ <option key={value} value={value}>{label}</option>
+ ))}
+ </select>
+ </div>
+ )}
+ </div>
+
+ {form.actionType === 'notify' && (
  <Input
- label="Custom notification message (optional)"
+ label={messageRequired ? 'Message to send' : 'Custom message (optional)'}
  name="actionMessage"
  type="text"
+ maxLength={500}
  value={form.actionMessage}
  onChange={handleChange}
- placeholder="e.g. Workflow triggered!"
+ placeholder="e.g. Time to close the shop!"
+ required={messageRequired}
  />
- </div>
+ )}
 
  <div className="p-3 mt-4 bg-canvas-soft border border-hairline rounded-sm flex items-start gap-2 text-xs text-ink-mute">
  <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
  <span>
- {form.trigger === 'threshold'
+ {form.actionType === 'send_report'
+ ? 'The selected report is sent to you on WhatsApp as a PDF.'
+ : form.trigger === 'threshold'
  ? 'WhatsApp alert messages are automatically composed with the item name and remaining stock.'
- : 'Provide a custom message to be sent when the trigger occurs.'}
+ : 'This message is sent to you on WhatsApp when the trigger occurs.'}
  </span>
  </div>
 
@@ -230,32 +285,23 @@ export function WorkflowsPage() {
  {
  accessorKey: 'condition',
  header: 'Condition',
- cell: ({ getValue }) => {
- const condition = getValue() || {};
- let text = '-';
- if (condition.quantityThreshold != null) {
- text = `Stock below ${condition.quantityThreshold}`;
- } else if (condition.keyword) {
- text = `Message has "${condition.keyword}"`;
- } else if (condition.intervalMinutes) {
- text = `Every ${condition.intervalMinutes >= 1440 ? `${condition.intervalMinutes / 1440} day(s)` : `${condition.intervalMinutes / 60} hour(s)`}`;
- }
- return (
- <span className="font-mono text-xs text-ink-2">{text}</span>
- );
- },
+ cell: ({ row }) => (
+ <span className="font-mono text-xs text-ink-2">{row.original.triggerText || '-'}</span>
+ ),
  },
  {
  accessorKey: 'action',
  header: 'Action',
- cell: ({ getValue }) => {
- const action = getValue() || {};
- const label =
- action.type === 'notify'
- ? 'WhatsApp alert'
- : action.type === 'auto_reorder'
- ? 'Auto-reorder'
- : action.type || '-';
+ cell: ({ row }) => {
+ // valid=false: saved before validation existed (e.g. an invented action) — it never runs.
+ if (row.original.valid === false) {
+ return (
+ <Badge variant="danger" dot>
+ Unsupported — delete
+ </Badge>
+ );
+ }
+ const label = row.original.actionText || '-';
  return (
  <div className="flex items-center gap-2 max-w-[260px]">
  <Bell className="size-4 shrink-0 text-sky-ink" />
@@ -409,7 +455,7 @@ export function WorkflowsPage() {
  isOpen={modalOpen}
  onClose={() => setModalOpen(false)}
  title="New workflow"
- description="Get alerted on WhatsApp when an item drops below a stock threshold."
+ description="Get a WhatsApp alert or report on low stock, a schedule, or your own keyword."
  >
  <WorkflowForm
  onSubmit={handleCreate}
