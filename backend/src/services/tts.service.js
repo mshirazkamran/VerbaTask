@@ -11,7 +11,7 @@
 
 import axios from 'axios';
 import dotenv from 'dotenv';
-import lamejs from '../../node_modules/@breezystack/lamejs/dist/lamejs.js';
+import lamejs from '@breezystack/lamejs';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import * as googleTTS from 'google-tts-api';
 
@@ -26,11 +26,17 @@ const DEFAULT_ELEVENLABS_VOICE = 'JBFqnCBsd6RMkjVDRZzb';
 
 /**
  * Strips markdown symbols, emojis, and artifacts that shouldn't be read out by TTS.
+ * Normalizes currency markers so numbers are pronounced naturally.
  */
 export function cleanTextForSpeech(text) {
   if (!text || typeof text !== 'string') return '';
 
   return text
+    // Normalize currency to speakable words
+    .replace(/\bRs\.?\s*(\d+)/gi, '$1 روپے')
+    .replace(/(\d+)\s*(?:rs|rupees|rupay)\b/gi, '$1 روپے')
+    // Remove standalone bullets
+    .replace(/[•]/g, '')
     // Remove markdown formatting: *bold*, _italics_, ~strike~, `code`
     .replace(/[*_~`#]/g, '')
     // Remove emojis and miscellaneous symbols

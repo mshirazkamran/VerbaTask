@@ -90,7 +90,9 @@ function shouldReplyWithVoice(merchant, source) {
   const pref = merchant.replyPreference || 'voice_on_voice';
   if (pref === 'text_only') return false;
   if (pref === 'always_voice') return true;
-  if (pref === 'voice_on_voice') return source === 'audio';
+  if (pref === 'voice_on_voice') {
+    return source === 'audio' || source === 'voice';
+  }
   return false;
 }
 
@@ -732,7 +734,7 @@ async function handleTextMessage(merchant, text) {
     const msg = merchant.language === 'ur'
       ? `✅ دکان کا نام کامیابی سے *"${newName}"* رکھ دیا گیا ہے۔`
       : `✅ Store name updated to *"${newName}"*.`;
-    return sendTextMessage(merchant.whatsappNumber, msg);
+    return replyToMerchant(merchant, msg, 'text');
   }
 
   // Set Location
@@ -745,7 +747,7 @@ async function handleTextMessage(merchant, text) {
     const msg = merchant.language === 'ur'
       ? `✅ دکان کا مقام کامیابی سے *"${newLoc}"* اپڈیٹ ہو گیا ہے۔`
       : `✅ Store location updated to *"${newLoc}"*.`;
-    return sendTextMessage(merchant.whatsappNumber, msg);
+    return replyToMerchant(merchant, msg, 'text');
   }
 
   // Set / Update Item Price (e.g. "set price rice 300", "price chini 160", "rice 250 rs", "چینی کی قیمت 150")
@@ -769,7 +771,7 @@ async function handleTextMessage(merchant, text) {
     const msg = merchant.language === 'ur'
       ? (isVoiceOn ? '🔊 وائس جوابات چالو کر دیے گئے ہیں۔' : '🔇 وائس جوابات بند کر دیے گئے ہیں۔')
       : (isVoiceOn ? '🔊 Voice replies enabled.' : '🔇 Voice replies disabled.');
-    return sendTextMessage(merchant.whatsappNumber, msg);
+    return replyToMerchant(merchant, msg, 'text');
   }
 
   // Automation confirmation toggle ("confirm on" / "confirm off")
@@ -782,7 +784,7 @@ async function handleTextMessage(merchant, text) {
     const msg = merchant.language === 'ur'
       ? (isOn ? '✅ اب ہر نئی آٹومیشن محفوظ کرنے سے پہلے میں آپ سے پوچھوں گا۔' : '✅ اب نئی آٹومیشن فوراً محفوظ ہو جائے گی۔')
       : (isOn ? "✅ I'll now ask you to Save or Cancel each new automation." : '✅ New automations will now be saved straight away.');
-    return sendTextMessage(merchant.whatsappNumber, msg);
+    return replyToMerchant(merchant, msg, 'text');
   }
 
   // Enable payment method
@@ -992,7 +994,10 @@ async function routeParsedCommand(merchant, intent, source) {
         ? `یہ یہ آئٹمز سمجھ آ گئے ہیں:\n${itemsList}\n\nآواز کٹ گئی تھی، برائے مہربانی بقیہ سامان دوبارہ بول دیں یا لکھ دیں۔`
         : `I got these items so far:\n${itemsList}\n\nThe audio cut off, please repeat or type the rest of the items.`;
         
-      return sendTextMessage(merchant.whatsappNumber, text);
+      const spoken = effectiveLanguage === 'ur'
+        ? 'آواز کٹ گئی تھی۔ برائے مہربانی بقیہ سامان دوبارہ بول دیں یا لکھ دیں۔'
+        : 'The audio cut off, please repeat or type the rest of the items.';
+      return replyToMerchant(merchant, { spoken, text }, source, effectiveLanguage);
     }
 
     return createOrderViaCrm(merchant, {
@@ -2037,7 +2042,10 @@ async function handleKhataInquiry(merchant, rawCustomerName) {
     const msg = isUrdu
       ? `ℹ️ *${rawCustomerName.trim()}* کا کوئی بقایا ادھار/کھاتہ نہیں ہے۔`
       : `ℹ️ *${rawCustomerName.trim()}* has no outstanding balance.`;
-    return sendTextMessage(merchant.whatsappNumber, msg);
+    const spoken = isUrdu
+      ? `${rawCustomerName.trim()} کا کوئی بقایا ادھار نہیں ہے۔`
+      : `${rawCustomerName.trim()} has no outstanding balance.`;
+    return replyToMerchant(merchant, { spoken, text: msg }, 'text');
   }
 
   const balanceFormatted = `Rs. ${customer.balance.toLocaleString()}`;
@@ -2047,7 +2055,11 @@ async function handleKhataInquiry(merchant, rawCustomerName) {
     ? `📋 *کھاتہ تفصیل — ${customer.name.toUpperCase()}*\nکل واجب الادا رقم: *${balanceFormatted}*\n\n📩 *گاہک کو بھیجنے کے لیے یاد دہانی (Copy & Forward):*\n"محترم ${customer.name}، آپ کی طرف ${storeName} کا ${balanceFormatted} بقایا کھاتہ ہے۔ برائے مہربانی جلد از جلد ادائیگی فرمائیں۔ شکریہ!"`
     : `📋 *Ledger Summary — ${customer.name.toUpperCase()}*\nOutstanding Balance: *${balanceFormatted}*\n\n📩 *Customer Reminder (Copy & Forward):*\n"Dear ${customer.name}, your outstanding balance at ${storeName} is ${balanceFormatted}. Please arrange payment at your earliest convenience. Thank you!"`;
 
-  return sendTextMessage(merchant.whatsappNumber, text);
+  const spoken = isUrdu
+    ? `${customer.name} کی طرف ${customer.balance} روپے واجب الادا ہیں۔`
+    : `${customer.name} has an outstanding balance of Rs. ${customer.balance}.`;
+
+  return replyToMerchant(merchant, { spoken, text }, 'text');
 }
 
 /**
@@ -2060,7 +2072,7 @@ async function handleKhataSettle(merchant, rawCustomerName, amount) {
 
   if (!amountNum || amountNum <= 0) {
     const err = isUrdu ? 'براہ کرم درست رقم درج کریں۔' : 'Please provide a valid payment amount.';
-    return sendTextMessage(merchant.whatsappNumber, err);
+    return replyToMerchant(merchant, err, 'text');
   }
 
   let customer = await Customer.findOne({
@@ -2072,7 +2084,10 @@ async function handleKhataSettle(merchant, rawCustomerName, amount) {
     const notFound = isUrdu
       ? `❌ *${rawCustomerName.trim()}* نامی گاہک کھاتے میں نہیں ملا۔`
       : `❌ Customer *${rawCustomerName.trim()}* not found in ledger.`;
-    return sendTextMessage(merchant.whatsappNumber, notFound);
+    const spoken = isUrdu
+      ? `${rawCustomerName.trim()} نامی گاہک کھاتے میں نہیں ملا۔`
+      : `Customer ${rawCustomerName.trim()} was not found in ledger.`;
+    return replyToMerchant(merchant, { spoken, text: notFound }, 'text');
   }
 
   const previousBalance = customer.balance;
@@ -2092,7 +2107,11 @@ async function handleKhataSettle(merchant, rawCustomerName, amount) {
     ? `✅ *کھاتہ وصولی درج ہو گئی!*\nگاہک: *${customer.name.toUpperCase()}*\nوصول شدہ رقم: *Rs. ${amountNum.toLocaleString()}*\nپہلا بقایا: Rs. ${previousBalance.toLocaleString()}\nنیا بقایا: *Rs. ${customer.balance.toLocaleString()}*`
     : `✅ *Ledger payment recorded!*\nCustomer: *${customer.name.toUpperCase()}*\nAmount Received: *Rs. ${amountNum.toLocaleString()}*\nPrevious Balance: Rs. ${previousBalance.toLocaleString()}\nRemaining Balance: *Rs. ${customer.balance.toLocaleString()}*`;
 
-  return sendTextMessage(merchant.whatsappNumber, text);
+  const spoken = isUrdu
+    ? `${customer.name} کے کھاتے میں ${amountNum} روپے جمع کر لیے گئے ہیں۔ اب باقی بقایا ${customer.balance} روپے ہے۔`
+    : `Recorded Rs. ${amountNum} payment for ${customer.name}. Remaining balance is Rs. ${customer.balance}.`;
+
+  return replyToMerchant(merchant, { spoken, text }, 'text');
 }
 
 /**
@@ -2153,7 +2172,10 @@ async function handleDailyHisab(merchant) {
     const emptyMsg = isUrdu
       ? '📊 آج کی تاریخ میں ابھی تک کوئی سیل درج نہیں ہوئی۔'
       : '📊 No sales have been recorded for today yet.';
-    return sendTextMessage(merchant.whatsappNumber, emptyMsg);
+    const emptySpoken = isUrdu
+      ? 'آج کی تاریخ میں ابھی تک کوئی سیل درج نہیں ہوئی۔'
+      : 'No sales have been recorded for today yet.';
+    return replyToMerchant(merchant, { spoken: emptySpoken, text: emptyMsg }, 'text');
   }
 
   let totalRevenue = 0;
@@ -2199,7 +2221,11 @@ async function handleDailyHisab(merchant) {
       : `\n\n🔥 Top Selling: *${topItem}* (${topCount} units)`;
   }
 
-  return sendTextMessage(merchant.whatsappNumber, summary);
+  const spoken = isUrdu
+    ? `آج آپ کی کل فروخت ${totalRevenue} روپے ہے، اور کل ${todayOrders.length} آرڈرز درج ہوئے ہیں۔${topItem ? ` سب سے زیادہ فروخت ${topItem} کی ہوئی۔` : ''}`
+    : `Today's total sales are Rs. ${totalRevenue}, across ${todayOrders.length} orders.${topItem ? ` Top selling item was ${topItem}.` : ''}`;
+
+  return replyToMerchant(merchant, { spoken, text: summary }, 'text');
 }
 
 /**
@@ -2216,7 +2242,10 @@ async function handleLowStockCheck(merchant) {
     const okMsg = isUrdu
       ? '✅ ماشاءاللہ، تمام اشیاء کا اسٹاک مناسب ہے۔ کوئی چیز کم نہیں ہے۔'
       : '✅ All inventory items are well-stocked. No items are currently low.';
-    return sendTextMessage(merchant.whatsappNumber, okMsg);
+    const okSpoken = isUrdu
+      ? 'تمام اشیاء کا اسٹاک مناسب ہے۔ کوئی چیز کم نہیں ہے۔'
+      : 'All inventory items are well-stocked.';
+    return replyToMerchant(merchant, { spoken: okSpoken, text: okMsg }, 'text');
   }
 
   let text = isUrdu
@@ -2232,5 +2261,9 @@ async function handleLowStockCheck(merchant) {
     ? `\n\nنیا مال شامل کرنے کے لیے بولیں یا لکھیں (مثلاً: "add 20 ${items[0].name}")`
     : `\n\nTo restock, reply (e.g. "add 20 ${items[0].name}")`;
 
-  return sendTextMessage(merchant.whatsappNumber, text);
+  const lowSpoken = isUrdu
+    ? `کم اسٹاک میں یہ اشیاء شامل ہیں: ${items.slice(0, 3).map(i => i.name).join('، ')}۔ مزید مال شامل کرنے کے لیے بولیں یا لکھیں۔`
+    : `Low stock items include: ${items.slice(0, 3).map(i => i.name).join(', ')}. Please restock.`;
+
+  return replyToMerchant(merchant, { spoken: lowSpoken, text }, 'text');
 }

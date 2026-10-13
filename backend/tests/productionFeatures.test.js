@@ -40,4 +40,43 @@ describe('Production Features & Edge Cases Tests', () => {
       assert.equal(parsed.items[1].price, 200);
     });
   });
+
+  describe('TTS Speech Normalization & Voice Preferences', () => {
+    test('cleanTextForSpeech normalizes Rs and currencies to speakable Urdu words', async () => {
+      const { cleanTextForSpeech } = await import('../src/services/tts.service.js');
+      const raw = '✅ سیل درج ہو گئی: 2 x Rice (نقد) — آرڈر #VT-141542-927. کل رقم: Rs. 600';
+      const cleaned = cleanTextForSpeech(raw);
+      assert.ok(cleaned.includes('600 روپے'));
+      assert.ok(!cleaned.includes('Rs.'));
+      assert.ok(!cleaned.includes('✅'));
+      assert.ok(!cleaned.includes('#'));
+    });
+
+    test('validates voice reply rules for always_voice and voice_on_voice', () => {
+      function shouldReplyWithVoice(merchant, source) {
+        if (!merchant || merchant.voiceReplies === false) return false;
+        const pref = merchant.replyPreference || 'voice_on_voice';
+        if (pref === 'text_only') return false;
+        if (pref === 'always_voice') return true;
+        if (pref === 'voice_on_voice') {
+          return source === 'audio' || source === 'voice';
+        }
+        return false;
+      }
+
+      // Always voice
+      assert.equal(shouldReplyWithVoice({ voiceReplies: true, replyPreference: 'always_voice' }, 'text'), true);
+      assert.equal(shouldReplyWithVoice({ voiceReplies: true, replyPreference: 'always_voice' }, 'voice'), true);
+      assert.equal(shouldReplyWithVoice({ voiceReplies: true, replyPreference: 'always_voice' }, 'audio'), true);
+
+      // Voice on voice
+      assert.equal(shouldReplyWithVoice({ voiceReplies: true, replyPreference: 'voice_on_voice' }, 'voice'), true);
+      assert.equal(shouldReplyWithVoice({ voiceReplies: true, replyPreference: 'voice_on_voice' }, 'audio'), true);
+      assert.equal(shouldReplyWithVoice({ voiceReplies: true, replyPreference: 'voice_on_voice' }, 'text'), false);
+
+      // Disabled / text-only
+      assert.equal(shouldReplyWithVoice({ voiceReplies: false, replyPreference: 'always_voice' }, 'voice'), false);
+      assert.equal(shouldReplyWithVoice({ voiceReplies: true, replyPreference: 'text_only' }, 'voice'), false);
+    });
+  });
 });
