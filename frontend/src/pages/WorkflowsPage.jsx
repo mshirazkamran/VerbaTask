@@ -11,6 +11,7 @@ import {
   Bell,
   Zap,
   Info,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -34,22 +35,40 @@ import { getTranslations } from '../lib/translations';
 
 const emptyWorkflow = {
   trigger: 'threshold',
-  quantityThreshold: '',
+  item: '',
+  value: '',
   keyword: '',
-  intervalMinutes: 1440,
-  actionMessage: '',
+  frequency: 'daily',
+  time: '21:00',
+  dayOfWeek: '1',
   actionType: 'notify',
+  reportType: 'sales',
+  actionMessage: '',
 };
+
+const selectClass =
+  'h-10 px-3 text-[15px] bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary';
+
+const DAYS = {
+  en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  ur: ['اتوار', 'پیر', 'منگل', 'بدھ', 'جمعرات', 'جمعہ', 'ہفتہ'],
+};
+
+// Must stay in sync with REPORT_TYPES in backend/src/workflows/workflow.rules.js.
+const REPORTS = [
+  ['sales', "Today's sales", 'آج کی سیلز'],
+  ['inventory', 'Inventory', 'انوینٹری'],
+  ['low_stock', 'Low stock', 'کم اسٹاک'],
+  ['top_selling', 'Top selling', 'زیادہ بکنے والی اشیاء'],
+  ['expiring', 'Expiring items', 'ایکسپائری'],
+];
 
 function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel, loading, isUrdu, t }) {
   const [form, setForm] = useState(initial);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: ['quantityThreshold', 'intervalMinutes'].includes(name) ? (value === '' ? '' : Number(value)) : value,
-    }));
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = (e) => {
@@ -57,32 +76,37 @@ function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel
 
     let condition = {};
     if (form.trigger === 'threshold') {
-      condition = { quantityThreshold: Number(form.quantityThreshold) || 0 };
+      condition = { item: form.item.trim() || null, operator: '<', value: Number(form.value) };
     } else if (form.trigger === 'message') {
-      condition = { keyword: form.keyword };
+      condition = { keywords: [form.keyword] };
     } else if (form.trigger === 'schedule') {
-      condition = { intervalMinutes: Number(form.intervalMinutes) || 1440 };
+      condition = {
+        frequency: form.frequency,
+        time: form.time,
+        ...(form.frequency === 'weekly' && { dayOfWeek: Number(form.dayOfWeek) }),
+      };
     }
 
     onSubmit({
       trigger: form.trigger,
       condition,
-      action: { type: form.actionType, message: form.actionMessage || undefined },
+      action:
+        form.actionType === 'send_report'
+          ? { type: 'send_report', reportType: form.reportType }
+          : { type: 'notify', message: form.actionMessage || undefined },
       active: true,
     });
   };
+
+  // A stock alert composes its own text; other triggers need a message to send.
+  const messageRequired = form.actionType === 'notify' && form.trigger !== 'threshold';
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-ink-secondary">{t.trigger}</label>
-          <select
-            name="trigger"
-            value={form.trigger}
-            onChange={handleChange}
-            className="h-10 px-3 text-[15px] bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-          >
+          <select name="trigger" value={form.trigger} onChange={handleChange} className={selectClass}>
             <option value="threshold">{t.stockThreshold}</option>
             <option value="message">{t.incomingMessage}</option>
             <option value="schedule">{t.recurringSchedule}</option>
@@ -92,10 +116,10 @@ function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel
         {form.trigger === 'threshold' && (
           <Input
             label={t.thresholdQtyLabel}
-            name="quantityThreshold"
+            name="value"
             type="number"
             min="0"
-            value={form.quantityThreshold}
+            value={form.value}
             onChange={handleChange}
             placeholder={isUrdu ? 'مثلاً: 5' : 'e.g. 5'}
             required
@@ -107,9 +131,10 @@ function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel
             label={t.triggerKeywordLabel}
             name="keyword"
             type="text"
+            maxLength={40}
             value={form.keyword}
             onChange={handleChange}
-            placeholder={isUrdu ? 'مثلاً: اسٹاک' : 'e.g. status'}
+            placeholder={isUrdu ? 'مثلاً: end' : 'e.g. end'}
             required
           />
         )}
@@ -117,47 +142,109 @@ function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel
         {form.trigger === 'schedule' && (
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-ink-secondary">{t.frequencyLabel}</label>
-            <select
-              name="intervalMinutes"
-              value={form.intervalMinutes}
-              onChange={handleChange}
-              className="h-10 px-3 text-[15px] bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-            >
-              <option value="60">{t.hourly}</option>
-              <option value="1440">{t.daily}</option>
-              <option value="10080">{t.weekly}</option>
+            <select name="frequency" value={form.frequency} onChange={handleChange} className={selectClass}>
+              <option value="daily">{t.daily}</option>
+              <option value="weekly">{t.weekly}</option>
             </select>
           </div>
         )}
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-ink-secondary">{t.actionLabel}</label>
-        <select
-          name="actionType"
-          value={form.actionType}
-          onChange={handleChange}
-          className="h-10 px-3 text-[15px] bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-        >
-          <option value="notify">{t.sendWhatsAppNotif}</option>
-        </select>
-      </div>
-
-      <div className="flex flex-col gap-1.5 mt-2">
+      {form.trigger === 'threshold' && (
         <Input
-          label={t.customNotifMessage}
+          label={isUrdu ? 'چیز (ہر چیز کے لیے خالی چھوڑیں)' : 'Item (leave empty for any item)'}
+          name="item"
+          type="text"
+          value={form.item}
+          onChange={handleChange}
+          placeholder={isUrdu ? 'مثلاً: چینی' : 'e.g. Sugar'}
+        />
+      )}
+
+      {form.trigger === 'schedule' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input
+            label={isUrdu ? 'وقت (پاکستان)' : 'Time (Pakistan)'}
+            name="time"
+            type="time"
+            value={form.time}
+            onChange={handleChange}
+            required
+          />
+          {form.frequency === 'weekly' && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-ink-secondary">{isUrdu ? 'دن' : 'Day'}</label>
+              <select name="dayOfWeek" value={form.dayOfWeek} onChange={handleChange} className={selectClass}>
+                {DAYS[isUrdu ? 'ur' : 'en'].map((d, i) => (
+                  <option key={d} value={i}>{d}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+
+      <fieldset className="flex flex-col gap-1.5">
+        <legend className="mb-1.5 text-xs font-medium text-ink-secondary">{t.actionLabel}</legend>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            ['notify', Bell, isUrdu ? 'الرٹ بھیجیں' : 'Send alert'],
+            ['send_report', FileText, isUrdu ? 'رپورٹ بھیجیں' : 'Send report'],
+          ].map(([value, Icon, label]) => (
+            <label
+              key={value}
+              className={`flex h-11 cursor-pointer items-center justify-center gap-2 rounded-sm border px-3 text-sm font-medium transition-colors has-focus-visible:ring-2 has-focus-visible:ring-primary/20 ${
+                form.actionType === value
+                  ? 'border-primary bg-primary-tint text-primary-deep dark:text-primary'
+                  : 'border-hairline-input bg-canvas text-ink-2 hover:bg-canvas-soft'
+              }`}
+            >
+              <input
+                type="radio"
+                name="actionType"
+                value={value}
+                checked={form.actionType === value}
+                onChange={handleChange}
+                className="sr-only"
+              />
+              <Icon className="size-4 shrink-0" />
+              {label}
+            </label>
+          ))}
+        </div>
+        <p className="text-xs text-ink-mute">{isUrdu ? 'واٹس ایپ پر بھیجا جائے گا' : 'Sent to you on WhatsApp'}</p>
+      </fieldset>
+
+      {form.actionType === 'send_report' && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-ink-secondary">{isUrdu ? 'کون سی رپورٹ' : 'Which report'}</label>
+          <select name="reportType" value={form.reportType} onChange={handleChange} className={selectClass}>
+            {REPORTS.map(([value, en, ur]) => (
+              <option key={value} value={value}>{isUrdu ? ur : en}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {form.actionType === 'notify' && (
+        <Input
+          label={messageRequired ? (isUrdu ? 'بھیجنے والا پیغام' : 'Message to send') : t.customNotifMessage}
           name="actionMessage"
           type="text"
+          maxLength={500}
           value={form.actionMessage}
           onChange={handleChange}
-          placeholder={isUrdu ? 'مثلاً: مال ختم ہونے کے قریب ہے!' : 'e.g. Workflow triggered!'}
+          placeholder={isUrdu ? 'مثلاً: دکان بند کرنے کا وقت!' : 'e.g. Time to close the shop!'}
+          required={messageRequired}
         />
-      </div>
+      )}
 
       <div className="p-3 mt-4 bg-canvas-soft border border-hairline rounded-sm flex items-start gap-2 text-xs text-ink-mute">
         <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
         <span>
-          {form.trigger === 'threshold'
+          {form.actionType === 'send_report'
+            ? isUrdu ? 'منتخب رپورٹ آپ کو واٹس ایپ پر PDF میں بھیجی جائے گی۔' : 'The selected report is sent to you on WhatsApp as a PDF.'
+            : form.trigger === 'threshold'
             ? t.thresholdNotice
             : t.messageNotice}
         </span>
@@ -251,38 +338,23 @@ export function WorkflowsPage() {
       {
         accessorKey: 'condition',
         header: t.condition,
-        cell: ({ getValue }) => {
-          const condition = getValue() || {};
-          let text = '-';
-          if (condition.quantityThreshold != null) {
-            text = isUrdu
-              ? `اسٹاک ${condition.quantityThreshold} سے کم`
-              : `Stock below ${condition.quantityThreshold}`;
-          } else if (condition.keyword) {
-            text = isUrdu
-              ? `میسج میں "${condition.keyword}" ہو`
-              : `Message has "${condition.keyword}"`;
-          } else if (condition.intervalMinutes) {
-            text = isUrdu
-              ? `ہر ${condition.intervalMinutes >= 1440 ? `${condition.intervalMinutes / 1440} دن` : `${condition.intervalMinutes / 60} گھنٹے`}`
-              : `Every ${condition.intervalMinutes >= 1440 ? `${condition.intervalMinutes / 1440} day(s)` : `${condition.intervalMinutes / 60} hour(s)`}`;
-          }
-          return (
-            <span className="font-mono text-xs text-ink-2">{text}</span>
-          );
-        },
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-ink-2">{row.original.triggerText || '-'}</span>
+        ),
       },
       {
         accessorKey: 'action',
         header: t.action,
-        cell: ({ getValue }) => {
-          const action = getValue() || {};
-          const label =
-            action.type === 'notify'
-              ? isUrdu ? 'واٹس ایپ الرٹ' : 'WhatsApp alert'
-              : action.type === 'auto_reorder'
-              ? isUrdu ? 'خودکار ری آرڈر' : 'Auto-reorder'
-              : action.type || '-';
+        cell: ({ row }) => {
+          // valid=false: saved before validation existed (e.g. an invented action) — it never runs.
+          if (row.original.valid === false) {
+            return (
+              <Badge variant="danger" dot>
+                {isUrdu ? 'غیر معاون — حذف کریں' : 'Unsupported — delete'}
+              </Badge>
+            );
+          }
+          const label = row.original.actionText || '-';
           return (
             <div className="flex items-center gap-2 max-w-[260px]">
               <Bell className="size-4 shrink-0 text-sky-ink" />
