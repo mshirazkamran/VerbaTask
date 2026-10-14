@@ -70,9 +70,15 @@ export async function sendDocumentMessage(to, mediaId, filename, caption = '') {
  */
 export async function sendVoiceReply(to, { spokenText, textReceipt = null, language = 'ur', alsoSendText = DEFAULT_COMPANION_TEXT }) {
   try {
-    const { buffer, mimeType } = await synthesizeSpeech(spokenText, { language });
+    const { buffer, mimeType, provider, voice } = await synthesizeSpeech(spokenText, {
+      language,
+      strictNeuralOnly: true,
+    });
+    console.log(`[voice-out] Generated audio for ${to} using provider="${provider}" voice="${voice}"`);
+
     const { id: mediaId } = await uploadMedia(buffer, mimeType, 'voice_reply.mp3');
     const audioRes = await sendAudioMessage(to, mediaId);
+    console.log(`[voice-out] Voice reply successfully delivered to ${to} (mediaId: ${mediaId})`);
 
     if (alsoSendText && textReceipt) {
       await sendTextMessage(to, textReceipt).catch((err) => {

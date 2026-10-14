@@ -1,0 +1,1 @@
+/home/shiraz/coding-files/VerbaTask/backend/src/middleware/requireAuth.js

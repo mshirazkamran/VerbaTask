@@ -81,5 +81,13 @@ describe('TTS Service Unit & Integration Tests', () => {
         /TTS: text is empty after cleaning/
       );
     });
+
+    test('aborts without calling scraped fallback when strictNeuralOnly is true and edge fails', async () => {
+      try {
+        await synthesizeSpeech('ٹیسٹ آرڈر', { language: 'ur', strictNeuralOnly: true });
+      } catch (err) {
+        assert.match(err.message, /All neural TTS providers failed/);
+      }
+    });
   });
 });
