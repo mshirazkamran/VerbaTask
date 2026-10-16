@@ -105,14 +105,59 @@ Match by MEANING, translations, synonyms, and phonetic variants. Reply with exac
 one line and nothing else: either the exact matching inventory name copied character-for-character from the inventory list, or
 the word null if nothing in the inventory is a plausible match. Never invent a name.`;
 
-/** Which host the LLM calls go to — env-overridable, defaults to the free path. */
+/** Which host the LLM calls go to — env-overridable, defaults to groq -> gemini -> dashscope cascade. */
 function llmProvider() {
-  return process.env.LLM_PROVIDER || (process.env.GROQ_API_KEY ? 'groq' : 'dashscope');
+  if (process.env.LLM_PROVIDER) return process.env.LLM_PROVIDER.toLowerCase();
+  if (process.env.GROQ_API_KEY) return 'groq';
+  if (process.env.GEMINI_API_KEY) return 'gemini';
+  return 'dashscope';
 }
 
-/** True when the selected provider actually has a key to call with. */
+/** True when at least one supported provider has an API key configured. */
 function llmConfigured() {
-  return llmProvider() === 'groq' ? !!process.env.GROQ_API_KEY : !!process.env.DASHSCOPE_API_KEY;
+  return !!(process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || process.env.DASHSCOPE_API_KEY);
+}
+
+/**
+ * Direct call to Google Gemini API (Free tier from Google AI Studio).
+ * Serves as resilient secondary provider when Groq rate limits (429) hit.
+ */
+async function chatCompletionWithGemini(systemPrompt, userText) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
+
+  const modelsToTry = [
+    process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+  ];
+
+  let lastError = null;
+  for (const model of modelsToTry) {
+    try {
+      const { data } = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: `${systemPrompt}\n\nUser Input: ${userText}` }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0,
+          },
+        },
+        { timeout: 10_000 }
+      );
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) return text;
+    } catch (err) {
+      lastError = err;
+      console.warn(`[qwen.service] Gemini model ${model} failed (${err.message}), trying next...`);
+    }
+  }
+  throw lastError || new Error('All Gemini chat models failed');
 }
 
 /**
@@ -160,10 +205,23 @@ export function extractJson(raw) {
 /**
  * Shared LLM chat call — intent parsing and the onboarding extractors
  * all funnel through here so auth/timeout behaviour lives in one place.
- * Includes cascading model fallback on Groq to prevent single-point-of-failure errors.
+ * Includes cascading multi-provider fallback (Groq -> Gemini -> DashScope)
+ * to prevent single-point-of-failure errors and handle rate limiting seamlessly.
  */
 async function chatCompletion(systemPrompt, userText) {
-  if (llmProvider() === 'groq') {
+  const provider = llmProvider();
+
+  // If explicitly configured for Gemini
+  if (provider === 'gemini') {
+    try {
+      return await chatCompletionWithGemini(systemPrompt, userText);
+    } catch (geminiErr) {
+      console.warn(`[qwen.service] Gemini primary failed (${geminiErr.message}), falling back to other providers...`);
+    }
+  }
+
+  // Primary or fallback: Groq
+  if (process.env.GROQ_API_KEY) {
     const modelsToTry = [
       process.env.LLM_MODEL || 'qwen/qwen3.8-27b',
       'qwen/qwen3.6-27b',
@@ -195,29 +253,56 @@ async function chatCompletion(systemPrompt, userText) {
         console.warn(`[qwen.service] Groq model ${model} failed (${err.message}), trying next model...`);
       }
     }
-    throw lastError || new Error('All Groq chat models failed');
+
+    // When Groq models fail or hit HTTP 429 rate limits, immediately fallback to Gemini
+    if (process.env.GEMINI_API_KEY) {
+      console.warn('[qwen.service] All Groq models failed. Falling back to Google Gemini...');
+      try {
+        return await chatCompletionWithGemini(systemPrompt, userText);
+      } catch (geminiErr) {
+        console.warn(`[qwen.service] Gemini fallback also failed (${geminiErr.message}).`);
+      }
+    }
+
+    if (provider === 'groq' && !process.env.DASHSCOPE_API_KEY) {
+      throw lastError || new Error('All Groq and Gemini models failed');
+    }
   }
 
-  const baseUrl = process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl.aliyuncs.com';
-  const { data } = await axios.post(
-    `${baseUrl}/api/v1/services/aigc/text-generation/generation`,
-    {
-      model: process.env.QWEN_MODEL || 'qwen2.5-72b-instruct',
-      input: {
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userText },
-        ],
-      },
-      parameters: { result_format: 'message' },
-    },
-    {
-      headers: { Authorization: `Bearer ${process.env.DASHSCOPE_API_KEY}` },
-      timeout: 12_000,
-    }
-  );
+  // Secondary or fallback: Alibaba Cloud DashScope
+  if (process.env.DASHSCOPE_API_KEY) {
+    try {
+      const baseUrl = process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl.aliyuncs.com';
+      const { data } = await axios.post(
+        `${baseUrl}/api/v1/services/aigc/text-generation/generation`,
+        {
+          model: process.env.QWEN_MODEL || 'qwen2.5-72b-instruct',
+          input: {
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userText },
+            ],
+          },
+          parameters: { result_format: 'message' },
+        },
+        {
+          headers: { Authorization: `Bearer ${process.env.DASHSCOPE_API_KEY}` },
+          timeout: 12_000,
+        }
+      );
 
-  return data?.output?.choices?.[0]?.message?.content ?? data?.output?.text ?? '';
+      return data?.output?.choices?.[0]?.message?.content ?? data?.output?.text ?? '';
+    } catch (dashErr) {
+      console.warn(`[qwen.service] DashScope failed (${dashErr.message})`);
+    }
+  }
+
+  // Final fallback to Gemini if not yet attempted
+  if (process.env.GEMINI_API_KEY) {
+    return await chatCompletionWithGemini(systemPrompt, userText);
+  }
+
+  throw new Error('All configured LLM providers failed');
 }
 
 const URDU_DIGITS_MAP = {
@@ -272,8 +357,9 @@ export function parseStockHeuristic(text) {
     }
   }
 
-  // 2. Restock / incoming inventory: "maal aya 20 chini", "add 50 rice", "stock update 20 oil", "20 کلو چاول آئے ہیں"
-  const isRestock = /(maal\s*a[y|i]a|a[y|i]a\s*hai|aaye\s*hain|restock|add\s*stock|stock\s*update|stock\s*add|مال\s*آیا|آئے\s*ہیں|اسٹاک\s*میں\s*شامل|نیا\s*مال)/i.test(lower) ||
+  // 2. Restock / incoming inventory: "maal aya 20 chini", "maal aaya 10 chini", "mal aya 10 daal", "add 50 rice", "stock update 20 oil", "20 کلو چاول آئے ہیں"
+  const RESTOCK_PATTERN = /(?:maal|mal)\s*(?:a+y*a+|a+g+a+y*a+|pohnch|received)|(?:a+y*a+|a+y*i+|aaye)\s*(?:hai|hain)|restock|add\s*stock|stock\s*update|stock\s*add|مال\s*(?:آیا|پہنچ)|آئے\s*ہیں|اسٹاک\s*میں\s*شامل|نیا\s*مال/i;
+  const isRestock = RESTOCK_PATTERN.test(lower) ||
                     /^add\s+\d+/i.test(lower) ||
                     /^(شامل|اضافہ)\b/.test(lower);
 
@@ -318,7 +404,7 @@ function parseSingleRestockChunk(textChunk) {
   }
 
   const stripped = textChunk
-    .replace(/(maal\s*a[y|i]a|a[y|i]a\s*hai|aaye\s*hain|restock|add\s*stock|stock\s*update|stock\s*add|add|new|naya|item|مال\s*آیا|آئے\s*ہیں|اسٹاک\s*میں\s*شامل|نیا\s*مال|شامل\s*کرو|شامل|اضافہ|روپے|روپیہ|روپئے|rs|rupay|rupees|roopay|pkr|price|rate|\d+)/gi, ' ')
+    .replace(/(?:maal|mal)\s*(?:a+y*a+\s*hai|a+y*a+|a+\s*g+a+y*a+|aagaya|pohnch|received)|(?:a+y*a+|a+y*i+|aaye)\s*(?:hai|hain)|restock|add\s*stock|stock\s*update|stock\s*add|add|new|naya|item|مال\s*(?:آیا|پہنچ)|آئے\s*ہیں|اسٹاک\s*میں\s*شامل|نیا\s*مال|شامل\s*کرو|شامل|اضافہ|\b(?:aa\s*gaya|aagya|gaya|gaye|aya|aaya)\b|روپے|روپیہ|روپئے|rs|rupay|rupees|roopay|pkr|price|rate|\d+/gi, ' ')
     .replace(UNIT_REGEX, ' ')
     .replace(NUMBER_WORDS_REGEX, ' ')
     .replace(/\s+/g, ' ')
@@ -331,7 +417,7 @@ function parseSingleRestockChunk(textChunk) {
   if (isRestock) {
     // Check for multi-item restock separated by comma, "aur", "and", "اور"
     const content = lower
-      .replace(/^(?:maal\s*a[y|i]a\s*hai|maal\s*a[y|i]a|restock|add\s*stock|stock\s*update|stock\s*add|add|مال\s*آیا\s*ہے|مال\s*آیا|نیا\s*مال|اسٹاک\s*میں\s*شامل\s*کریں)\s+/i, '')
+      .replace(/^(?:(?:maal|mal)\s*(?:a+y*a+\s*hai|a+y*a+|a+\s*g+a+y*a+|aagaya)|restock|add\s*stock|stock\s*update|stock\s*add|add|مال\s*آیا\s*ہے|مال\s*آیا|نیا\s*مال|اسٹاک\s*میں\s*شامل\s*کریں)\s+/i, '')
       .trim();
 
     const parts = content.split(/(?:,\s*|\s+aur\s+|\s+and\s+|\s+اور\s+)/i).filter(Boolean);
@@ -397,7 +483,7 @@ export function parseReturnOrExchangeHeuristic(text) {
   const isReturn = /(?:wapis|wapas|return|واپس|واپسی)/i.test(lower);
   if (isReturn) {
     const itemPart = lower
-      .replace(/(?:ye\s*wapis|ye\s*wapas|wapis\s*kar\s*lo|wapis\s*kar\s*do|return\s*kar\s*do|wapis\s*aa\s*gaya|wapas\s*aa\s*gaya|wapas\s*aya|wapis\s*aaya|wapis|wapas|return|واپس\s*آیا|واپس\s*کر\s*لو|واپس|واپسی)/gi, '')
+      .replace(/(?:ye\s*wapis\s*(?:aa\s*gaya|aagya|aya|aaya)?|ye\s*wapas\s*(?:aa\s*gaya|aagya|aya|aaya)?|wapis\s*(?:aa\s*gaya|aagya|aya|aaya|kar\s*lo|kar\s*do)?|wapas\s*(?:aa\s*gaya|aagya|aya|aaya|kar\s*lo|kar\s*do)?|return\s*kar\s*do|return|واپس\s*آیا|واپس\s*کر\s*لو|واپس|واپسی|\baa\s*gaya\b|\baagya\b|\bgaya\b|\bgayi\b|\baye\b|\baaya\b|\baya\b|\bye\b|\byeh\b)/gi, '')
       .replace(/(?:order\s*#?|#)?\s*(?:VT-?[a-zA-Z0-9-]+|\b\d{3,8}\b)/gi, '')
       .trim();
     return {
@@ -468,6 +554,111 @@ export function parseMoneyFirstSaleHeuristic(text) {
 }
 
 /**
+ * Fast-path heuristic parser for routine Kiryana sales (e.g. "10 kg chawal", "2 doodh cash", "5 lipton cash", "3 panadol 150", "2 chawal udhaar ali").
+ * Resolves standard store sales in 0ms without hitting external LLM rate limits.
+ */
+export function parseStandardSaleHeuristic(text) {
+  if (!text || typeof text !== 'string') return null;
+  const normalizedDigits = text.replace(/[۰-۹]/g, (d) => URDU_DIGITS_MAP[d] || d);
+  const lower = normalizedDigits.trim().toLowerCase();
+
+  // Exclude greetings, restock, stock inquiries, automations, reports, and returns
+  if (
+    /^(?:suno|salam|assalam|aoa|hello|hi|hey|bhai|janab|adaab|help|مدد|سلام|وعلیکم|ہیلو|سنو)\b/i.test(lower) ||
+    /(?:maal|mal)\s*(?:a+y*a+|a+g+a+y*a+|pohnch|received)|(?:a+y*a+|a+y*i+|aaye)\s*(?:hai|hain)|restock|add\s*stock|stock\s*update|stock\s*add|مال\s*(?:آیا|پہنچ)|آئے\s*ہیں|اسٹاک\s*میں\s*شامل|نیا\s*مال/i.test(lower) ||
+    /(?:kitna|kitni|kitne|check\s*stock|stock\s*check|how\s*much|how\s*many|report|summary|hisab|رپورٹ|کھاتہ|wapis|wapas|return|واپس|تبادلہ|exchange|badal)/i.test(lower) ||
+    /^(?:stock\s*list|inventory|saman)\b/i.test(lower)
+  ) {
+    return null;
+  }
+
+  const chunks = lower.split(/(?:,\s*|\s+aur\s+|\s+and\s+|\s+اور\s+)/i).filter(Boolean);
+  if (!chunks.length) return null;
+
+  const items = [];
+  let detectedPaymentMethod = 'cash';
+  let detectedCustomerName = null;
+  let detectedAmount = null;
+
+  for (const chunk of chunks) {
+    let piece = chunk.trim();
+    if (!piece) continue;
+
+    // Check udhaar / khata customer match first
+    const udhaarMatch = piece.match(/\b(?:udhaar|khata|ادھار|کھاتہ)\s*(?:to|for|ka|ki|ko)?\s+([a-zA-Z\u0600-\u06FF]+)/i);
+    if (udhaarMatch) {
+      detectedPaymentMethod = 'udhaar';
+      detectedCustomerName = udhaarMatch[1].trim();
+      piece = piece.replace(/\b(?:udhaar|khata|ادھار|کھاتہ)\s*(?:to|for|ka|ki|ko)?\s+[a-zA-Z\u0600-\u06FF]+/i, ' ');
+    } else {
+      const pmMatch = piece.match(/\b(cash|kash|easypaisa|jazzcash|sadapay|nayapay|raast|bank|udhaar|khata|کیش|ادھار)\b/i);
+      if (pmMatch) {
+        const found = pmMatch[1].toLowerCase();
+        detectedPaymentMethod = (found === 'khata' || found === 'ادھار') ? 'udhaar' : (found === 'kash' || found === 'کیش') ? 'cash' : found;
+        piece = piece.replace(new RegExp(`\\b${pmMatch[1]}\\b`, 'i'), ' ');
+      }
+    }
+
+    // Check unit
+    let unit = null;
+    const uMatch = piece.match(UNIT_REGEX);
+    if (uMatch) {
+      unit = uMatch[1].trim();
+      piece = piece.replace(UNIT_REGEX, ' ');
+    }
+
+    // Check quantity and amount
+    let quantity = null;
+    let priceOrAmount = null;
+    const nums = piece.match(/\d+(?:\.\d+)?/g);
+    if (nums && nums.length > 0) {
+      quantity = parseFloat(nums[0]);
+      if (nums.length >= 2) {
+        priceOrAmount = parseFloat(nums[1]);
+        if (!detectedAmount) detectedAmount = priceOrAmount;
+      }
+      piece = piece.replace(/\d+(?:\.\d+)?/g, ' ');
+    } else {
+      const words = piece.split(/\s+/);
+      for (const w of words) {
+        if (NUMBER_WORDS_MAP[w]) {
+          quantity = NUMBER_WORDS_MAP[w];
+          piece = piece.replace(new RegExp(`\\b${w}\\b`, 'i'), ' ');
+          break;
+        }
+      }
+    }
+
+    const cleanedName = piece
+      .replace(/\b(?:becha|bechi|beche|sold|furokht|diye|diya|de|do|dy|le|lo|ko|ka|ki|ke|rupay|rs|rupees|roopay|pkr|روپے|روپیہ|بیچا|بیچی|دیے|دیا)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (cleanedName && quantity && quantity > 0) {
+      items.push({
+        name: cleanedName,
+        quantity,
+        ...(unit ? { unit } : {}),
+        ...(priceOrAmount ? { price: priceOrAmount } : {}),
+      });
+    }
+  }
+
+  if (items.length > 0) {
+    return {
+      type: 'log_sale',
+      items,
+      paymentMethod: detectedPaymentMethod,
+      customerName: detectedCustomerName,
+      amount: detectedAmount,
+      isIncomplete: false,
+    };
+  }
+
+  return null;
+}
+
+/**
  * Returns one of the command-contract shapes. Shared by the
  * typed-text path and (via the agent module) the voice-transcript path.
  * Injects dynamic merchant catalog context when available.
@@ -490,9 +681,17 @@ export async function parseIntent(text, merchant = null) {
 
   // Check fast-path stock heuristic
   const stockHeuristic = parseStockHeuristic(text);
+  if (stockHeuristic) {
+    return stockHeuristic;
+  }
+
+  // Check fast-path standard sale heuristic
+  const saleHeuristic = parseStandardSaleHeuristic(text);
+  if (saleHeuristic) {
+    return saleHeuristic;
+  }
 
   if (!llmConfigured()) {
-    if (stockHeuristic) return stockHeuristic;
     console.warn('No LLM provider key set — falling back to unknown intent');
     return { type: 'unknown', rawText: text };
   }

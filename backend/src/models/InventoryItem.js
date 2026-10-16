@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const inventoryItemSchema = new mongoose.Schema({
   merchantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Merchant', required: true },
   name:       { type: String, required: true },
-  quantity:   { type: Number, default: 0 },
+  quantity:   { type: Number, default: 0, min: [0, 'Quantity cannot be negative'] },
   price:      { type: Number },
   unit:        { type: String }, // e.g., "bag", "kg", "piece"
   expiryDates: { type: [String], default: [] }, // format 'YYYY-MM'

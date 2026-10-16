@@ -116,7 +116,10 @@ export const createOrder = async (command) => {
   const orderItems = [];
   const updatedInventoryDocs = [];
 
-  // 1. Resolve, validate, and deduct stock for each line item
+  // 1. Phase 1: Pre-resolve all line items and aggregate total demand per inventory item
+  const resolvedLines = [];
+  const demandByItem = new Map();
+
   for (const lineItem of requestedItems) {
     const inventoryItem = await resolveInventoryItem(merchantId, lineItem);
 
@@ -142,21 +145,54 @@ export const createOrder = async (command) => {
       quantity = 1;
     }
 
-    if (inventoryItem.quantity < quantity) {
-      throw new Error(
-        `INSUFFICIENT_STOCK: ${inventoryItem.name} Tried to deduct ${quantity}, but only ${inventoryItem.quantity} left.`
-      );
+    const idStr = inventoryItem._id.toString();
+    if (!demandByItem.has(idStr)) {
+      demandByItem.set(idStr, { doc: inventoryItem, totalQuantity: 0 });
     }
+    demandByItem.get(idStr).totalQuantity += quantity;
 
-    inventoryItem.quantity = Math.max(0, Math.round((inventoryItem.quantity - quantity) * 1000) / 1000);
-    await inventoryItem.save();
-    updatedInventoryDocs.push(inventoryItem);
-
-    orderItems.push({
-      inventoryItemId: inventoryItem._id,
-      name: inventoryItem.name,
+    resolvedLines.push({
+      inventoryItem,
       quantity,
       price: itemPrice,
+    });
+  }
+
+  // Phase 1b: Pre-validate stock sufficiency for every item BEFORE any DB mutation
+  for (const [, { doc, totalQuantity }] of demandByItem) {
+    if (doc.quantity < totalQuantity) {
+      throw new Error(
+        `INSUFFICIENT_STOCK: ${doc.name} Tried to deduct ${totalQuantity}, but only ${doc.quantity} left.`
+      );
+    }
+  }
+
+  // Phase 2: Execute stock deductions (atomic rollback on unexpected DB failure)
+  const originalQuantities = new Map();
+  try {
+    for (const [, { doc, totalQuantity }] of demandByItem) {
+      originalQuantities.set(doc._id.toString(), doc.quantity);
+      doc.quantity = Math.max(0, Math.round((doc.quantity - totalQuantity) * 1000) / 1000);
+      await doc.save();
+      updatedInventoryDocs.push(doc);
+    }
+  } catch (saveErr) {
+    for (const doc of updatedInventoryDocs) {
+      const origQty = originalQuantities.get(doc._id.toString());
+      if (origQty != null) {
+        doc.quantity = origQty;
+        await doc.save().catch(() => {});
+      }
+    }
+    throw saveErr;
+  }
+
+  for (const line of resolvedLines) {
+    orderItems.push({
+      inventoryItemId: line.inventoryItem._id,
+      name: line.inventoryItem.name,
+      quantity: line.quantity,
+      price: line.price,
     });
   }
 
