@@ -1,6 +1,6 @@
-/* The BolDukan mark: the chat bubble + tick from the favicon, drawn in tokens.
-   The dot is the "voice note sent" signal — static here; the page's one reacting
-   character lives in the hero apparatus. */
+/* The BolDukan mark: Voice-first retail identity featuring a microphone capsule,
+   acoustic soundwaves ("Bol"), and a conversational speech frame ("Dukan")
+   harmonized across light and dark tokens. */
 export function LogoMark({ size = 34, className = '' }) {
   return (
     <svg
@@ -12,20 +12,50 @@ export function LogoMark({ size = 34, className = '' }) {
       aria-label="BolDukan"
       className={`shrink-0 ${className}`}
     >
+      {/* Conversational speech frame */}
       <path
-        d="M9.5 5.5h13a5 5 0 0 1 5 5v8a5 5 0 0 1-5 5h-8.2l-5.6 3.9v-3.9H9.5a5 5 0 0 1-5-5v-8a5 5 0 0 1 5-5Z"
+        d="M15 3.5C8.65 3.5 3.5 8.65 3.5 15c0 2.25.65 4.35 1.78 6.12L3.5 27.5l6.45-1.42A11.4 11.4 0 0 0 15 26.5c6.35 0 11.5-5.15 11.5-11.5 0-1.88-.45-3.66-1.25-5.22"
         stroke="currentColor"
-        strokeWidth="2.6"
-        strokeLinejoin="round"
-      />
-      <path
-        d="m10.6 14.6 3.7 3.7L28.5 3.5"
-        stroke="currentColor"
-        strokeWidth="3"
+        strokeWidth="2.3"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx="5.2" cy="27.4" r="2.6" fill="var(--logo-accent, var(--color-primary))" />
+      {/* Microphone capsule in brand accent color */}
+      <rect
+        x="12"
+        y="7"
+        width="6"
+        height="9.5"
+        rx="3"
+        fill="var(--logo-accent, var(--color-primary))"
+      />
+      {/* Microphone pickup cradle */}
+      <path
+        d="M8.5 12.5v.8a6.5 6.5 0 0 0 13 0v-.8"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
+      {/* Microphone stand & base */}
+      <path
+        d="M15 19.8v3.7M11.5 23.5h7"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
+      {/* Radiating voice soundwaves */}
+      <path
+        d="M23.5 6.5a6 6 0 0 1 4.2 4.2"
+        stroke="var(--logo-accent, var(--color-primary))"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M26 3a10 10 0 0 1 5 5"
+        stroke="var(--logo-accent, var(--color-primary))"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
