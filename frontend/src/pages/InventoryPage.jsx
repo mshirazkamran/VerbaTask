@@ -350,7 +350,7 @@ export function InventoryPage() {
         id: 'actions',
         header: '',
         cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
             <Button
               variant="ghost"
               size="sm"
@@ -477,7 +477,7 @@ export function InventoryPage() {
  )}
  </button>
 
- <div className="grid grid-cols-3 gap-3 lg:col-span-7">
+ <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:col-span-7">
  {filters.map((f) => {
  const on = stockFilter === f.id;
  return (

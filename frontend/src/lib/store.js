@@ -1,10 +1,17 @@
 import { create } from 'zustand';
 
-const TOKEN_KEY = 'verbatask_token';
-const MERCHANT_ID_KEY = 'verbatask_merchant_id';
-const THEME_KEY = 'verbatask_theme';
-const COOKIE_TOKEN_KEY = 'vt_session';
-const COOKIE_MERCHANT_KEY = 'vt_merchant_id';
+const TOKEN_KEY = 'boldukan_token';
+const LEGACY_TOKEN_KEY = 'verbatask_token';
+const MERCHANT_ID_KEY = 'boldukan_merchant_id';
+const LEGACY_MERCHANT_ID_KEY = 'verbatask_merchant_id';
+const THEME_KEY = 'boldukan_theme';
+const LEGACY_THEME_KEY = 'verbatask_theme';
+const COOKIE_TOKEN_KEY = 'boldukan_session';
+const LEGACY_COOKIE_TOKEN_KEY = 'vt_session';
+const COOKIE_MERCHANT_KEY = 'boldukan_merchant_id';
+const LEGACY_COOKIE_MERCHANT_KEY = 'vt_merchant_id';
+const LANG_KEY = 'boldukan_language';
+const LEGACY_LANG_KEY = 'verbatask_language';
 
 function getCookie(name) {
   if (typeof document === 'undefined') return null;
@@ -28,7 +35,10 @@ function getInitialToken() {
   return (
     localStorage.getItem(TOKEN_KEY) ||
     getCookie(COOKIE_TOKEN_KEY) ||
+    localStorage.getItem(LEGACY_TOKEN_KEY) ||
+    getCookie(LEGACY_COOKIE_TOKEN_KEY) ||
     getCookie(TOKEN_KEY) ||
+    getCookie(LEGACY_TOKEN_KEY) ||
     null
   );
 }
@@ -38,7 +48,10 @@ function getInitialMerchantId() {
   return (
     localStorage.getItem(MERCHANT_ID_KEY) ||
     getCookie(COOKIE_MERCHANT_KEY) ||
+    localStorage.getItem(LEGACY_MERCHANT_ID_KEY) ||
+    getCookie(LEGACY_COOKIE_MERCHANT_KEY) ||
     getCookie(MERCHANT_ID_KEY) ||
+    getCookie(LEGACY_MERCHANT_ID_KEY) ||
     null
   );
 }
@@ -53,20 +66,31 @@ export const useAuthStore = create((set) => ({
       localStorage.setItem(TOKEN_KEY, token);
       setCookie(COOKIE_TOKEN_KEY, token, 7);
       setCookie(TOKEN_KEY, token, 7);
+      // Also sync legacy for smooth transition
+      localStorage.setItem(LEGACY_TOKEN_KEY, token);
+      setCookie(LEGACY_COOKIE_TOKEN_KEY, token, 7);
     } else {
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
       removeCookie(COOKIE_TOKEN_KEY);
       removeCookie(TOKEN_KEY);
+      removeCookie(LEGACY_COOKIE_TOKEN_KEY);
+      removeCookie(LEGACY_TOKEN_KEY);
     }
 
     if (merchantId) {
       localStorage.setItem(MERCHANT_ID_KEY, merchantId);
       setCookie(COOKIE_MERCHANT_KEY, merchantId, 7);
       setCookie(MERCHANT_ID_KEY, merchantId, 7);
+      localStorage.setItem(LEGACY_MERCHANT_ID_KEY, merchantId);
+      setCookie(LEGACY_COOKIE_MERCHANT_KEY, merchantId, 7);
     } else {
       localStorage.removeItem(MERCHANT_ID_KEY);
+      localStorage.removeItem(LEGACY_MERCHANT_ID_KEY);
       removeCookie(COOKIE_MERCHANT_KEY);
       removeCookie(MERCHANT_ID_KEY);
+      removeCookie(LEGACY_COOKIE_MERCHANT_KEY);
+      removeCookie(LEGACY_MERCHANT_ID_KEY);
     }
 
     set({ token, merchantId });
@@ -76,11 +100,17 @@ export const useAuthStore = create((set) => ({
 
   logout: () => {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(LEGACY_TOKEN_KEY);
     localStorage.removeItem(MERCHANT_ID_KEY);
+    localStorage.removeItem(LEGACY_MERCHANT_ID_KEY);
     removeCookie(COOKIE_TOKEN_KEY);
+    removeCookie(LEGACY_COOKIE_TOKEN_KEY);
     removeCookie(TOKEN_KEY);
+    removeCookie(LEGACY_TOKEN_KEY);
     removeCookie(COOKIE_MERCHANT_KEY);
+    removeCookie(LEGACY_COOKIE_MERCHANT_KEY);
     removeCookie(MERCHANT_ID_KEY);
+    removeCookie(LEGACY_MERCHANT_ID_KEY);
     set({ token: null, merchantId: null, merchant: null });
     // Fire-and-forget server cookie clear
     try {
@@ -142,11 +172,16 @@ if (typeof localStorage !== 'undefined') {
   localStorage.removeItem('verbatask_landing_theme');
 }
 
-const initialTheme = typeof localStorage !== 'undefined' ? (localStorage.getItem(THEME_KEY) || 'system') : 'dark';
+const initialTheme =
+  typeof localStorage !== 'undefined'
+    ? localStorage.getItem(THEME_KEY) || localStorage.getItem(LEGACY_THEME_KEY) || 'system'
+    : 'dark';
 applyTheme(initialTheme);
 
-const LANG_KEY = 'verbatask_language';
-const initialLang = typeof localStorage !== 'undefined' ? (localStorage.getItem(LANG_KEY) || 'en') : 'en';
+const initialLang =
+  typeof localStorage !== 'undefined'
+    ? localStorage.getItem(LANG_KEY) || localStorage.getItem(LEGACY_LANG_KEY) || 'en'
+    : 'en';
 
 export const useUiStore = create((set) => ({
   sidebarCollapsed: false,

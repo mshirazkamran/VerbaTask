@@ -87,9 +87,11 @@ export function useStaffMembers() {
     queryKey: queryKeys.staff(),
     queryFn: async () => {
       const mId = merchant?._id || 'store';
-      const stored = localStorage.getItem(`verbatask_staff_${mId}`);
+      const stored =
+        localStorage.getItem(`boldukan_staff_${mId}`) ||
+        localStorage.getItem(`verbatask_staff_${mId}`);
       const localList = stored ? JSON.parse(stored) : [];
-      const defaultCode = `VT-${(merchant?._id || '1098').slice(-4).toUpperCase()}`;
+      const defaultCode = `BD-${(merchant?._id || '1098').slice(-4).toUpperCase()}`;
 
       try {
         const res = await api.get('/api/merchant/staff');
@@ -133,7 +135,9 @@ export function useAddStaffMember() {
   return useMutation({
     mutationFn: async (payload) => {
       const mId = merchant?._id || 'store';
-      const stored = localStorage.getItem(`verbatask_staff_${mId}`);
+      const stored =
+        localStorage.getItem(`boldukan_staff_${mId}`) ||
+        localStorage.getItem(`verbatask_staff_${mId}`);
       const list = stored ? JSON.parse(stored) : [];
 
       const newMember = {
@@ -148,12 +152,12 @@ export function useAddStaffMember() {
         const res = await api.post('/api/merchant/staff', payload);
         // Also cache locally
         list.push(newMember);
-        localStorage.setItem(`verbatask_staff_${mId}`, JSON.stringify(list));
+        localStorage.setItem(`boldukan_staff_${mId}`, JSON.stringify(list));
         return res || { staffMembers: list };
       } catch (err) {
         console.warn('[Staff] Remote add failed, saved locally:', err.message);
         list.push(newMember);
-        localStorage.setItem(`verbatask_staff_${mId}`, JSON.stringify(list));
+        localStorage.setItem(`boldukan_staff_${mId}`, JSON.stringify(list));
         return { staffMembers: list };
       }
     },
@@ -171,10 +175,12 @@ export function useRemoveStaffMember() {
   return useMutation({
     mutationFn: async (staffId) => {
       const mId = merchant?._id || 'store';
-      const stored = localStorage.getItem(`verbatask_staff_${mId}`);
+      const stored =
+        localStorage.getItem(`boldukan_staff_${mId}`) ||
+        localStorage.getItem(`verbatask_staff_${mId}`);
       if (stored) {
         const list = JSON.parse(stored).filter((m) => m._id !== staffId);
-        localStorage.setItem(`verbatask_staff_${mId}`, JSON.stringify(list));
+        localStorage.setItem(`boldukan_staff_${mId}`, JSON.stringify(list));
       }
 
       try {

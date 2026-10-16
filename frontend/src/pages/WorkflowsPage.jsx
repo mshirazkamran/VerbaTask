@@ -387,7 +387,7 @@ export function WorkflowsPage() {
         id: 'actions',
         header: '',
         cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
             <Button
               variant="ghost"
               size="sm"

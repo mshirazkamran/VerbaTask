@@ -1,4 +1,4 @@
-/* The VerbaTask mark: the chat bubble + tick from the favicon, drawn in tokens.
+/* The BolDukan mark: the chat bubble + tick from the favicon, drawn in tokens.
    The dot is the "voice note sent" signal — static here; the page's one reacting
    character lives in the hero apparatus. */
 export function LogoMark({ size = 34, className = '' }) {
@@ -9,7 +9,7 @@ export function LogoMark({ size = 34, className = '' }) {
       viewBox="0 0 32 32"
       fill="none"
       role="img"
-      aria-label="VerbaTask"
+      aria-label="BolDukan"
       className={`shrink-0 ${className}`}
     >
       <path
@@ -37,13 +37,14 @@ export function Logo({
   textSize = 'text-[1.35rem]',
 }) {
   return (
-    <span className={`inline-flex items-center gap-2.5 text-ink select-none ${className}`}>
+    <span className={`inline-flex items-center gap-2.5 select-none ${className}`}>
       <LogoMark size={size} />
       {showWordmark && (
         <span
-          className={`font-display ${textSize} font-bold leading-none tracking-[-0.04em]`}
+          className={`font-display ${textSize} font-bold leading-none tracking-[-0.03em]`}
         >
-          Verba<span style={{ color: 'var(--logo-accent, var(--color-primary))' }}>Task</span>
+          <span className="text-current opacity-90">Bol</span>
+          <span style={{ color: 'var(--logo-accent, var(--color-primary))' }}>Dukan</span>
         </span>
       )}
     </span>

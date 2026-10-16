@@ -18,10 +18,44 @@ import { startScheduleRunner } from './src/workflows/workflow.service.js';
 
 const app = express();
 
-app.use(cors({
-  origin: true,
-  credentials: true,
-}));
+app.disable('x-powered-by');
+
+// Security Headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '0');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
+const allowedOrigins = [
+  'https://verba-task.netlify.app',
+  'https://boldukan.netlify.app',
+  'https://boldukan.com',
+  'https://www.boldukan.com',
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow non-browser requests (mobile, curl, server-to-server)
+      if (!origin) return callback(null, true);
+      // In dev, allow localhost and any local IP
+      if (
+        process.env.NODE_ENV !== 'production' ||
+        allowedOrigins.includes(origin) ||
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:')
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
+    credentials: true,
+  })
+);
 
 // The `verify` callback stashes the raw bytes on req.rawBody BEFORE express
 // parses them into JSON — the WhatsApp signature is computed over those raw
@@ -71,6 +105,6 @@ mongoose
   })
   .catch((err) => console.error('MongoDB connection failed:', err.message));
 
-server.listen(PORT, () => console.log(`VerbaTask backend listening on :${PORT}`));
+server.listen(PORT, () => console.log(`BolDukan backend listening on :${PORT}`));
 
 export default app;

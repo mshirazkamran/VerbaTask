@@ -10,6 +10,36 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 
+// In-memory brute force protection for login
+const LOGIN_RATE_LIMIT_MAX = 10;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const loginAttempts = new Map();
+
+function checkLoginRateLimit(key) {
+    const record = loginAttempts.get(key);
+    const now = Date.now();
+    if (record && record.resetAt > now) {
+        if (record.count >= LOGIN_RATE_LIMIT_MAX) {
+            return Math.ceil((record.resetAt - now) / 60000);
+        }
+    }
+    return null;
+}
+
+function recordLoginFailure(key) {
+    const now = Date.now();
+    const record = loginAttempts.get(key);
+    if (record && record.resetAt > now) {
+        record.count += 1;
+    } else {
+        loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    }
+}
+
+function clearLoginAttempts(key) {
+    loginAttempts.delete(key);
+}
+
 // POST /api/auth/signup
 export const signup = async (req, res) => {
     try {
@@ -51,6 +81,8 @@ export const signup = async (req, res) => {
             sameSite: 'lax',
             path: '/',
         };
+        res.cookie('boldukan_session', token, cookieOptions);
+        res.cookie('boldukan_merchant_id', String(merchant._id), cookieOptions);
         res.cookie('vt_session', token, cookieOptions);
         res.cookie('vt_merchant_id', String(merchant._id), cookieOptions);
 
@@ -77,8 +109,19 @@ export const login = async (req, res) => {
             });
         }
 
+        const clientIp = req.ip || req.headers?.['x-forwarded-for'] || 'unknown';
+        const rateLimitKey = `${clientIp}_${email}`.toLowerCase();
+        const waitMinutes = checkLoginRateLimit(rateLimitKey);
+        if (waitMinutes) {
+            return res.status(429).json({
+                success: false,
+                error: { message: `Too many failed login attempts. Please try again in ${waitMinutes} minute(s).` }
+            });
+        }
+
         const merchant = await Merchant.findOne({ email });
         if (!merchant) {
+            recordLoginFailure(rateLimitKey);
             return res.status(401).json({ 
                 success: false, 
                 error: { message: "Incorrect email or password" } 
@@ -87,11 +130,14 @@ export const login = async (req, res) => {
 
         const isPasswordMatch = await bcrypt.compare(password, merchant.passwordHash);
         if (!isPasswordMatch) {
+            recordLoginFailure(rateLimitKey);
             return res.status(401).json({ 
                 success: false, 
                 error: { message: "Incorrect email or password" } 
             });
         }
+
+        clearLoginAttempts(rateLimitKey);
 
         const token = jwt.sign({ merchantId: merchant._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
@@ -101,6 +147,8 @@ export const login = async (req, res) => {
             sameSite: 'lax',
             path: '/',
         };
+        res.cookie('boldukan_session', token, cookieOptions);
+        res.cookie('boldukan_merchant_id', String(merchant._id), cookieOptions);
         res.cookie('vt_session', token, cookieOptions);
         res.cookie('vt_merchant_id', String(merchant._id), cookieOptions);
 
@@ -117,6 +165,8 @@ export const login = async (req, res) => {
 // POST /api/auth/logout
 export const logout = async (req, res) => {
     try {
+        res.clearCookie('boldukan_session', { path: '/' });
+        res.clearCookie('boldukan_merchant_id', { path: '/' });
         res.clearCookie('vt_session', { path: '/' });
         res.clearCookie('vt_merchant_id', { path: '/' });
         return res.status(200).json({
@@ -370,7 +420,7 @@ export const requestPasswordReset = async (req, res) => {
 
         // Send via WhatsApp
         try {
-            const msg = `🔐 *VerbaTask Verification Code*\n\nYour password reset code is: *${code}*\n\nThis code will expire in 10 minutes.\nIf you did not request a password reset, please ignore this message.`;
+            const msg = `🔐 *BolDukan Verification Code*\n\nYour password reset code is: *${code}*\n\nThis code will expire in 10 minutes.\nIf you did not request a password reset, please ignore this message.`;
             await sendTextMessage(merchant.whatsappNumber, msg);
         } catch (err) {
             console.warn('Failed to send WhatsApp reset message:', err.message);

@@ -235,7 +235,7 @@ export function CustomersPage() {
         id: 'actions',
         header: isUrdu ? 'کارروائی' : 'Actions',
         cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-1.5">
+          <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
             <Button
               size="sm"
               variant="outline"
@@ -330,7 +330,7 @@ export function CustomersPage() {
         {/* Total Udhaar Card */}
         <Card
           padding="sm"
-          className="bg-canvas-soft min-w-[220px] border-amber-200 dark:border-amber-900/50 shadow-sm"
+          className="bg-canvas-soft w-full sm:w-auto sm:min-w-[220px] border-amber-200 dark:border-amber-900/50 shadow-sm"
         >
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -361,7 +361,7 @@ export function CustomersPage() {
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ReportDropdown />
 
           <Button
