@@ -47,9 +47,10 @@ export const createInventoryItem = async (req, res) => {
             name: new RegExp(`^${escapeRegex(name)}$`, 'i') // "Daal channa" will match "daal channa"
         });
 
+        const safeQty = Math.max(0, Number(quantity) || 0);
         if (item) {
             // 2. Item exists: Add the new stock to the existing stock
-            item.quantity += (quantity || 0);
+            item.quantity = Math.max(0, (item.quantity || 0) + safeQty);
             
             // Optionally update price and unit if new ones were provided
             if (price) item.price = price;
@@ -69,7 +70,7 @@ export const createInventoryItem = async (req, res) => {
         item = await InventoryItem.create({
             merchantId: req.merchantId,
             name,
-            quantity: quantity || 0,
+            quantity: safeQty,
             price,
             unit,
             expiryDates: Array.isArray(expiryDates) ? expiryDates : []
@@ -86,10 +87,15 @@ export const createInventoryItem = async (req, res) => {
 
 export const updateInventoryItem = async (req, res) => {
     try {
+        const updateData = { ...req.body };
+        if ('quantity' in updateData) {
+            updateData.quantity = Math.max(0, Number(updateData.quantity) || 0);
+        }
+
         const item = await InventoryItem.findOneAndUpdate(
             { _id: req.params.id, merchantId: req.merchantId },
-            req.body,
-            { new: true }
+            updateData,
+            { new: true, runValidators: true }
         );
         if (!item) return res.status(404).json({ success: false, error: { message: 'Item not found' } });
         if ('quantity' in req.body) checkThresholds(req.merchantId, item);

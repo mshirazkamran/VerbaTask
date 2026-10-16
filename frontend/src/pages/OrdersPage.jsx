@@ -89,6 +89,26 @@ function NewOrderModal({ isOpen, onClose }) {
  return;
  }
 
+ // Group requested quantities by inventoryItemId to prevent overdraft across multiple rows
+ const requestedTotals = new Map();
+ for (const i of validItems) {
+   const current = requestedTotals.get(i.inventoryItemId) || 0;
+   requestedTotals.set(i.inventoryItemId, current + Number(i.quantity));
+ }
+
+ for (const [id, reqQty] of requestedTotals) {
+   const invItem = inventoryMap.get(id);
+   const available = invItem ? Math.max(0, Number(invItem.quantity) || 0) : 0;
+   if (available < reqQty) {
+     toast.error(
+       isUrdu
+         ? `اسٹاک ناکافی ہے: ${invItem?.name || 'آئٹم'} (دستیاب: ${available})`
+         : `Insufficient stock for ${invItem?.name || 'Item'} (Available: ${available})`
+     );
+     return;
+   }
+ }
+
  try {
  await createOrder.mutateAsync({
  items: validItems.map((i) => ({
@@ -120,7 +140,12 @@ function NewOrderModal({ isOpen, onClose }) {
  >
  <form onSubmit={handleSubmit} className="space-y-4">
  <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
- {items.map((item, idx) => (
+ {items.map((item, idx) => {
+ const selectedItem = item.inventoryItemId ? inventoryMap.get(item.inventoryItemId) : null;
+ const availableStock = selectedItem ? Math.max(0, Number(selectedItem.quantity) || 0) : null;
+ const isOverStock = availableStock != null && Number(item.quantity) > availableStock;
+
+ return (
  <div key={idx} className="flex items-start gap-2">
  <div className="flex-1">
  <select
@@ -132,19 +157,29 @@ function NewOrderModal({ isOpen, onClose }) {
  <option value="" disabled>
  {t.selectItem}
  </option>
- {(inventory || []).map((inv) => (
- <option key={inv._id} value={inv._id}>
- {inv.name} ({formatQuantity(inv.quantity, inv.unit)} @ {formatPKR(inv.price)})
- </option>
- ))}
+ {(inventory || []).map((inv) => {
+   const isOutOfStock = (inv.quantity ?? 0) <= 0;
+   return (
+     <option key={inv._id} value={inv._id} disabled={isOutOfStock}>
+       {inv.name} ({isOutOfStock ? (isUrdu ? '⚠️ اسٹاک ختم' : '⚠️ Out of stock') : `${formatQuantity(inv.quantity, inv.unit)} @ ${formatPKR(inv.price)}`})
+     </option>
+   );
+ })}
  </select>
+ {selectedItem && (
+   <div className={`text-[11px] mt-1 font-mono ${isOverStock ? 'text-red-500 font-semibold' : 'text-ink-secondary'}`}>
+     {isUrdu ? `دستیاب: ${availableStock} ${selectedItem.unit || ''}` : `In stock: ${availableStock} ${selectedItem.unit || ''}`}
+     {isOverStock && (isUrdu ? ' (اسٹاک سے زیادہ)' : ' (Exceeds stock)')}
+   </div>
+ )}
  </div>
  <Input
  type="number"
  min="1"
+ max={availableStock ?? undefined}
  value={item.quantity}
  onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })}
- className="w-24"
+ className={`w-24 ${isOverStock ? 'border-red-500 focus:border-red-500' : ''}`}
  required
  />
  <div className="w-28 pt-2 text-sm text-ink font-tabular text-right">
@@ -163,7 +198,8 @@ function NewOrderModal({ isOpen, onClose }) {
  </Button>
  )}
  </div>
- ))}
+ );
+ })}
  </div>
 
  <Button
