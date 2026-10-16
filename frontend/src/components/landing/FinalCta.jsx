@@ -1,14 +1,15 @@
 import { Link } from 'react-router';
-import { Mail } from 'lucide-react';
+import { Mail, LayoutDashboard } from 'lucide-react';
 import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 import { GithubIcon } from '../ui/GithubIcon';
 import { Logo } from './Logo';
-import { useUiStore } from '../../lib/store';
+import { useAuthStore, useUiStore } from '../../lib/store';
 import { getTranslations } from '../../lib/translations';
 
 /* Ft5 · Statement footer. Knobs: sentence width=28ch, wordmark=under sentence, rule=hairline.
    The closing CTA lives inside it, so the page ends once instead of twice. */
 export function FinalCta({ showCta = true }) {
+  const token = useAuthStore((s) => s.token);
   const language = useUiStore((s) => s.language);
   const t = getTranslations(language).finalCta;
 
@@ -21,16 +22,25 @@ export function FinalCta({ showCta = true }) {
 
         {showCta && (
           <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-4">
-            <Link to="/signup" className="btn btn--lg">
-              <WhatsAppIcon className="size-5" />
-              {t.ctaPrimary}
-            </Link>
-            <Link
-              to="/login"
-              className="whitespace-nowrap font-semibold underline decoration-pear decoration-2 underline-offset-[0.3em] transition-[text-decoration-thickness] hover:decoration-4"
-            >
-              {t.ctaSecondary}
-            </Link>
+            {token ? (
+              <Link to="/dashboard" className="btn btn--lg">
+                <LayoutDashboard className="size-5" />
+                {language === 'ur' ? 'ڈیش بورڈ پر جائیں' : 'Go to Dashboard'}
+              </Link>
+            ) : (
+              <>
+                <Link to="/signup" className="btn btn--lg">
+                  <WhatsAppIcon className="size-5" />
+                  {t.ctaPrimary}
+                </Link>
+                <Link
+                  to="/login"
+                  className="whitespace-nowrap font-semibold underline decoration-pear decoration-2 underline-offset-[0.3em] transition-[text-decoration-thickness] hover:decoration-4"
+                >
+                  {t.ctaSecondary}
+                </Link>
+              </>
+            )}
           </div>
         )}
 

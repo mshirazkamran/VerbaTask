@@ -1,6 +1,7 @@
 import InventoryItem from '../models/InventoryItem.js';
 import Order from '../models/Order.js';
 import Customer from '../models/Customer.js';
+import Merchant from '../models/Merchant.js';
 import { evaluateThresholdWorkflows } from '../workflows/workflow.service.js';
 import { createApproval, HIGH_VALUE_THRESHOLD } from '../approvals/approval.service.js';
 import { findSimilarInventoryItems } from './item-matching.js';
@@ -125,14 +126,29 @@ export const createOrder = async (command) => {
       );
     }
 
-    const quantity = Number(lineItem.quantity) || 0;
+    let quantity = Number(lineItem.quantity);
+    let itemPrice = inventoryItem.price ?? lineItem.price ?? 0;
+
+    // Handle money-first purchases (e.g. "20 ki chini", "50 ka chawal")
+    if (lineItem.targetAmount && (!quantity || quantity === 1)) {
+      const targetAmt = Number(lineItem.targetAmount);
+      if (itemPrice > 0) {
+        quantity = Math.round((targetAmt / itemPrice) * 1000) / 1000;
+      } else {
+        quantity = 1;
+        itemPrice = targetAmt;
+      }
+    } else if (!quantity || isNaN(quantity) || quantity <= 0) {
+      quantity = 1;
+    }
+
     if (inventoryItem.quantity < quantity) {
       throw new Error(
         `INSUFFICIENT_STOCK: ${inventoryItem.name} Tried to deduct ${quantity}, but only ${inventoryItem.quantity} left.`
       );
     }
 
-    inventoryItem.quantity -= quantity;
+    inventoryItem.quantity = Math.max(0, Math.round((inventoryItem.quantity - quantity) * 1000) / 1000);
     await inventoryItem.save();
     updatedInventoryDocs.push(inventoryItem);
 
@@ -140,7 +156,7 @@ export const createOrder = async (command) => {
       inventoryItemId: inventoryItem._id,
       name: inventoryItem.name,
       quantity,
-      price: inventoryItem.price ?? lineItem.price ?? 0,
+      price: itemPrice,
     });
   }
 
@@ -158,10 +174,21 @@ export const createOrder = async (command) => {
     (sum, i) => sum + i.quantity * i.price,
     0
   );
-  const total = command.total ?? command.amount ?? computedTotal;
+  const total = command.total ?? command.amount ?? Math.round(computedTotal);
 
-  // 4. Determine order status — high-value orders require approval before completion
-  const status = total >= HIGH_VALUE_THRESHOLD ? 'pending_approval' : 'completed';
+  // 4. Determine order status — approval is OFF by default; only trigger if merchant explicitly opted in
+  let status = 'completed';
+  try {
+    const merchantDoc = await Merchant.findById(merchantId).lean();
+    if (merchantDoc?.requireApprovalForHighValue === true) {
+      const threshold = merchantDoc?.highValueThreshold || HIGH_VALUE_THRESHOLD;
+      if (total >= threshold) {
+        status = 'pending_approval';
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to check merchant approval setting:', err.message);
+  }
 
   const effectivePaymentMethod = normalizePaymentMethod(paymentMethod) || (paymentMethod ? String(paymentMethod).toLowerCase().trim() : 'cash');
 
@@ -171,14 +198,39 @@ export const createOrder = async (command) => {
   if (effectivePaymentMethod === 'udhaar' && command.customerName) {
     const rawName = command.customerName.trim();
     if (rawName) {
+      // Normalize name and strip honorifics (bhai, sahab, sb, khan, ji, janab)
+      const normalizedBase = rawName.toLowerCase()
+        .replace(/\b(bhai|sahab|sahib|sb|khan|ji|janab)\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
       finalCustomerName = rawName.toLowerCase();
+
+      // 1. Exact match with finalCustomerName (ensures unit test mocks expecting { name } work)
       let customer = await Customer.findOne({ merchantId, name: finalCustomerName });
+
+      // 2. If name had honorifics (e.g. "soban bhai" -> base "soban"), check normalized base name
+      if (!customer && normalizedBase && normalizedBase !== finalCustomerName) {
+        customer = await Customer.findOne({ merchantId, name: normalizedBase });
+      }
+
+      // 3. Case-insensitive or suffix-honorific lookup (e.g. DB has "soban bhai" and user says "soban")
+      if (!customer && normalizedBase) {
+        customer = await Customer.findOne({
+          merchantId,
+          name: new RegExp(`^${escapeRegex(normalizedBase)}(\\s+(bhai|sahab|sahib|sb|khan|ji|janab))*$`, 'i'),
+        });
+      }
+
       if (!customer) {
         customer = await Customer.create({ merchantId, name: finalCustomerName, balance: 0 });
       }
-      customer.balance += total;
+
+      customer.balance = (Number(customer.balance) || 0) + total;
       await customer.save();
       customerId = customer._id;
+      finalCustomerName = customer.name; // Keep canonical customer name
+
       emitDashboardUpdate(merchantId, {
         type: 'customer',
         action: 'update',
@@ -193,6 +245,7 @@ export const createOrder = async (command) => {
 
   const staffName = command.staffName || null;
   const staffPhone = command.staffPhone || null;
+  const incomingMessageId = command.incomingMessageId || null;
 
   // 5. Construct and save the order
   const order = await Order.create({
@@ -207,6 +260,7 @@ export const createOrder = async (command) => {
     status,
     staffName,
     staffPhone,
+    incomingMessageId,
   });
 
   // 6. If pending approval, create the approval record and notify the merchant

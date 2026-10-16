@@ -25,9 +25,39 @@ const orderSchema = new mongoose.Schema({
   },
   status: { 
     type: String, 
-    enum: ['pending_approval', 'approved', 'completed', 'rejected'], 
+    enum: ['pending_approval', 'approved', 'completed', 'rejected', 'returned', 'partially_returned', 'exchanged'], 
     default: 'completed' 
   },
+  returnHistory: [{
+    returnedAt: { type: Date, default: Date.now },
+    items: [{
+      inventoryItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryItem' },
+      name: String,
+      quantity: Number,
+      price: Number,
+    }],
+    refundAmount: Number,
+    reason: String,
+  }],
+  exchangeHistory: [{
+    exchangedAt: { type: Date, default: Date.now },
+    returnItem: {
+      inventoryItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryItem' },
+      name: String,
+      quantity: Number,
+      price: Number,
+    },
+    newItem: {
+      inventoryItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryItem' },
+      name: String,
+      quantity: Number,
+      price: Number,
+    },
+    priceDifference: Number,
+    reason: String,
+  }],
+  incomingMessageId: { type: String, index: true, sparse: true },
+  confirmationMessageId: { type: String, index: true, sparse: true },
   staffName: { type: String, trim: true },
   staffPhone: { type: String, trim: true },
 }, { 
@@ -35,5 +65,7 @@ const orderSchema = new mongoose.Schema({
 });
 
 orderSchema.index({ merchantId: 1, orderNumber: 1 }, { unique: true });
+orderSchema.index({ merchantId: 1, incomingMessageId: 1 }, { sparse: true });
+orderSchema.index({ merchantId: 1, confirmationMessageId: 1 }, { sparse: true });
 
 export default mongoose.model('Order', orderSchema);

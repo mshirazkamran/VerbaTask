@@ -1,6 +1,7 @@
 import InventoryItem from '../models/InventoryItem.js';
 import Order from '../models/Order.js';
 import { createOrder as processOrderCommand } from '../crm/order.service.js';
+import { processOrderReturn, processOrderExchange } from '../crm/return.service.js';
 import Merchant from '../models/Merchant.js';
 import { uploadMedia } from '../services/media.service.js';
 import { sendDocumentMessage } from '../services/whatsapp.service.js';
@@ -146,6 +147,45 @@ export const createOrder = async (req, res) => {
     } catch (error) {
         // Distinguish between bad user input (400) and server errors (500)
         const status = error.message.includes('ITEM_NOT_FOUND') || error.message.includes('INSUFFICIENT_STOCK') ? 400 : 500;
+        res.status(status).json({ success: false, error: { message: error.message } });
+    }
+};
+
+export const returnOrder = async (req, res) => {
+    try {
+        const { orderId, orderNumber, items, returnItem, reason } = req.body;
+        const targetOrderId = orderId || req.params.id;
+        const normalizedItems = items || (returnItem ? [returnItem] : undefined);
+        const result = await processOrderReturn(req.merchantId, {
+            orderId: targetOrderId,
+            orderNumber,
+            items: normalizedItems,
+            reason,
+        });
+        res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        const status = error.message.includes('ORDER_NOT_FOUND') || error.message.includes('NO_VALID_ITEMS') ? 400 : 500;
+        res.status(status).json({ success: false, error: { message: error.message } });
+    }
+};
+
+export const exchangeOrder = async (req, res) => {
+    try {
+        const { orderId, orderNumber, returnItem, newItem, reason } = req.body;
+        const targetOrderId = orderId || req.params.id;
+        const result = await processOrderExchange(req.merchantId, {
+            orderId: targetOrderId,
+            orderNumber,
+            returnItem,
+            newItem,
+            reason,
+        });
+        res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        const status = error.message.includes('ORDER_NOT_FOUND') || 
+                       error.message.includes('ITEM_NOT_FOUND') || 
+                       error.message.includes('INSUFFICIENT_STOCK') ||
+                       error.message.includes('INVALID_EXCHANGE') ? 400 : 500;
         res.status(status).json({ success: false, error: { message: error.message } });
     }
 };

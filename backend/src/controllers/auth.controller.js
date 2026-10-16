@@ -45,6 +45,15 @@ export const signup = async (req, res) => {
         // Sign JWT for 7 days (as per design guide)
         const token = jwt.sign({ merchantId: merchant._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
+        const cookieOptions = {
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            httpOnly: false,
+            sameSite: 'lax',
+            path: '/',
+        };
+        res.cookie('vt_session', token, cookieOptions);
+        res.cookie('vt_merchant_id', String(merchant._id), cookieOptions);
+
         return res.status(201).json({
             success: true,
             data: { token, merchantId: merchant._id }
@@ -86,6 +95,15 @@ export const login = async (req, res) => {
 
         const token = jwt.sign({ merchantId: merchant._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
+        const cookieOptions = {
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            httpOnly: false,
+            sameSite: 'lax',
+            path: '/',
+        };
+        res.cookie('vt_session', token, cookieOptions);
+        res.cookie('vt_merchant_id', String(merchant._id), cookieOptions);
+
         return res.status(200).json({
             success: true,
             data: { token, merchantId: merchant._id }
@@ -93,6 +111,21 @@ export const login = async (req, res) => {
     } catch (error) {
         console.error("Login error:", error);
         return res.status(500).json({ success: false, error: { message: "Server error during login" } });
+    }
+};
+
+// POST /api/auth/logout
+export const logout = async (req, res) => {
+    try {
+        res.clearCookie('vt_session', { path: '/' });
+        res.clearCookie('vt_merchant_id', { path: '/' });
+        return res.status(200).json({
+            success: true,
+            data: { message: "Logged out successfully" }
+        });
+    } catch (error) {
+        console.error("Logout error:", error);
+        return res.status(500).json({ success: false, error: { message: "Server error during logout" } });
     }
 };
 

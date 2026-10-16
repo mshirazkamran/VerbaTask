@@ -18,7 +18,10 @@ import { startScheduleRunner } from './src/workflows/workflow.service.js';
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
 
 // The `verify` callback stashes the raw bytes on req.rawBody BEFORE express
 // parses them into JSON — the WhatsApp signature is computed over those raw

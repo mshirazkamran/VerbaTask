@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,11 +23,18 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const token = useAuthStore((state) => state.token);
   const setAuth = useAuthStore((state) => state.setAuth);
   const language = useUiStore((s) => s.language);
   const t = getTranslations(language).auth;
 
   const from = location.state?.from?.pathname || '/dashboard';
+
+  useEffect(() => {
+    if (token) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [token, navigate]);
 
   const {
     register,

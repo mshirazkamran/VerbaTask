@@ -20,10 +20,23 @@ export async function createCustomer(req, res) {
     const normalizedName = name.trim().toLowerCase();
     const existing = await Customer.findOne({ merchantId: req.merchantId, name: normalizedName });
     if (existing) {
-      return res.status(400).json({
-        success: false,
-        error: { message: 'A customer with this name already exists in your ledger' },
+      // Consolidate: Add the new balance to their existing balance
+      const additionalBalance = Math.max(0, Number(balance) || 0);
+      existing.balance = (Number(existing.balance) || 0) + additionalBalance;
+      if (phone && phone.trim()) {
+        existing.phone = String(phone).trim();
+      }
+      await existing.save();
+
+      emitDashboardUpdate(req.merchantId, {
+        type: 'customer',
+        action: 'update',
+        customerId: existing._id,
+        customerName: existing.name,
+        balance: existing.balance,
       });
+
+      return res.status(200).json({ success: true, data: existing, consolidated: true });
     }
 
     const customer = await Customer.create({

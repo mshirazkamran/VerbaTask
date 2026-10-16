@@ -16,6 +16,9 @@ const merchantSchema = new mongoose.Schema({
   // Off: automations requested on WhatsApp are saved immediately. On: the bot
   // reads each one back with Save / Cancel buttons first.
   confirmAutomations: { type: Boolean, default: false },
+  // High-value order approvals: off by default so sales are never blocked unexpectedly.
+  requireApprovalForHighValue: { type: Boolean, default: false },
+  highValueThreshold: { type: Number, default: 10000 },
   defaultPaymentMethod: { type: String, default: 'cash', trim: true, lowercase: true },
   acceptedPaymentMethods: {
     type: [String],

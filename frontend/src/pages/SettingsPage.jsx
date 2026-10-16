@@ -173,6 +173,8 @@ export function SettingsPage() {
   const [voiceReplies, setVoiceReplies] = useState(true);
   const [replyPreference, setReplyPreference] = useState('voice_on_voice');
   const [confirmAutomations, setConfirmAutomations] = useState(false);
+  const [requireApprovalForHighValue, setRequireApprovalForHighValue] = useState(false);
+  const [highValueThreshold, setHighValueThreshold] = useState(10000);
 
   // Payments State
   const [activePaymentIds, setActivePaymentIds] = useState([]);
@@ -190,6 +192,8 @@ export function SettingsPage() {
       setVoiceReplies(profile.voiceReplies ?? true);
       setReplyPreference(profile.replyPreference || 'voice_on_voice');
       setConfirmAutomations(profile.confirmAutomations ?? false);
+      setRequireApprovalForHighValue(profile.requireApprovalForHighValue ?? false);
+      setHighValueThreshold(profile.highValueThreshold ?? 10000);
     }
   }, [profile]);
 
@@ -285,6 +289,8 @@ export function SettingsPage() {
         voiceReplies,
         replyPreference,
         confirmAutomations,
+        requireApprovalForHighValue,
+        highValueThreshold: Number(highValueThreshold) || 10000,
       });
       toast.success('Bot preferences updated!');
     } catch (err) {
@@ -1230,6 +1236,67 @@ export function SettingsPage() {
                 </p>
               </div>
             </label>
+          </Card>
+
+          {/* Order Approvals Configuration */}
+          <Card>
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-hairline">
+              <div className="grid size-10 shrink-0 place-items-center rounded-pill bg-pear-tint text-warn-ink">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className={`font-display text-lg font-semibold tracking-tight text-ink ${isUrdu ? 'font-urdu text-xl' : ''}`}>
+                  {isUrdu ? 'بڑی سیلز کی منظوری (Order Approvals)' : 'Order Approvals (High-Value Limit)'}
+                </h2>
+                <p className="text-xs text-ink-mute">
+                  {isUrdu
+                    ? 'بڑی مالیت کے آرڈرز پر دکان کے مالک کی منظوری درکار ہو یا نہیں۔'
+                    : 'Control whether high-value sales require store owner approval before being recorded.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <label
+                className={`p-3 rounded-lg border flex items-start gap-3 cursor-pointer transition-colors ${
+                  requireApprovalForHighValue
+                    ? 'border-primary bg-primary/5'
+                    : 'border-hairline bg-surface/20 hover:bg-surface/40'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={requireApprovalForHighValue}
+                  onChange={(e) => setRequireApprovalForHighValue(e.target.checked)}
+                  className="mt-0.5 text-primary focus:ring-primary"
+                />
+                <div>
+                  <p className="text-xs font-medium text-ink">
+                    {isUrdu ? 'مقررہ حد سے بڑی سیلز پر منظوری لازمی کریں' : 'Require owner approval for high-value sales'}
+                  </p>
+                  <p className="text-[11px] text-ink-mute mt-0.5 leading-relaxed">
+                    {isUrdu
+                      ? 'پہلے سے بند (Off) ہے۔ بند رکھنے کی صورت میں دکان کا عملہ بغیر رکاوٹ کے کسی بھی رقم کی سیلز درج کر سکتا ہے۔ اگر فعال کریں گے تو مقررہ حد سے اوپر کے آرڈرز ڈیش بورڈ پر آپ کی منظوری کے منتظر رہیں گے۔'
+                      : 'Disabled by default. When turned off, store assistants can log sales freely without waiting for approval. When turned on, sales exceeding your threshold require owner confirmation.'}
+                  </p>
+                </div>
+              </label>
+
+              {requireApprovalForHighValue && (
+                <div className="pt-2">
+                  <Input
+                    label={isUrdu ? 'منظوری کی کم از کم حد (روپے)' : 'Approval Threshold Amount (PKR)'}
+                    type="number"
+                    min="1000"
+                    step="500"
+                    value={highValueThreshold}
+                    onChange={(e) => setHighValueThreshold(Number(e.target.value))}
+                    helperText={isUrdu ? 'اس رقم یا اس سے بڑے آرڈرز منظوری کے لیے روکے جائیں گے۔' : 'Orders equal to or above this amount will be held for approval.'}
+                    className="max-w-xs"
+                  />
+                </div>
+              )}
+            </div>
           </Card>
 
           <div className="flex justify-end">
