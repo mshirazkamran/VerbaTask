@@ -81,7 +81,16 @@ If the merchant asks for an automation whose action is NOT one of the two action
 {"type":"exchange_order","orderNumber":"<order number or null>","returnItem":{"name":"<returned item name>","quantity":<number>},"newItem":{"name":"<new replacement item name>","quantity":<number>}}
 - Used when a customer swaps one item for another (e.g. "is ki jagah 2 daal de do", "badal ke daal de do", "exchange with sugar", "اس کی جگہ دال دے دو").
 
-9. Anything else where NO product, report, greeting, stock update, or automation can be identified:
+9. Settling or paying Khata / Customer debt:
+{"type":"settle_khata","customerName":"<customer name>","amount":<number>}
+- Used when a customer pays cash to clear their debt/credit/ledger/khata balance (e.g. "ali ne 500 diye", "ali se 500 wasool hue", "ali ne 1000 jama karwaye", "settle 500 ali", "ali paid 500", "500 jama rashid", "علی نے 500 روپے دیے", "علی سے 500 وصول ہوئے", "علی کا 500 جمع کرو").
+- CRITICAL: Never classify debt payment / khata settlement as log_sale! Logging a sale is selling store inventory/goods to a customer. Settling khata is a customer paying off money they already owed from earlier purchases.
+
+10. Inquiring customer Khata balance:
+{"type":"check_khata","customerName":"<customer name>"}
+- Used when asking how much a customer owes (e.g. "ali ka khata", "check khata ali", "ali ka kitna baqi hai", "علی کا کھاتہ", "علی کے کتنے باقی ہیں").
+
+11. Anything else where NO product, report, greeting, stock update, khata settlement, or automation can be identified:
 {"type":"unknown","rawText":"<original text>"}`;
 
 const BUSINESS_DETAILS_PROMPT = `You extract business details from a merchant's
@@ -553,12 +562,175 @@ export function parseMoneyFirstSaleHeuristic(text) {
   return null;
 }
 
+// Compound Urdu and Roman Urdu number words normalizer
+const COMPOUND_NUMBER_WORDS = [
+  // Lakhs
+  { pattern: /(?<=^|[\s\b])(?:do|2|دو)\s*(?:lakh|lac|لاکھ)(?=[\s\b]|$)/gi, value: 200000 },
+  { pattern: /(?<=^|[\s\b])(?:ek|aik|1|ایک)\s*(?:lakh|lac|لاکھ)(?=[\s\b]|$)|(?<=^|[\s\b])(?:lakh|lac|لاکھ)(?=[\s\b]|$)/gi, value: 100000 },
+  // Thousands
+  { pattern: /(?<=^|[\s\b])(?:pachas|50)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 50000 },
+  { pattern: /(?<=^|[\s\b])(?:chalees|40)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 40000 },
+  { pattern: /(?<=^|[\s\b])(?:tees|30)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 30000 },
+  { pattern: /(?<=^|[\s\b])(?:pachees|25)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 25000 },
+  { pattern: /(?<=^|[\s\b])(?:bees|20)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 20000 },
+  { pattern: /(?<=^|[\s\b])(?:pandrah|15)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 15000 },
+  { pattern: /(?<=^|[\s\b])(?:das|10)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 10000 },
+  { pattern: /(?<=^|[\s\b])(?:panch|5|پانچ)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 5000 },
+  { pattern: /(?<=^|[\s\b])(?:char|4|چار)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 4000 },
+  { pattern: /(?<=^|[\s\b])(?:teen|3|تین)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 3000 },
+  { pattern: /(?<=^|[\s\b])(?:do|2|دو)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 2000 },
+  { pattern: /(?<=^|[\s\b])(?:ek|aik|1|ایک)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)|(?<=^|[\s\b])(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 1000 },
+  // Hundreds
+  { pattern: /(?<=^|[\s\b])(?:pachees\s*sau|25\s*sau|پچیس\s*سو)(?=[\s\b]|$)/gi, value: 2500 },
+  { pattern: /(?<=^|[\s\b])(?:bees\s*sau|20\s*sau|بیس\s*سو)(?=[\s\b]|$)/gi, value: 2000 },
+  { pattern: /(?<=^|[\s\b])(?:pandrah\s*sau|15\s*sau|پندرہ\s*سو)(?=[\s\b]|$)/gi, value: 1500 },
+  { pattern: /(?<=^|[\s\b])(?:barah\s*sau|12\s*sau|بارہ\s*سو)(?=[\s\b]|$)/gi, value: 1200 },
+  { pattern: /(?<=^|[\s\b])(?:gyarah\s*sau|11\s*sau|گیارہ\s*سو)(?=[\s\b]|$)/gi, value: 1100 },
+  { pattern: /(?<=^|[\s\b])(?:nau\s*sau|9\s*sau|نو\s*سو)(?=[\s\b]|$)/gi, value: 900 },
+  { pattern: /(?<=^|[\s\b])(?:aath\s*sau|8\s*sau|آٹھ\s*سو)(?=[\s\b]|$)/gi, value: 800 },
+  { pattern: /(?<=^|[\s\b])(?:saat\s*sau|7\s*sau|سات\s*سو)(?=[\s\b]|$)/gi, value: 700 },
+  { pattern: /(?<=^|[\s\b])(?:che\s*sau|chhe\s*sau|6\s*sau|چھ\s*سو)(?=[\s\b]|$)/gi, value: 600 },
+  { pattern: /(?<=^|[\s\b])(?:panch\s*sau|5\s*sau|پانچ\s*سو)(?=[\s\b]|$)/gi, value: 500 },
+  { pattern: /(?<=^|[\s\b])(?:char\s*sau|4\s*sau|چار\s*سو)(?=[\s\b]|$)/gi, value: 400 },
+  { pattern: /(?<=^|[\s\b])(?:teen\s*sau|3\s*sau|تین\s*سو)(?=[\s\b]|$)/gi, value: 300 },
+  { pattern: /(?<=^|[\s\b])(?:dhai\s*sau|ڈھائی\s*سو)(?=[\s\b]|$)/gi, value: 250 },
+  { pattern: /(?<=^|[\s\b])(?:do\s*sau|2\s*sau|دو\s*سو)(?=[\s\b]|$)/gi, value: 200 },
+  { pattern: /(?<=^|[\s\b])(?:dedh\s*sau|ڈیڑھ\s*سو)(?=[\s\b]|$)/gi, value: 150 },
+  { pattern: /(?<=^|[\s\b])(?:ek\s*sau|1\s*sau|ایک\s*سو)(?=[\s\b]|$)|(?<=^|[\s\b])(?:sau|سو)(?=[\s\b]|$)/gi, value: 100 },
+];
+
+export function normalizeNumberWords(text) {
+  if (!text) return '';
+  let str = text.replace(/[۰-۹]/g, (d) => URDU_DIGITS_MAP[d] || d);
+  for (const { pattern, value } of COMPOUND_NUMBER_WORDS) {
+    str = str.replace(pattern, ` ${value} `);
+  }
+  return str.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Fast-path heuristic parser for Khata (debt / ledger) cash settlements.
+ * Detects phrases like "Ali ne 500 diye", "Ali se 500 wasool hue", "settle 1000 usman", "علی نے 500 دیے".
+ */
+export function parseKhataSettleHeuristic(text) {
+  if (!text || typeof text !== 'string') return null;
+
+  // Exclude restock, returns, stock checks
+  if (/(?:maal\s*a[y|i]a|restock|report|wapis|wapas|return|exchange|badal|stock\s*check|check\s*stock)/i.test(text)) {
+    return null;
+  }
+
+  const normalized = normalizeNumberWords(text);
+  const lower = normalized.toLowerCase().trim();
+
+  // Pattern 1: <Name> ne <Amount> [rupay] (diye|de diye|diye hain|jama|jama karwaye|jama karaye|wapis kiye|ada kiye|paid)
+  const p1 = lower.match(/^([a-zA-Z\s\u0600-\u06FF-]+?)\s+ne\s+(\d+)\s*(?:rupay|rs|roopay|روپے)?\s*(?:diye(?:\s*hain|\s*hen)?|de\s*diye|jama(?:\s*karwaye|\s*karaye|\s*karwa\s*diye|\s*kiye)?|wapis\s*(?:kiye|diye)|ada\s*kiye|paid|pay\s*kiye|bhare|دیے|دے\s*دیے|جمع\s*(?:کروائے|کرائے|کیے)?|واپس\s*کیے|ادا\s*کیے)$/i);
+  if (p1) {
+    return { type: 'settle_khata', customerName: p1[1].trim(), amount: parseInt(p1[2], 10), rawText: text };
+  }
+
+  // Pattern 1b (Urdu Script): [Name] نے [Amount] روپے دیے / جمع کروائے
+  const p1Urdu = lower.match(/^([\u0600-\u06FF\s-]+?)\s+نے\s+(\d+)\s*(?:روپے|rupay)?\s*(?:دیے|دے\s*دیے|جمع\s*(?:کروائے|کرائے|کیے)?|واپس\s*کیے|ادا\s*کیے)$/);
+  if (p1Urdu) {
+    return { type: 'settle_khata', customerName: p1Urdu[1].trim(), amount: parseInt(p1Urdu[2], 10), rawText: text };
+  }
+
+  // Pattern 2: <Name> se <Amount> [rupay] (wasool|wasool hue|mil gaye|mile|aaye)
+  const p2 = lower.match(/^([a-zA-Z\s\u0600-\u06FF-]+?)\s+se\s+(\d+)\s*(?:rupay|rs|roopay|روپے)?\s*(?:wasool(?:\s*hue|\s*ho\s*gaye)?|mil\s*(?:gaye|gye)|mile|aaye|aye|وصول(?:\s*ہوئے|\s*ہو\s*گئے)?|مل\s*گئے|ملے|آئے)$/i);
+  if (p2) {
+    return { type: 'settle_khata', customerName: p2[1].trim(), amount: parseInt(p2[2], 10), rawText: text };
+  }
+
+  // Pattern 2b (Urdu Script): [Name] سے [Amount] وصول ہوئے
+  const p2Urdu = lower.match(/^([\u0600-\u06FF\s-]+?)\s+سے\s+(\d+)\s*(?:روپے|rupay)?\s*(?:وصول(?:\s*ہوئے|\s*ہو\s*گئے)?|مل\s*گئے|ملے|آئے)$/);
+  if (p2Urdu) {
+    return { type: 'settle_khata', customerName: p2Urdu[1].trim(), amount: parseInt(p2Urdu[2], 10), rawText: text };
+  }
+
+  // Pattern 3: <Amount> [rupay] <Name> (ne|se|نے|سے) (diye|jama|wasool|de diye)
+  const p3Amt = lower.match(/^(\d+)\s*(?:rupay|rs|roopay|روپے)?\s*([a-zA-Z\s\u0600-\u06FF-]+?)\s+(?:ne|se|نے|سے)\s*(?:diye(?:\s*hain|\s*hen)?|de\s*diye|jama(?:\s*karwaye|\s*karaye|\s*karwa\s*diye|\s*kiye)?|wasool(?:\s*hue)?|ada\s*kiye|paid|دیے|دے\s*دیے|جمع|وصول)$/i);
+  if (p3Amt) {
+    return { type: 'settle_khata', customerName: p3Amt[2].trim(), amount: parseInt(p3Amt[1], 10), rawText: text };
+  }
+
+  // Pattern: <Name> ka/ke [khate me/mein] <Amount> [rupay] (jama|jama karo|wasool|settle)
+  const pCustKhata = lower.match(/^([a-zA-Z\s\u0600-\u06FF-]+?)\s+(?:ka|ke)\s*(?:khate\s*me(?:in)?)?\s*(\d+)\s*(?:rupay|rs|روپے)?\s*(?:jama(?:\s*karo|\s*kar\s*do)?|wasool|settle)$/i);
+  if (pCustKhata) {
+    return { type: 'settle_khata', customerName: pCustKhata[1].trim(), amount: parseInt(pCustKhata[2], 10), rawText: text };
+  }
+
+  // Pattern 3b (Urdu Script): [Name] کا/کے [کھاتے میں] [Amount] جمع کرو
+  const p3Urdu = lower.match(/^([\u0600-\u06FF\s-]+?)\s+(?:کا|کے)\s*(?:کھاتے\s*میں)?\s*(\d+)\s*(?:روپے)?\s*(?:جمع(?:\s*کرو|\s*کریں|\s*کر\s*دو)?|وصول)$/);
+  if (p3Urdu) {
+    return { type: 'settle_khata', customerName: p3Urdu[1].trim(), amount: parseInt(p3Urdu[2], 10), rawText: text };
+  }
+
+  // Pattern 4: (settle|jama|wasool|وصول|جمع) [karo] <Amount> <Name>
+  const p4 = lower.match(/^(?:settle|jama|wasool|وصول|جمع)\s*(?:karo|kar\s*do|کریں|کرو)?\s*(\d+)\s*(?:rupay|rs|روپے)?\s*(?:for|to|ka|ki|ke|se|کا|کے|سے)?\s*([a-zA-Z\s\u0600-\u06FF-]+)$/i);
+  if (p4) {
+    return { type: 'settle_khata', customerName: p4[2].trim(), amount: parseInt(p4[1], 10), rawText: text };
+  }
+
+  // Pattern 5: (settle|jama|wasool|وصول|جمع) [karo] <Name> <Amount>
+  const p5 = lower.match(/^(?:settle|jama|wasool|وصول|جمع)\s*(?:karo|kar\s*do|کریں|کرو)?\s*([a-zA-Z\s\u0600-\u06FF-]+?)\s*(?:ka|ke|ko|se|کا|کے|کو|سے)?\s*(\d+)\s*(?:rupay|rs|روپے)?$/i);
+  if (p5) {
+    return { type: 'settle_khata', customerName: p5[1].trim(), amount: parseInt(p5[2], 10), rawText: text };
+  }
+
+  // Pattern 6: <Amount> [rupay] (diye|jama|wasool) <Name> [ne/se]
+  const p6 = lower.match(/^(\d+)\s*(?:rupay|rs|روپے)?\s*(?:diye|de\s*diye|jama(?:\s*kiye)?|wasool(?:\s*hue)?|دیے|جمع|وصول)\s*([a-zA-Z\s\u0600-\u06FF-]+?)(?:\s*(?:ne|se|کا|کے|نے|سے))?$/i);
+  if (p6) {
+    return { type: 'settle_khata', customerName: p6[2].trim(), amount: parseInt(p6[1], 10), rawText: text };
+  }
+
+  // Pattern 7: <Name> <Amount> [rupay] (paid|diye|jama|settle)
+  const p7 = lower.match(/^([a-zA-Z\s\u0600-\u06FF-]+?)\s+(\d+)\s*(?:rupay|rs|روپے)?\s*(?:paid|diye|jama|settle|دیے|جمع)$/i);
+  if (p7) {
+    const rawCust = p7[1].trim();
+    const amt = parseInt(p7[2], 10);
+    // Safety check: ensure not standard sale like "sugar 500" or item with unit
+    if (amt >= 10 && !/^(kg|kilo|litre|darjan|piece|pcs|packet|box|کلو|لیٹر|درجن|پیکٹ)$/i.test(rawCust)) {
+      return { type: 'settle_khata', customerName: rawCust, amount: amt, rawText: text };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Fast-path heuristic parser for Khata customer inquiry requests.
+ */
+export function parseKhataInquiryHeuristic(text) {
+  if (!text || typeof text !== 'string') return null;
+  const lower = text.toLowerCase().trim();
+
+  // "check khata ali", "khata ali", "udhar ali", "کھاتہ علی", "باقی علی"
+  const m1 = lower.match(/^(?:check\s*khata|khata|udhar|udhaar|باقی|کھاتہ)\s+([a-zA-Z\s\u0600-\u06FF-]+)$/i);
+  if (m1) {
+    return { type: 'check_khata', customerName: m1[1].trim(), rawText: text };
+  }
+
+  // "ali ka khata", "ali ka kitna baqi hai", "ali ke kitne baqi hain", "علی کا کھاتہ", "علی کے کتنے باقی ہیں"
+  const m2 = lower.match(/^([a-zA-Z\s\u0600-\u06FF-]+)\s+(?:ka\s*khata|ka\s*kitna\s*(?:baqi|hai)|ke\s*kitne\s*(?:baqi|hai|hain)|کے\s*کتنے\s*باقی|کا\s*ادھار|کا\s*کھاتہ)$/i);
+  if (m2) {
+    return { type: 'check_khata', customerName: m2[1].trim(), rawText: text };
+  }
+
+  return null;
+}
+
 /**
  * Fast-path heuristic parser for routine Kiryana sales (e.g. "10 kg chawal", "2 doodh cash", "5 lipton cash", "3 panadol 150", "2 chawal udhaar ali").
  * Resolves standard store sales in 0ms without hitting external LLM rate limits.
  */
 export function parseStandardSaleHeuristic(text) {
   if (!text || typeof text !== 'string') return null;
+
+  // Strict check: if this text is a Khata settlement or inquiry, never process as sale!
+  if (parseKhataSettleHeuristic(text) || parseKhataInquiryHeuristic(text)) {
+    return null;
+  }
+
   const normalizedDigits = text.replace(/[۰-۹]/g, (d) => URDU_DIGITS_MAP[d] || d);
   const lower = normalizedDigits.trim().toLowerCase();
 
@@ -674,6 +846,17 @@ export async function parseIntent(text, merchant = null) {
     return returnOrExchangeHeuristic;
   }
 
+  // Check fast-path Khata settlement & inquiry heuristics before sale heuristics
+  const khataSettleHeuristic = parseKhataSettleHeuristic(text);
+  if (khataSettleHeuristic) {
+    return khataSettleHeuristic;
+  }
+
+  const khataInquiryHeuristic = parseKhataInquiryHeuristic(text);
+  if (khataInquiryHeuristic) {
+    return khataInquiryHeuristic;
+  }
+
   const moneyFirstHeuristic = parseMoneyFirstSaleHeuristic(text);
   if (moneyFirstHeuristic) {
     return moneyFirstHeuristic;
@@ -712,7 +895,11 @@ export async function parseIntent(text, merchant = null) {
     const raw = await chatCompletion(prompt, text);
     const parsed = extractJson(raw);
 
-    if (parsed && ['log_sale', 'update_stock', 'check_stock', 'create_workflow', 'unsupported_workflow', 'greeting', 'generate_report', 'return_order', 'exchange_order', 'unknown'].includes(parsed.type)) {
+    if (parsed && ['log_sale', 'update_stock', 'check_stock', 'settle_khata', 'check_khata', 'create_workflow', 'unsupported_workflow', 'greeting', 'generate_report', 'return_order', 'exchange_order', 'unknown'].includes(parsed.type)) {
+      // Guard: If model misclassified settlement as a sale, override it
+      if (parsed.type === 'log_sale' && khataSettleHeuristic?.type === 'settle_khata') {
+        return khataSettleHeuristic;
+      }
       // Guard: If model misclassified restock speech as a sale, override it
       if (parsed.type === 'log_sale' && stockHeuristic?.type === 'update_stock') {
         return stockHeuristic;

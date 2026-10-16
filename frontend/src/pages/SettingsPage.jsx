@@ -19,6 +19,7 @@ import {
   Share2,
   ShieldCheck,
   UserCheck,
+  Volume2,
 } from 'lucide-react';
 import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { Card } from '../components/ui/Card';
@@ -170,6 +171,7 @@ export function SettingsPage() {
 
   // Voice & Language State
   const [language, setLanguage] = useState('ur');
+  const [voiceGender, setVoiceGender] = useState('female');
   const [voiceReplies, setVoiceReplies] = useState(true);
   const [replyPreference, setReplyPreference] = useState('voice_on_voice');
   const [confirmAutomations, setConfirmAutomations] = useState(false);
@@ -189,6 +191,7 @@ export function SettingsPage() {
       setLocation(profile.location || '');
       setSells(profile.sells || '');
       setLanguage(profile.language || 'ur');
+      setVoiceGender(profile.voiceGender || 'female');
       setVoiceReplies(profile.voiceReplies ?? true);
       setReplyPreference(profile.replyPreference || 'voice_on_voice');
       setConfirmAutomations(profile.confirmAutomations ?? false);
@@ -286,6 +289,7 @@ export function SettingsPage() {
     try {
       await updateProfileMutation.mutateAsync({
         language,
+        voiceGender,
         voiceReplies,
         replyPreference,
         confirmAutomations,
@@ -1136,6 +1140,89 @@ export function SettingsPage() {
                   >
                     <p className="text-xs font-medium">English</p>
                     <p className="text-[10px] text-ink-mute mt-0.5">Jenny English Neural Voice</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Voice Avatar Selection: Exactly 1 Female and 1 Male Voice */}
+              <div className="pt-4 border-t border-hairline">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-medium text-ink-secondary flex items-center gap-1.5">
+                    <Volume2 className="w-3.5 h-3.5 text-primary" />
+                    {isUrdu ? 'اے آئی وائس اوتار (صوتی آواز)' : 'AI Voice Avatar (Single Voice Policy)'}
+                  </label>
+                  <span className="text-[10px] text-ink-mute bg-surface px-2 py-0.5 rounded-pill border border-hairline">
+                    {isUrdu ? 'شائستہ اور بااخلاق لب و لہجہ' : 'Polite & Courteous Tone'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-ink-mute mb-3">
+                  {isUrdu
+                    ? 'واٹس ایپ پر بول کر جواب دینے کے لیے 1 خاتون یا 1 مردانہ آواز کا انتخاب کریں۔ آپ واٹس ایپ پر "عورت کی آواز" یا "مرد کی آواز" بول کر بھی آواز تبدیل کر سکتے ہیں۔'
+                    : 'Select exactly 1 Female or 1 Male voice avatar for your WhatsApp audio replies. You can also switch anytime by speaking "male voice" or "female voice" in a voice note.'}
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
+                  <button
+                    type="button"
+                    onClick={() => setVoiceGender('female')}
+                    className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer relative ${
+                      voiceGender === 'female'
+                        ? 'border-primary bg-primary/5 ring-1 ring-primary/30 shadow-xs'
+                        : 'border-hairline text-ink hover:bg-surface/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">👩</span>
+                        <div>
+                          <p className="text-xs font-semibold text-ink">
+                            {isUrdu ? 'خاتون کی آواز (Female)' : 'Female Voice Avatar'}
+                          </p>
+                          <p className="text-[10px] text-ink-mute">
+                            {language === 'ur' ? 'Uzma Urdu Neural (پاکستان)' : 'Jenny English Neural (US)'}
+                          </p>
+                        </div>
+                      </div>
+                      {voiceGender === 'female' && (
+                        <span className="size-5 rounded-full bg-primary text-white grid place-items-center shrink-0">
+                          <Check className="w-3 h-3" />
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-ink-secondary bg-surface/60 rounded px-2 py-1 mt-1">
+                      {isUrdu ? 'بہت شائستہ، نرم اور احترام پر مبنی گفتگو' : 'Polite, calm & courteous tone'}
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVoiceGender('male')}
+                    className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer relative ${
+                      voiceGender === 'male'
+                        ? 'border-primary bg-primary/5 ring-1 ring-primary/30 shadow-xs'
+                        : 'border-hairline text-ink hover:bg-surface/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">👨</span>
+                        <div>
+                          <p className="text-xs font-semibold text-ink">
+                            {isUrdu ? 'مردانہ آواز (Male)' : 'Male Voice Avatar'}
+                          </p>
+                          <p className="text-[10px] text-ink-mute">
+                            {language === 'ur' ? 'Asad Urdu Neural (پاکستان)' : 'Guy English Neural (US)'}
+                          </p>
+                        </div>
+                      </div>
+                      {voiceGender === 'male' && (
+                        <span className="size-5 rounded-full bg-primary text-white grid place-items-center shrink-0">
+                          <Check className="w-3 h-3" />
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-ink-secondary bg-surface/60 rounded px-2 py-1 mt-1">
+                      {isUrdu ? 'سنجیدہ، شائستہ اور احترام پر مبنی گفتگو' : 'Polite, clear & courteous tone'}
+                    </p>
                   </button>
                 </div>
               </div>

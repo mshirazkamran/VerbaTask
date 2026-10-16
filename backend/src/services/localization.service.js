@@ -40,7 +40,9 @@ export function formatPaymentMethod(pm, language = 'ur') {
 export const spokenPhrases = {
   orderLogged(language = 'ur', { items = [], paymentMethod, orderNo, customerName }) {
     const isUrdu = language === 'ur';
-    const payFormatted = formatPaymentMethod(paymentMethod, language);
+    const payFormatted = paymentMethod === 'udhaar' || paymentMethod === 'khata'
+      ? (isUrdu ? 'ادھار / کھاتہ پر' : 'via Udhaar (Credit)')
+      : (isUrdu ? `${formatPaymentMethod(paymentMethod, language)} پر` : `via ${formatPaymentMethod(paymentMethod, language)}`);
     
     // Format items list
     const itemsSpoken = items.map(i => `${i.quantity} ${i.name}`).join('، ');
@@ -61,27 +63,27 @@ export const spokenPhrases = {
     if (isUrdu) {
       const orderPart = orderNo ? `۔ آرڈر نمبر ${orderNo}۔` : '۔';
       return {
-        spoken: `آپ کی سیل درج کر لی گئی ہے: ${itemsSpoken}، ${payFormatted} پر${customerSpokenUrdu}${orderPart}`,
-        text: `✅ سیل درج ہو گئی: ${itemsText} (${payFormatted})${customerTextUrdu}${orderNo ? ` — آرڈر #${orderNo}` : ''}.`,
+        spoken: `جی بالکل محترم! آپ کی سیل درج کر لی گئی ہے: ${itemsSpoken}، ${payFormatted}${customerSpokenUrdu}${orderPart} بہت شکریہ!`,
+        text: `✅ سیل درج ہو گئی: ${itemsText} (${formatPaymentMethod(paymentMethod, language)})${customerTextUrdu}${orderNo ? ` — آرڈر #${orderNo}` : ''}.`,
       };
     }
 
     const orderPart = orderNo ? ` — Order #${orderNo}` : '';
     return {
-      spoken: `Your sale has been logged: ${itemsSpoken}, via ${payFormatted}${customerSpokenEng}${orderNo ? `. Order number ${orderNo}.` : '.'}`,
-      text: `✅ Logged: ${itemsText} (${payFormatted})${customerTextEng}${orderPart}.`,
+      spoken: `Certainly! Your sale has been logged: ${itemsSpoken}, ${payFormatted}${customerSpokenEng}${orderNo ? `. Order number ${orderNo}.` : '.'} Thank you!`,
+      text: `✅ Logged: ${itemsText} (${formatPaymentMethod(paymentMethod, language)})${customerTextEng}${orderPart}.`,
     };
   },
 
   insufficientStock(language = 'ur', { detail, itemName } = {}) {
     if (language === 'ur') {
       return {
-        spoken: `معذرت، اس فروخت کے لیے اسٹاک میں مطلوبہ تعداد موجود نہیں ہے۔`,
+        spoken: `معذرت کے ساتھ جناب، اس فروخت کے لیے اسٹاک میں مطلوبہ تعداد موجود نہیں ہے۔ برائے مہربانی چیک فرما لیں۔`,
         text: `اس فروخت کے لیے اسٹاک کافی نہیں ہے${detail ? ` — ${detail}` : ''}۔`,
       };
     }
     return {
-      spoken: `Sorry, there is not enough stock for that sale.`,
+      spoken: `Apologies, there is not enough stock available for that sale. Please check your inventory.`,
       text: `Not enough stock for that sale${detail ? ` — ${detail}` : ''}.`,
     };
   },
@@ -89,12 +91,12 @@ export const spokenPhrases = {
   itemNotFound(language = 'ur', { saidName } = {}) {
     if (language === 'ur') {
       return {
-        spoken: `معذرت، آپ کا کہا گیا آئٹم ${saidName ? `"${saidName}"` : ''} اسٹاک میں نہیں ملا۔`,
+        spoken: `معذرت خواہ ہوں جناب، آپ کا کہا گیا سامان ${saidName ? `"${saidName}"` : ''} اسٹاک میں نہیں ملا۔ برائے مہربانی ڈیش بورڈ سے شامل فرما لیں۔`,
         text: `میں آپ کے اسٹاک میں "${saidName}" تلاش نہیں کر سکا — براہ کرم ڈیش بورڈ سے شامل کریں۔`,
       };
     }
     return {
-      spoken: `Sorry, I couldn't find "${saidName}" in your stock.`,
+      spoken: `Apologies, I couldn't find "${saidName}" in your stock list. Please add it from the dashboard.`,
       text: `I couldn't find "${saidName}" in your stock — add it from the dashboard first, or check the spelling.`,
     };
   },
@@ -103,12 +105,12 @@ export const spokenPhrases = {
     const candidateStr = candidates.join(' یا ');
     if (language === 'ur') {
       return {
-        spoken: `آپ کا کہا گیا آئٹم اسٹاک میں نہیں ملا۔ کیا آپ کا مطلب ${candidateStr || 'دی گئی اشیاء'} میں سے ہے؟ نیچے دیے گئے بٹنوں سے منتخب کریں۔`,
+        spoken: `معاف کیجیے گا، آپ کا کہا گیا آئٹم اسٹاک میں واضح نہیں ملا۔ کیا آپ کا مطلب ${candidateStr || 'دی گئی اشیاء'} میں سے ہے؟ برائے مہربانی بٹن سے منتخب فرما لیں۔`,
         text: `میں آپ کے اسٹاک میں "${saidName}" تلاش نہیں کر سکا — کیا آپ کا مطلب تھا:`,
       };
     }
     return {
-      spoken: `I couldn't find "${saidName}" in your stock. Did you mean ${candidates.join(' or ')}? Tap a button below.`,
+      spoken: `Pardon me, I couldn't find "${saidName}" in stock. Did you mean ${candidates.join(' or ')}? Please tap a button below.`,
       text: `I couldn't find "${saidName}" in your stock — did you mean:`,
     };
   },
@@ -116,12 +118,12 @@ export const spokenPhrases = {
   workflowCreated(language = 'ur', { description } = {}) {
     if (language === 'ur') {
       return {
-        spoken: `آپ کی آٹومیشن محفوظ ہو گئی ہے۔`,
+        spoken: `جی محترم، آپ کی آٹومیشن کامیابی سے محفوظ کر لی گئی ہے۔ بہت شکریہ!`,
         text: `✅ آٹومیشن محفوظ ہو گئی:\n⚡ ${description}\n\nتمام آٹومیشن دیکھنے کے لیے *"workflows"* لکھیں۔`,
       };
     }
     return {
-      spoken: `Automation saved.`,
+      spoken: `Certainly! Your automation rule has been saved successfully. Thank you!`,
       text: `✅ Automation saved:\n⚡ ${description}\n\nType *"workflows"* to see all your automations.`,
     };
   },
@@ -129,12 +131,12 @@ export const spokenPhrases = {
   unrecognizedIntent(language = 'ur') {
     if (language === 'ur') {
       return {
-        spoken: `معاف کیجیے گا، مجھے پوری طرح سمجھ نہیں آیا۔ برائے مہربانی چیز کا نام اور تعداد بتائیں، جیسے دو چاول کیش۔`,
+        spoken: `معاف کیجیے گا جناب، میں آپ کی بات پوری طرح سمجھ نہیں سکی۔ برائے مہربانی سامان کا نام اور تعداد دوبارہ بتا دیں، جیسے دو چاول کیش۔ شکریہ!`,
         text: `معاف کیجیے گا، بات سمجھ نہیں آئی۔ براہ کرم چیز اور تعداد بتائیں (مثلاً: "دو چاول کیش")، یا "order" کہیں۔`,
       };
     }
     return {
-      spoken: `I didn't quite catch that. Please tell me the item and quantity, like "2 rice bags, cash".`,
+      spoken: `Pardon me, I didn't quite catch that. Please tell me the item name and quantity, like "2 rice, cash". Thank you!`,
       text: `I didn't quite catch that — try saying "2 rice, cash" or 'order' to log a sale.`,
     };
   },
@@ -142,12 +144,12 @@ export const spokenPhrases = {
   voiceProcessingError(language = 'ur') {
     if (language === 'ur') {
       return {
-        spoken: `معذرت، آپ کا وائس نوٹ پروسیس نہیں ہو سکا۔ براہ کرم دوبارہ بول کر بھیجیں۔`,
+        spoken: `معذرت خواہ ہوں جناب، آواز صاف نہ ہونے کی وجہ سے وائس نوٹ پروسیس نہیں ہو سکا۔ برائے مہربانی دوبارہ بول کر یا لکھ کر بتا دیں۔ شکریہ!`,
         text: `وائس نوٹ سمجھنے میں دشواری ہوئی — دوبارہ بول کر یا لکھ کر بھیجیں۔`,
       };
     }
     return {
-      spoken: `Sorry, I couldn't process that voice note. Please try speaking again or typing it.`,
+      spoken: `Apologies, I couldn't process that voice note clearly. Please try speaking again or typing it. Thank you!`,
       text: `Couldn't process that voice note — try typing it instead.`,
     };
   },
@@ -155,12 +157,12 @@ export const spokenPhrases = {
   genericError(language = 'ur') {
     if (language === 'ur') {
       return {
-        spoken: `معذرت، سسٹم میں خرابی پیش آگئی ہے۔ براہ کرم تھوڑی دیر بعد کوشش کریں۔`,
+        spoken: `معذرت خواہ ہوں جناب، سسٹم میں عارضی خرابی پیش آگئی ہے۔ برائے مہربانی چند لمحوں بعد دوبارہ کوشش فرمائیں۔`,
         text: `معذرت، کچھ غلط ہو گیا ہے۔ براہ کرم کچھ دیر بعد کوشش کریں۔`,
       };
     }
     return {
-      spoken: `Sorry, something went wrong on my end. Please try again in a moment.`,
+      spoken: `Apologies, something went wrong on our end. Please try again in a moment. Thank you!`,
       text: `Sorry, something went wrong on my end. Please try again in a moment, or use the dashboard.`,
     };
   },
@@ -168,12 +170,12 @@ export const spokenPhrases = {
   onboardingAskDetails(language = 'ur') {
     if (language === 'ur') {
       return {
-        spoken: `اپنے کاروبار کا نام، مقام، اور آپ کیا بیچتے ہیں، ایک میسج یا وائس نوٹ میں بتا دیں۔`,
+        spoken: `محترم، بول دکان میں خوش آمدید! اپنے کاروبار کا نام، مقام، اور آپ کیا بیچتے ہیں، ایک میسج یا وائس نوٹ میں بتا دیں۔`,
         text: `Business ka naam, location, aur aap kya bechte hain, ek message mein bata dein.`,
       };
     }
     return {
-      spoken: `Tell me your business name, location, and what you sell — all in one message is fine.`,
+      spoken: `Welcome to BolDukan! Please tell me your business name, location, and what you sell — all in one message is fine.`,
       text: `Tell me your business name, location, and what you sell — all in one message is fine.`,
     };
   },
@@ -181,28 +183,28 @@ export const spokenPhrases = {
   onboardingAskInventory(language = 'ur') {
     if (language === 'ur') {
       return {
-        spoken: `بہترین! اب اپنے موجودہ اسٹاک کی تفصیل بتا دیں — جیسے چیز کا نام، مقدار، اور قیمت۔ یا بعد میں شامل کرنے کے لیے "skip" کہہ دیں۔`,
+        spoken: `بہت خوب جناب! اب اپنے موجودہ اسٹاک کی تفصیل بتا دیں — جیسے چیز کا نام، مقدار، اور قیمت۔ یا بعد میں شامل کرنے کے لیے "skip" کہہ دیں۔`,
         text: `Got it. Now list your starting stock (item, quantity, price) — or reply "skip" to add it later from the dashboard.`,
       };
     }
     return {
-      spoken: `Got it. Now list your starting stock with item, quantity, and price — or say skip to add it later.`,
+      spoken: `Wonderful! Now please list your starting stock with item, quantity, and price — or say skip to add it later.`,
       text: `Got it. Now list your starting stock (item, quantity, price) — or reply "skip" to add it later from the dashboard.`,
     };
   },
 
   onboardingComplete(language = 'ur', addedCount = 0) {
     if (language === 'ur') {
-      const stockMsg = addedCount > 0 ? `میں نے آپ کے اسٹاک میں ${addedCount} آئٹمز شامل کر دیے ہیں۔` : '';
+      const stockMsg = addedCount > 0 ? `میں نے آپ کے اسٹاک میں ${addedCount} اشیاء شامل کر دی ہیں۔` : '';
       return {
-        spoken: `مبارک ہو، آپ کا اکاؤنٹ تیار ہے! ${stockMsg} جب بھی سیل درج کرنی ہو، بس وائس نوٹ بھیج دیں۔`,
+        spoken: `بہت مبارک ہو جناب، آپ کا اکاؤنٹ تیار ہے! ${stockMsg} جب بھی سیل درج کرنی ہو، بس وائس نوٹ بھیج دیں۔ بہت شکریہ!`,
         text: addedCount > 0
           ? `You're all set! I added ${addedCount} item${addedCount === 1 ? '' : 's'} to your stock. Message me anytime to log a sale or create an automation.`
           : "You're all set! Message me anytime to log a sale or create an automation.",
       };
     }
     return {
-      spoken: `You're all set! ${addedCount > 0 ? `I added ${addedCount} items to your stock.` : ''} Message or speak to me anytime to log a sale.`,
+      spoken: `Congratulations! You're all set. ${addedCount > 0 ? `I added ${addedCount} items to your stock.` : ''} Message or speak to me anytime to log a sale. Thank you!`,
       text: addedCount > 0
         ? `You're all set! I added ${addedCount} item${addedCount === 1 ? '' : 's'} to your stock. Message me anytime to log a sale or create an automation.`
         : "You're all set! Message me anytime to log a sale or create an automation.",
@@ -212,12 +214,12 @@ export const spokenPhrases = {
   approvalReply(language = 'ur', isApprove = true) {
     if (language === 'ur') {
       return {
-        spoken: isApprove ? 'آرڈر منظور کر لیا گیا ہے اور مکمل ہو گیا ہے۔' : 'آرڈر مسترد کر دیا گیا ہے اور اسٹاک بحال کر دیا گیا ہے۔',
+        spoken: isApprove ? 'جی محترم، آرڈر منظور کر لیا گیا ہے اور مکمل ہو گیا ہے۔ بہت شکریہ!' : 'جی محترم، آرڈر مسترد کر دیا گیا ہے اور اسٹاک بحال کر دیا گیا ہے۔',
         text: isApprove ? '✅ Order approved and marked as completed.' : '❌ Order rejected. Stock has been restored.',
       };
     }
     return {
-      spoken: isApprove ? 'Order approved and marked as completed.' : 'Order rejected. Stock has been restored.',
+      spoken: isApprove ? 'Certainly! Order approved and marked as completed. Thank you!' : 'Order has been rejected and stock restored.',
       text: isApprove ? '✅ Order approved and marked as completed.' : '❌ Order rejected. Stock has been restored.',
     };
   },
@@ -227,13 +229,13 @@ export const spokenPhrases = {
     if (language === 'ur') {
       const priceText = price != null ? ` (قیمت: Rs. ${price})` : '\n💡 اگر قیمت مقرر کرنی ہو تو لکھیں: "set price [چیز] [رقم]"';
       return {
-        spoken: `اسٹاک اپڈیٹ ہو گیا ہے۔ ${itemName} کے ${addedQuantity}${unitText} شامل کر دیے گئے ہیں۔ اب کل اسٹاک ${totalQuantity} ہے۔${price != null ? `، قیمت ${price} روپے` : ''}`,
+        spoken: `جی محترم، نیا مال شامل ہو گیا ہے۔ ${itemName} کے ${addedQuantity}${unitText} شامل کر دیے گئے ہیں۔ اب کل اسٹاک ${totalQuantity} ہے۔${price != null ? `، قیمت ${price} روپے` : ''} شکریہ!`,
         text: `✅ اسٹاک اپڈیٹ: +${addedQuantity}${unitText} ${itemName} شامل کر دیے گئے۔ اب کل اسٹاک: ${totalQuantity}${priceText}۔`,
       };
     }
     const priceText = price != null ? ` (Price: Rs. ${price})` : '\n💡 To set selling price, type: "set price [item] [price]"';
     return {
-      spoken: `Stock updated. Added ${addedQuantity}${unitText} ${itemName}. Total stock is now ${totalQuantity}.${price != null ? ` at ${price} rupees` : ''}`,
+      spoken: `Certainly! Stock updated. Added ${addedQuantity}${unitText} ${itemName}. Total stock is now ${totalQuantity}.${price != null ? ` at ${price} rupees` : ''} Thank you!`,
       text: `✅ Stock updated: +${addedQuantity}${unitText} ${itemName}. Total in stock: ${totalQuantity}${priceText}.`,
     };
   },
@@ -242,13 +244,50 @@ export const spokenPhrases = {
     const unitText = unit ? ` ${unit}` : '';
     if (language === 'ur') {
       return {
-        spoken: `${itemName} کا موجودہ اسٹاک ${quantity}${unitText} ہے${price ? `، قیمت ${price} روپے` : ''}۔`,
+        spoken: `جی محترم، ${itemName} کا موجودہ اسٹاک ${quantity}${unitText} ہے${price ? `، قیمت ${price} روپے` : ''}۔`,
         text: `📦 اسٹاک معلومات: *${itemName}*\n• دستیاب مقدار: ${quantity}${unitText}\n• قیمت فی یونٹ: ${price != null ? `Rs. ${price}` : 'مقرر نہیں'}`,
       };
     }
     return {
-      spoken: `Current stock for ${itemName} is ${quantity}${unitText}${price ? ` at ${price} rupees` : ''}.`,
+      spoken: `Certainly! Current stock for ${itemName} is ${quantity}${unitText}${price ? ` at ${price} rupees` : ''}.`,
       text: `📦 Stock Check: *${itemName}*\n• In Stock: ${quantity}${unitText}\n• Price: ${price != null ? `Rs. ${price}` : 'Not set'}`,
+    };
+  },
+
+  khataSettled(language = 'ur', { customerName, amount, previousBalance, remainingBalance }) {
+    const isUrdu = language === 'ur';
+    if (isUrdu) {
+      return {
+        spoken: `جی محترم، ${customerName} صاحب کے کھاتے میں ${amount} روپے جمع کر لیے گئے ہیں۔ اب ان کا بقایا ${remainingBalance} روپے ہے۔ جزاک اللہ!`,
+        text: `✅ *کھاتہ وصولی درج ہو گئی!*\nگاہک: *${customerName.toUpperCase()}*\nوصول شدہ رقم: *Rs. ${Number(amount).toLocaleString()}*\nپہلا بقایا: Rs. ${Number(previousBalance).toLocaleString()}\nنیا بقایا: *Rs. ${Number(remainingBalance).toLocaleString()}*`,
+      };
+    }
+    return {
+      spoken: `Certainly! Recorded payment of Rs. ${amount} for ${customerName}. Remaining balance is Rs. ${remainingBalance}. Thank you!`,
+      text: `✅ *Ledger payment recorded!*\nCustomer: *${customerName.toUpperCase()}*\nAmount Received: *Rs. ${Number(amount).toLocaleString()}*\nPrevious Balance: Rs. ${Number(previousBalance).toLocaleString()}\nRemaining Balance: *Rs. ${Number(remainingBalance).toLocaleString()}*`,
+    };
+  },
+
+  voiceSwitched(language = 'ur', gender = 'female') {
+    const isUrdu = language === 'ur';
+    const isFemale = gender === 'female';
+    if (isUrdu) {
+      return {
+        spoken: isFemale
+          ? `جی بالکل محترم! اب سے آپ کو میری خاتون کی آواز میں وائس میسجز موصول ہوں گے۔ آپ کا بہت شکریہ!`
+          : `جی بالکل محترم! اب سے آپ کو میری مردانہ آواز میں وائس میسجز موصول ہوں گے۔ آپ کا بہت شکریہ!`,
+        text: isFemale
+          ? `👩 *آواز تبدیل ہو گئی:* خاتون کی آواز (Female Voice) فعال کر دی گئی ہے۔`
+          : `👨 *آواز تبدیل ہو گئی:* مردانہ آواز (Male Voice) فعال کر دی گئی ہے۔`,
+      };
+    }
+    return {
+      spoken: isFemale
+        ? `Certainly! Voice replies have been switched to the female voice. Thank you!`
+        : `Certainly! Voice replies have been switched to the male voice. Thank you!`,
+      text: isFemale
+        ? `👩 *Voice Switched:* Female voice is now active.`
+        : `👨 *Voice Switched:* Male voice is now active.`,
     };
   },
 
@@ -275,12 +314,12 @@ export const spokenPhrases = {
 
     if (language === 'ur') {
       return {
-        spoken: `آرڈر ${orderNo || ''} کی واپسی درج ہو گئی ہے۔ سامان اسٹاک میں شامل کر دیا گیا ہے۔ کل رقم ${refundAmount} روپے ہے۔`,
+        spoken: `جی محترم، آرڈر ${orderNo || ''} کی واپسی درج ہو گئی ہے۔ سامان اسٹاک میں شامل کر دیا گیا ہے۔ کل رقم ${refundAmount} روپے ہے۔ شکریہ!`,
         text: `↩️ *آرڈر واپسی درج ہو گئی!*\nآرڈر نمبر: *#${orderNo || 'VT-ORDER'}*\n\n📦 *واپس شدہ سامان:*\n${itemsList}\n\n💵 کل رقم: *Rs. ${refundAmount.toLocaleString()}*${khataNote}`,
       };
     }
     return {
-      spoken: `Return recorded for order ${orderNo || ''}. Items have been restocked. Total amount Rs. ${refundAmount}.`,
+      spoken: `Certainly! Return recorded for order ${orderNo || ''}. Items have been restocked. Total amount is Rs. ${refundAmount}. Thank you!`,
       text: `↩️ *Order Return Processed!*\nOrder #: *#${orderNo || 'VT-ORDER'}*\n\n📦 *Returned Items:*\n${itemsList}\n\n💵 Refund / Adjusted: *Rs. ${refundAmount.toLocaleString()}*${khataNote}`,
     };
   },
@@ -307,12 +346,12 @@ export const spokenPhrases = {
 
     if (language === 'ur') {
       return {
-        spoken: `آرڈر ${orderNo || ''} کا تبادلہ درج ہو گیا ہے۔ ${returnItem?.name || ''} واپس ہو گیا اور ${newItem?.name || ''} دے دیا گیا ہے۔`,
+        spoken: `جی محترم، آرڈر ${orderNo || ''} کا تبادلہ درج ہو گیا ہے۔ ${returnItem?.name || ''} واپس ہو گیا اور ${newItem?.name || ''} دے دیا گیا ہے۔ بہت شکریہ!`,
         text: `🔄 *سامان کا تبادلہ (Exchange) مکمل!*\nآرڈر نمبر: *#${orderNo || 'VT-ORDER'}*\n\n↩️ واپس لیا: *${returnItem?.quantity}x ${returnItem?.name}*\n👉 نیا دیا: *${newItem?.quantity}x ${newItem?.name}*\n\n💰 فرق رقم: *Rs. ${diffAbs.toLocaleString()}* ${diffNoteUr}${khataNote}`,
       };
     }
     return {
-      spoken: `Exchange recorded for order ${orderNo || ''}. Exchanged ${returnItem?.name || ''} for ${newItem?.name || ''}.`,
+      spoken: `Certainly! Exchange recorded for order ${orderNo || ''}. Exchanged ${returnItem?.name || ''} for ${newItem?.name || ''}. Thank you!`,
       text: `🔄 *Item Exchange Completed!*\nOrder #: *#${orderNo || 'VT-ORDER'}*\n\n↩️ Returned: *${returnItem?.quantity}x ${returnItem?.name}*\n👉 Given: *${newItem?.quantity}x ${newItem?.name}*\n\n💰 Price Difference: *Rs. ${diffAbs.toLocaleString()}* ${diffNoteEn}${khataNote}`,
     };
   },
@@ -320,12 +359,12 @@ export const spokenPhrases = {
   askReturnOrderNumber(language = 'ur') {
     if (language === 'ur') {
       return {
-        spoken: 'کون سا آرڈر یا کیا سامان واپس آیا ہے؟ برائے مہربانی آرڈر نمبر بتائیں یا جس میسج پر سیل ہوئی تھی اس پر ریپلائی کریں۔',
+        spoken: 'جی محترم، آرڈر یا سامان کی واپسی کے لیے برائے مہربانی آرڈر نمبر بتا دیں یا جس میسج پر سیل ہوئی تھی اس پر ریپلائی فرما دیں۔ بہت شکریہ!',
         text: '❓ *آرڈر کی تفصیل بتائیں:*\nکون سا آرڈر یا سامان واپس آیا ہے؟\n\n👉 برائے مہربانی *آرڈر نمبر* لکھیں (مثلاً: *order VT-123456 wapis* یا *exchange*)\n👉 یا جس میسج پر سیل درج ہوئی تھی اس پر واٹس ایپ *ریپلائی (quote reply)* کریں۔',
       };
     }
     return {
-      spoken: 'Which order or item is being returned? Please provide the order number or quote-reply to the sale message.',
+      spoken: 'Certainly! To process a return or exchange, please state the order number or quote-reply directly to the sale message. Thank you!',
       text: '❓ *Order Details Needed:*\nWhich order or item is being returned?\n\n👉 Please specify the *Order Number* (e.g. *order VT-123456 return* or *exchange*)\n👉 Or quote-reply directly to the previous sale message in WhatsApp.',
     };
   },
@@ -334,12 +373,12 @@ export const spokenPhrases = {
     const formattedBal = `Rs. ${(currentBalance || 0).toLocaleString()}`;
     if (language === 'ur') {
       return {
-        spoken: `کیا یہ پرانے گاہک ${candidateName} کا کھاتہ ہے جن کا بقایا ${currentBalance} روپے ہے؟`,
+        spoken: `محترم، کیا یہ پرانے گاہک ${candidateName} کا کھاتہ ہے جن کا بقایا ${currentBalance} روپے ہے؟ برائے مہربانی تصدیق فرما دیں۔`,
         text: `👥 *گاہک کی تصدیق:*\nآپ کے کھاتے میں پہلے سے *${candidateName?.toUpperCase()}* موجود ہیں (موجودہ بقایا: *${formattedBal}*)۔\nکیا یہ وہی گاہک ہیں یا کوئی نیا گاہک ہے؟`,
       };
     }
     return {
-      spoken: `Is this existing customer ${candidateName} who currently has a balance of Rs. ${currentBalance}?`,
+      spoken: `Pardon me, is this existing customer ${candidateName} who currently has a balance of Rs. ${currentBalance}? Please confirm. Thank you!`,
       text: `👥 *Customer Confirmation:*\nExisting customer *${candidateName?.toUpperCase()}* found in ledger (Current balance: *${formattedBal}*).\nIs this the same customer or a new one?`,
     };
   },

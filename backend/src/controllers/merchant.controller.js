@@ -49,6 +49,7 @@ export async function getProfile(req, res) {
         staffMembers: merchant.staffMembers || [],
         language: merchant.language || 'ur',
         voiceReplies: merchant.voiceReplies ?? true,
+        voiceGender: merchant.voiceGender || 'female',
         replyPreference: merchant.replyPreference || 'voice_on_voice',
         confirmAutomations: merchant.confirmAutomations ?? false,
         requireApprovalForHighValue: merchant.requireApprovalForHighValue ?? false,
@@ -81,6 +82,7 @@ export async function updateProfile(req, res) {
       'sells',
       'language',
       'voiceReplies',
+      'voiceGender',
       'replyPreference',
       'confirmAutomations',
       'requireApprovalForHighValue',
@@ -128,6 +130,14 @@ export async function updateProfile(req, res) {
       return res.status(400).json({
         success: false,
         error: { message: "language must be 'ur' or 'en'" },
+      });
+    }
+
+    // Validate voiceGender if provided
+    if (updates.voiceGender && !['male', 'female'].includes(updates.voiceGender)) {
+      return res.status(400).json({
+        success: false,
+        error: { message: "voiceGender must be 'male' or 'female'" },
       });
     }
 

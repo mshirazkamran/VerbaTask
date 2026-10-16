@@ -17,16 +17,42 @@ import * as googleTTS from 'google-tts-api';
 
 dotenv.config();
 
-// Default Voice configurations
-const DEFAULT_URDU_VOICE = process.env.TTS_VOICE_URDU || 'ur-PK-AsadNeural';
-const DEFAULT_ENGLISH_VOICE = process.env.TTS_VOICE_ENGLISH || 'en-US-GuyNeural';
+// Authoritative single-voice profiles: Exactly 1 Female voice and 1 Male voice
+export const VOICE_PROFILES = {
+  female: {
+    edge: { ur: 'ur-PK-UzmaNeural', en: 'en-US-JennyNeural' },
+    gemini: { ur: 'Aoede', en: 'Aoede' },
+    elevenlabs: process.env.ELEVENLABS_VOICE_FEMALE || '21m00Tcm4TlvDq8ikWAM', // Rachel: warm, polite, natural
+    label: 'Female Voice (خاتون کی آواز)',
+  },
+  male: {
+    edge: { ur: 'ur-PK-AsadNeural', en: 'en-US-GuyNeural' },
+    gemini: { ur: 'Puck', en: 'Puck' },
+    elevenlabs: process.env.ELEVENLABS_VOICE_MALE || 'pNInz6obpgDQGcFmaJgB', // Adam: calm, respectful, natural
+    label: 'Male Voice (مرد کی آواز)',
+  },
+};
 
-// ElevenLabs default voice ID: Adam or George
-const DEFAULT_ELEVENLABS_VOICE = process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
+export function getVoiceForGender(gender = 'female', language = 'ur', provider = 'edge') {
+  const safeGender = gender === 'male' ? 'male' : 'female';
+  const profile = VOICE_PROFILES[safeGender];
+  const langKey = language === 'en' ? 'en' : 'ur';
 
-// Gemini default prebuilt voices
-const DEFAULT_GEMINI_URDU_VOICE = process.env.GEMINI_VOICE_URDU || 'Puck';
-const DEFAULT_GEMINI_ENGLISH_VOICE = process.env.GEMINI_VOICE_ENGLISH || 'Charon';
+  if (provider === 'elevenlabs') {
+    return profile.elevenlabs;
+  }
+  if (provider === 'gemini') {
+    return profile.gemini[langKey];
+  }
+  return profile.edge[langKey];
+}
+
+// Default Voice configurations (backward compatibility)
+const DEFAULT_URDU_VOICE = process.env.TTS_VOICE_URDU || VOICE_PROFILES.female.edge.ur;
+const DEFAULT_ENGLISH_VOICE = process.env.TTS_VOICE_ENGLISH || VOICE_PROFILES.female.edge.en;
+const DEFAULT_ELEVENLABS_VOICE = process.env.ELEVENLABS_VOICE_ID || VOICE_PROFILES.female.elevenlabs;
+const DEFAULT_GEMINI_URDU_VOICE = process.env.GEMINI_VOICE_URDU || VOICE_PROFILES.female.gemini.ur;
+const DEFAULT_GEMINI_ENGLISH_VOICE = process.env.GEMINI_VOICE_ENGLISH || VOICE_PROFILES.female.gemini.en;
 
 /**
  * Strips markdown symbols, emojis, and artifacts that shouldn't be read out by TTS.
@@ -58,8 +84,8 @@ export function cleanTextForSpeech(text) {
 /**
  * Resolves the default voice name for Edge TTS.
  */
-export function getDefaultVoice(language = 'ur') {
-  return language === 'en' ? DEFAULT_ENGLISH_VOICE : DEFAULT_URDU_VOICE;
+export function getDefaultVoice(language = 'ur', gender = 'female') {
+  return getVoiceForGender(gender, language, 'edge');
 }
 
 /**
@@ -352,14 +378,19 @@ export async function synthesizeSpeech(rawText, options = {}) {
   }
 
   const language = options.language === 'en' ? 'en' : 'ur';
-  const voice = options.voice || null;
+  const voiceGender = options.voiceGender === 'male' ? 'male' : 'female';
   const explicitProvider = options.provider?.toLowerCase();
+
+  const resolveVoice = (provider) => {
+    if (options.voice) return options.voice;
+    return getVoiceForGender(voiceGender, language, provider);
+  };
 
   // Explicit provider routing if caller directly demanded one
   if (explicitProvider === 'google') return synthesizeWithGoogle(text, language);
-  if (explicitProvider === 'edge') return synthesizeWithEdge(text, language, voice);
-  if (explicitProvider === 'gemini') return synthesizeWithGemini(text, language, voice);
-  if (explicitProvider === 'elevenlabs') return synthesizeWithElevenLabs(text, language, voice);
+  if (explicitProvider === 'edge') return synthesizeWithEdge(text, language, resolveVoice('edge'));
+  if (explicitProvider === 'gemini') return synthesizeWithGemini(text, language, resolveVoice('gemini'));
+  if (explicitProvider === 'elevenlabs') return synthesizeWithElevenLabs(text, language, resolveVoice('elevenlabs'));
 
   // Build the prioritized order of neural providers
   const configuredProvider = getActiveProvider();
@@ -372,7 +403,7 @@ export async function synthesizeSpeech(rawText, options = {}) {
     neuralProviders.unshift(configuredProvider);
   }
 
-  console.log(`[tts] Provider cascade priority: [${neuralProviders.join(' -> ')}] for language="${language}"`);
+  console.log(`[tts] Provider cascade priority: [${neuralProviders.join(' -> ')}] for language="${language}" voiceGender="${voiceGender}"`);
 
   // Try each neural voice provider in sequence
   for (const prov of neuralProviders) {
@@ -381,18 +412,18 @@ export async function synthesizeSpeech(rawText, options = {}) {
         if (!process.env.GEMINI_API_KEY) {
           continue; // skip if no key configured
         }
-        return await synthesizeWithGemini(text, language, voice);
+        return await synthesizeWithGemini(text, language, resolveVoice('gemini'));
       }
 
       if (prov === 'elevenlabs') {
         if (!process.env.ELEVENLABS_API_KEY) {
           continue; // skip if no key configured
         }
-        return await synthesizeWithElevenLabs(text, language, voice);
+        return await synthesizeWithElevenLabs(text, language, resolveVoice('elevenlabs'));
       }
 
       if (prov === 'edge') {
-        return await synthesizeWithEdge(text, language, voice);
+        return await synthesizeWithEdge(text, language, resolveVoice('edge'));
       }
     } catch (err) {
       console.warn(`[tts] Provider "${prov}" failed (${err.message}), trying next neural provider...`);

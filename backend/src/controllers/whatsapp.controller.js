@@ -16,7 +16,7 @@ import { respond as respondToApproval, findPendingByOrderId } from '../approvals
 import { generateLinkCode } from './auth.controller.js';
 import { getStaffLimit } from './merchant.controller.js';
 import { emitDashboardUpdate } from '../socket.js';
-import { parseIntent, extractBusinessDetails, extractInventoryItems, resolveItemName } from '../services/qwen.service.js';
+import { parseIntent, extractBusinessDetails, extractInventoryItems, resolveItemName, parseKhataSettleHeuristic, parseKhataInquiryHeuristic } from '../services/qwen.service.js';
 import { findSimilarInventoryItems, cleanAndStandardizeItemName } from '../crm/item-matching.js';
 import { transcribeAndParse } from '../agent/transcribeAndParse.js';
 import { downloadMedia } from '../services/media.service.js';
@@ -97,6 +97,14 @@ function shouldReplyWithVoice(merchant, source) {
   return false;
 }
 
+let _sendVoiceReply = sendVoiceReply;
+let _sendTextMessage = sendTextMessage;
+
+export function __setTestSender(mockVoice, mockText) {
+  _sendVoiceReply = mockVoice || sendVoiceReply;
+  _sendTextMessage = mockText || sendTextMessage;
+}
+
 /**
  * Smart bilingual reply helper — sends a spoken voice note if voice was used,
  * or text message if text was used.
@@ -113,15 +121,16 @@ async function replyToMerchant(merchant, phrases, source = 'text', languageOverr
   }
 
   if (shouldReplyWithVoice(merchant, source)) {
-    return sendVoiceReply(recipient, {
+    return _sendVoiceReply(recipient, {
       spokenText,
       textReceipt,
       language,
+      voiceGender: merchant?.voiceGender || 'female',
       alsoSendText: false, // Strict single-reply policy to reduce WhatsApp API billing
     });
   }
 
-  return sendTextMessage(recipient, textReceipt);
+  return _sendTextMessage(recipient, textReceipt);
 }
 
 function friendlyFallback(err, language = 'ur') {
@@ -577,6 +586,20 @@ async function handleOnboardedMerchant(merchant, message) {
           merchant.language === 'ur' ? '🔇 وائس جوابات بند کر دیے گئے ہیں۔ اب تمام جوابات ٹیکسٹ میں ملیں گے۔' : '🔇 Voice replies disabled. All replies will be in text.'
         );
       }
+      if (buttonId === 'set_voice_gender_male') {
+        merchant.voiceGender = 'male';
+        await merchant.save();
+        emitDashboardUpdate(merchant._id, { type: 'profile' });
+        const phrases = spokenPhrases.voiceSwitched(merchant.language, 'male');
+        return replyToMerchant(merchant, phrases, 'voice');
+      }
+      if (buttonId === 'set_voice_gender_female') {
+        merchant.voiceGender = 'female';
+        await merchant.save();
+        emitDashboardUpdate(merchant._id, { type: 'profile' });
+        const phrases = spokenPhrases.voiceSwitched(merchant.language, 'female');
+        return replyToMerchant(merchant, phrases, 'voice');
+      }
 
       // Quick menu buttons
       if (buttonId === 'menu_help') {
@@ -852,22 +875,36 @@ async function handleTextMessage(merchant, text) {
     return await handleForgotPassword(merchant);
   }
 
-  // 12. Khata Settlement via WhatsApp (e.g. "ali ne 500 diye", "settle 500 ali", "ali paid 500", "علی نے 500 دیے")
+  // 12. Voice Gender Switch via WhatsApp (e.g. "female voice", "male voice", "aurat ki awaz", "mard ki awaz", "عورت کی آواز", "مرد کی آواز", "awaz badlo")
+  const genderChoice = parseVoiceGenderChange(text);
+  if (genderChoice) {
+    return await handleVoiceGenderChange(merchant, genderChoice, 'text');
+  }
+
+  // 13. Khata Settlement via WhatsApp (e.g. "ali ne 500 diye", "settle 500 ali", "ali paid 500", "علی نے 500 دیے", "پانچ سو علی نے دیے")
+  const settleMatch = parseKhataSettleHeuristic(text);
+  if (settleMatch) {
+    return await handleKhataSettle(merchant, settleMatch.customerName, settleMatch.amount, 'text');
+  }
   const settleMatch1 = text.match(/^([a-zA-Z\s\u0600-\u06FF-]+?)\s+(?:ne\s*)?(\d+)\s*(?:rupay|rs|روپے)?\s*(?:diye|jama|wapis|de\s*diye|paid|settle)$/i);
   const settleMatch2 = text.match(/^(?:settle|jama)\s*(\d+)\s+([a-zA-Z\s\u0600-\u06FF-]+)$/i);
   if (settleMatch1) {
-    return await handleKhataSettle(merchant, settleMatch1[1], settleMatch1[2]);
+    return await handleKhataSettle(merchant, settleMatch1[1], settleMatch1[2], 'text');
   } else if (settleMatch2) {
-    return await handleKhataSettle(merchant, settleMatch2[2], settleMatch2[1]);
+    return await handleKhataSettle(merchant, settleMatch2[2], settleMatch2[1], 'text');
   }
 
-  // 13. Khata Inquiry via WhatsApp (e.g. "ali ka khata", "check khata ali", "ali ka kitna baqi hai", "علی کا کھاتہ")
+  // 14. Khata Inquiry via WhatsApp (e.g. "ali ka khata", "check khata ali", "ali ka kitna baqi hai", "علی کا کھاتہ")
+  const inquiryMatch = parseKhataInquiryHeuristic(text);
+  if (inquiryMatch) {
+    return await handleKhataInquiry(merchant, inquiryMatch.customerName, 'text');
+  }
   const khataCheckMatch1 = text.match(/^(?:check\s*khata|khata|udhar|udhaar|باقی|کھاتہ)\s+([a-zA-Z\s\u0600-\u06FF-]+)$/i);
   const khataCheckMatch2 = text.match(/^([a-zA-Z\s\u0600-\u06FF-]+)\s+(?:ka\s*khata|ka\s*kitna\s*(?:baqi|hai)|کے\s*کتنے\s*باقی|کا\s*ادھار)$/i);
   if (khataCheckMatch1) {
-    return await handleKhataInquiry(merchant, khataCheckMatch1[1]);
+    return await handleKhataInquiry(merchant, khataCheckMatch1[1], 'text');
   } else if (khataCheckMatch2) {
-    return await handleKhataInquiry(merchant, khataCheckMatch2[1]);
+    return await handleKhataInquiry(merchant, khataCheckMatch2[1], 'text');
   }
 
   // 14. Shop Reference Code (e.g. "shop code", "dukaan code", "دکان کوڈ", "ریفرنس کوڈ")
@@ -927,6 +964,26 @@ async function handleVoiceNote(merchant, mediaId, rawMessage = null) {
     const { buffer, mimeType } = await downloadMedia(mediaId);
     const intent = await transcribeAndParse(buffer, mimeType, merchant.language, merchant);
     const effectiveLanguage = intent.detectedLanguage || merchant.language || 'ur';
+    const transcript = intent.transcript || intent.rawText || '';
+
+    // 1. Fast-path voice gender switch from VN
+    const genderChoice = parseVoiceGenderChange(transcript);
+    if (genderChoice) {
+      return await handleVoiceGenderChange(merchant, genderChoice, 'voice');
+    }
+
+    // 2. Fast-path Khata settlement from VN
+    const settleMatch = parseKhataSettleHeuristic(transcript);
+    if (settleMatch) {
+      return await handleKhataSettle(merchant, settleMatch.customerName, settleMatch.amount, 'voice');
+    }
+
+    // 3. Fast-path Khata inquiry from VN
+    const inquiryMatch = parseKhataInquiryHeuristic(transcript);
+    if (inquiryMatch) {
+      return await handleKhataInquiry(merchant, inquiryMatch.customerName, 'voice');
+    }
+
     return routeParsedCommand(merchant, { ...intent, language: effectiveLanguage, incomingMessageId: rawMessage?.id, rawMessage }, 'voice');
   } catch (err) {
     const status = err.response?.status;
@@ -1016,6 +1073,14 @@ async function routeParsedCommand(merchant, intent, source) {
       language: effectiveLanguage,
       incomingMessageId: intent.incomingMessageId,
     });
+  }
+
+  if (intent.type === 'settle_khata') {
+    return handleKhataSettle(merchant, intent.customerName, intent.amount, source);
+  }
+
+  if (intent.type === 'check_khata') {
+    return handleKhataInquiry(merchant, intent.customerName, source);
   }
 
   if (intent.type === 'return_order') {
@@ -2026,6 +2091,8 @@ async function sendProfileSettings(merchant) {
   const isVoice = merchant.voiceReplies !== false;
   const confirmsAutomations = !!merchant.confirmAutomations;
 
+  const isMaleVoice = merchant.voiceGender === 'male';
+
   let text;
   if (language === 'ur') {
     text = `⚙️ *دکان اور پروفائل سیٹنگز*\n\n` +
@@ -2034,12 +2101,14 @@ async function sendProfileSettings(merchant) {
       `🏷️ *کاروبار کی قسم:* ${merchant.businessType || 'general'}\n` +
       `🌐 *زبان:* ${merchant.language === 'ur' ? 'اردو (Urdu)' : 'English'}\n` +
       `🔊 *وائس جوابات:* ${isVoice ? 'چالو (On)' : 'بند (Off)'}\n` +
+      `🎙️ *وائس اوتار:* ${isMaleVoice ? 'مرد کی آواز (Asad / Guy)' : 'عورت کی آواز (Uzma / Jenny)'}\n` +
       `⚡ *آٹومیشن سے پہلے تصدیق:* ${confirmsAutomations ? 'چالو (On)' : 'بند (Off)'}\n` +
       `💳 *منظور شدہ ادائیگی:* ${accepted}\n\n` +
       `📝 *تبدیل کرنے کا طریقہ:*\n` +
       `• نام بدلیں: *"set name [نیا نام]"*\n` +
       `• مقام بدلیں: *"set location [شہر]"*\n` +
       `• زبان: *"urdu"* یا *"english"*\n` +
+      `• آواز بدلیں: *"aurat ki awaz"* یا *"mard ki awaz"*\n` +
       `• وائس: *"voice on"* یا *"voice off"*\n` +
       `• آٹومیشن تصدیق: *"confirm on"* یا *"confirm off"*\n` +
       `• بینک: لکھیں *"banks"*`;
@@ -2050,12 +2119,14 @@ async function sendProfileSettings(merchant) {
       `🏷️ *Category:* ${merchant.businessType || 'general'}\n` +
       `🌐 *Language:* ${merchant.language === 'ur' ? 'Urdu' : 'English'}\n` +
       `🔊 *Voice Replies:* ${isVoice ? 'Enabled (On)' : 'Disabled (Off)'}\n` +
+      `🎙️ *Voice Avatar:* ${isMaleVoice ? 'Male Voice (Asad / Guy)' : 'Female Voice (Uzma / Jenny)'}\n` +
       `⚡ *Confirm Automations:* ${confirmsAutomations ? 'Enabled (On)' : 'Disabled (Off)'}\n` +
       `💳 *Accepted Payments:* ${accepted}\n\n` +
       `📝 *Quick Change Commands:*\n` +
       `• Rename: *"set name [New Name]"*\n` +
       `• Location: *"set location [City]"*\n` +
       `• Language: *"urdu"* or *"english"*\n` +
+      `• Switch Voice: *"female voice"* or *"male voice"*\n` +
       `• Voice: *"voice on"* or *"voice off"*\n` +
       `• Confirm automations: *"confirm on"* or *"confirm off"*\n` +
       `• Bank channels: Type *"banks"*`;
@@ -2067,12 +2138,12 @@ async function sendProfileSettings(merchant) {
       title: isVoice ? (language === 'ur' ? '🔇 وائس بند' : '🔇 Voice Off') : (language === 'ur' ? '🔊 وائس آن' : '🔊 Voice On'),
     },
     {
-      id: language === 'ur' ? 'set_lang_en' : 'set_lang_ur',
-      title: language === 'ur' ? '🇬🇧 English' : '🇵🇰 اردو',
+      id: isMaleVoice ? 'set_voice_gender_female' : 'set_voice_gender_male',
+      title: isMaleVoice ? (language === 'ur' ? '👩 عورت کی آواز' : '👩 Female Voice') : (language === 'ur' ? '👨 مرد کی آواز' : '👨 Male Voice'),
     },
     {
-      id: 'menu_banks',
-      title: language === 'ur' ? '💳 پیمنٹ طریقے' : '💳 Payment Methods',
+      id: language === 'ur' ? 'set_lang_en' : 'set_lang_ur',
+      title: language === 'ur' ? '🇬🇧 English' : '🇵🇰 اردو',
     },
   ];
 
@@ -2237,25 +2308,97 @@ async function sendWorkflowsList(merchant) {
 }
 
 /**
+ * Fuzzy customer lookup with honorific and title stripping.
+ * Resolves "Rashid bhai", "Ali sahab", "Haji Aslam sb", "علی بھائی" to their canonical customer document.
+ */
+export async function findCustomerByFuzzyName(merchantId, rawCustomerName) {
+  if (!rawCustomerName || typeof rawCustomerName !== 'string') return null;
+  const trimmed = rawCustomerName.trim();
+  if (!trimmed) return null;
+
+  // 1. Exact match (case-insensitive)
+  try {
+    const exactEscaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const customer = await Customer.findOne({
+      merchantId,
+      name: new RegExp(`^${exactEscaped}$`, 'i'),
+    });
+    if (customer) return customer;
+  } catch (_) {
+    // If CastError or mock without findOne, continue to list search
+  }
+
+  // 2. Strip common honorifics & titles
+  const HONORIFIC_REGEX = /\b(?:bhai|bhae|bhaiya|bhaijaan|bhaijan|sahab|saheb|sahib|sb|sab|khan|jan|jaan|ji|ch|chaudhry|malik|raja|sheikh|haji|mian|ustad|babu|uncle|doctor|dr|mr)\b|(?<=^|[\s\b])(?:بھائی|بھیا|بھائی\s*جان|صاحب|سب|خان|جان|جی|چوہدری|ملک|راجہ|شیخ|حاجی|میاں|استاد|ڈاکٹر)(?=[\s\b]|$)/gi;
+  const strippedName = trimmed.replace(HONORIFIC_REGEX, ' ').replace(/\s+/g, ' ').trim();
+
+  if (strippedName && strippedName.toLowerCase() !== trimmed.toLowerCase()) {
+    try {
+      const strippedEscaped = strippedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const customer = await Customer.findOne({
+        merchantId,
+        name: new RegExp(`^${strippedEscaped}$`, 'i'),
+      });
+      if (customer) return customer;
+    } catch (_) {}
+  }
+
+  // 3. Search merchant's customer list for word boundary or prefix match
+  const searchKey = (strippedName || trimmed).toLowerCase();
+  let allCustomers = [];
+  try {
+    allCustomers = await Customer.find({ merchantId }).limit(500);
+  } catch (_) {
+    return null;
+  }
+  if (!allCustomers || allCustomers.length === 0) return null;
+
+  for (const c of allCustomers) {
+    const cName = c.name.toLowerCase().trim();
+    const cStripped = cName.replace(HONORIFIC_REGEX, ' ').replace(/\s+/g, ' ').trim();
+    if (cName === searchKey || cStripped === searchKey) return c;
+  }
+
+  for (const c of allCustomers) {
+    const cName = c.name.toLowerCase().trim();
+    const cStripped = cName.replace(HONORIFIC_REGEX, ' ').replace(/\s+/g, ' ').trim();
+    const cWords = cStripped.split(/\s+/).filter(Boolean);
+    const searchWords = searchKey.split(/\s+/).filter(Boolean);
+
+    if (searchWords.length > 0 && cWords.length > 0) {
+      if (searchWords.every(sw => cWords.includes(sw)) || cWords.every(cw => searchWords.includes(cw))) {
+        return c;
+      }
+    }
+  }
+
+  if (searchKey.length >= 3) {
+    for (const c of allCustomers) {
+      const cName = c.name.toLowerCase();
+      if (cName.includes(searchKey) || searchKey.includes(cName)) {
+        return c;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Handles checking a customer's Khata (ledger) balance and generating a payment reminder.
  */
-async function handleKhataInquiry(merchant, rawCustomerName) {
+export async function handleKhataInquiry(merchant, rawCustomerName, source = 'text') {
   const isUrdu = merchant.language === 'ur';
-  const cleanName = rawCustomerName.trim().toLowerCase();
-
-  const customer = await Customer.findOne({
-    merchantId: merchant._id,
-    name: new RegExp(`^${cleanName}$`, 'i'),
-  });
+  const customer = await findCustomerByFuzzyName(merchant._id, rawCustomerName);
 
   if (!customer || customer.balance <= 0) {
     const msg = isUrdu
       ? `ℹ️ *${rawCustomerName.trim()}* کا کوئی بقایا ادھار/کھاتہ نہیں ہے۔`
       : `ℹ️ *${rawCustomerName.trim()}* has no outstanding balance.`;
     const spoken = isUrdu
-      ? `${rawCustomerName.trim()} کا کوئی بقایا ادھار نہیں ہے۔`
-      : `${rawCustomerName.trim()} has no outstanding balance.`;
-    return replyToMerchant(merchant, { spoken, text: msg }, 'text');
+      ? `جی محترم، ${rawCustomerName.trim()} کا کوئی بقایا ادھار نہیں ہے۔`
+      : `Certainly! ${rawCustomerName.trim()} has no outstanding balance.`;
+    return replyToMerchant(merchant, { spoken, text: msg }, source);
   }
 
   const balanceFormatted = `Rs. ${customer.balance.toLocaleString()}`;
@@ -2266,38 +2409,34 @@ async function handleKhataInquiry(merchant, rawCustomerName) {
     : `📋 *Ledger Summary — ${customer.name.toUpperCase()}*\nOutstanding Balance: *${balanceFormatted}*\n\n📩 *Customer Reminder (Copy & Forward):*\n"Dear ${customer.name}, your outstanding balance at ${storeName} is ${balanceFormatted}. Please arrange payment at your earliest convenience. Thank you!"`;
 
   const spoken = isUrdu
-    ? `${customer.name} کی طرف ${customer.balance} روپے واجب الادا ہیں۔`
-    : `${customer.name} has an outstanding balance of Rs. ${customer.balance}.`;
+    ? `جی محترم، ${customer.name} کی طرف ${customer.balance} روپے واجب الادا ہیں۔`
+    : `Certainly! ${customer.name} has an outstanding balance of Rs. ${customer.balance}.`;
 
-  return replyToMerchant(merchant, { spoken, text }, 'text');
+  return replyToMerchant(merchant, { spoken, text }, source);
 }
 
 /**
  * Handles settling/recording a cash payment towards a customer's Khata (ledger).
  */
-async function handleKhataSettle(merchant, rawCustomerName, amount) {
+export async function handleKhataSettle(merchant, rawCustomerName, amount, source = 'text') {
   const isUrdu = merchant.language === 'ur';
-  const cleanName = rawCustomerName.trim().toLowerCase();
   const amountNum = Number(amount);
 
   if (!amountNum || amountNum <= 0) {
     const err = isUrdu ? 'براہ کرم درست رقم درج کریں۔' : 'Please provide a valid payment amount.';
-    return replyToMerchant(merchant, err, 'text');
+    return replyToMerchant(merchant, err, source);
   }
 
-  let customer = await Customer.findOne({
-    merchantId: merchant._id,
-    name: new RegExp(`^${cleanName}$`, 'i'),
-  });
+  let customer = await findCustomerByFuzzyName(merchant._id, rawCustomerName);
 
   if (!customer) {
     const notFound = isUrdu
       ? `❌ *${rawCustomerName.trim()}* نامی گاہک کھاتے میں نہیں ملا۔`
       : `❌ Customer *${rawCustomerName.trim()}* not found in ledger.`;
     const spoken = isUrdu
-      ? `${rawCustomerName.trim()} نامی گاہک کھاتے میں نہیں ملا۔`
-      : `Customer ${rawCustomerName.trim()} was not found in ledger.`;
-    return replyToMerchant(merchant, { spoken, text: notFound }, 'text');
+      ? `معذرت خواہ ہوں، ${rawCustomerName.trim()} نامی گاہک کھاتے میں نہیں ملا۔`
+      : `Pardon me, customer ${rawCustomerName.trim()} was not found in the ledger.`;
+    return replyToMerchant(merchant, { spoken, text: notFound }, source);
   }
 
   const previousBalance = customer.balance;
@@ -2313,15 +2452,68 @@ async function handleKhataSettle(merchant, rawCustomerName, amount) {
     balance: customer.balance,
   });
 
-  const text = isUrdu
-    ? `✅ *کھاتہ وصولی درج ہو گئی!*\nگاہک: *${customer.name.toUpperCase()}*\nوصول شدہ رقم: *Rs. ${amountNum.toLocaleString()}*\nپہلا بقایا: Rs. ${previousBalance.toLocaleString()}\nنیا بقایا: *Rs. ${customer.balance.toLocaleString()}*`
-    : `✅ *Ledger payment recorded!*\nCustomer: *${customer.name.toUpperCase()}*\nAmount Received: *Rs. ${amountNum.toLocaleString()}*\nPrevious Balance: Rs. ${previousBalance.toLocaleString()}\nRemaining Balance: *Rs. ${customer.balance.toLocaleString()}*`;
+  const phrases = spokenPhrases.khataSettled(merchant.language, {
+    customerName: customer.name,
+    amount: amountNum,
+    previousBalance,
+    remainingBalance: customer.balance,
+  });
 
-  const spoken = isUrdu
-    ? `${customer.name} کے کھاتے میں ${amountNum} روپے جمع کر لیے گئے ہیں۔ اب باقی بقایا ${customer.balance} روپے ہے۔`
-    : `Recorded Rs. ${amountNum} payment for ${customer.name}. Remaining balance is Rs. ${customer.balance}.`;
+  return replyToMerchant(merchant, phrases, source);
+}
 
-  return replyToMerchant(merchant, { spoken, text }, 'text');
+/**
+ * Parses spoken or written intent to switch voice gender (1 Male and 1 Female only).
+ */
+export function parseVoiceGenderChange(text) {
+  if (!text || typeof text !== 'string') return null;
+  const lower = text.toLowerCase().trim();
+
+  // Female voice patterns: "female voice", "aurat ki awaz", "larki ki awaz", "khatoon ki awaz", "عورت کی آواز", "لڑکی کی آواز", "فی میل آواز"
+  if (
+    /(?:female|aurat|larki|khatoon|زنانی|عورت|لڑکی|خاتون|فی\s*میل)\s*(?:ki\s*)?(?:awaz|voice)/i.test(lower) ||
+    /(?:voice|awaz)\s*(?:ko\s*)?(?:female|aurat|larki|khatoon|زنانی|عورت|لڑکی|خاتون|فی\s*میل)/i.test(lower) ||
+    /^(?:set\s*voice|voice\s*set)\s*female$/i.test(lower) ||
+    /^(?:female\s*voice|aurat\s*ki\s*awaz|larki\s*ki\s*awaz|عورت\s*کی\s*آواز|لڑکی\s*کی\s*آواز)$/i.test(lower)
+  ) {
+    return 'female';
+  }
+
+  // Male voice patterns: "male voice", "mard ki awaz", "larke ki awaz", "مرد کی آواز", "لڑکے کی آواز", "میل آواز"
+  if (
+    /(?:male|mard|larka|مرد|لڑکا|میل)\s*(?:ki\s*)?(?:awaz|voice)/i.test(lower) ||
+    /(?:voice|awaz)\s*(?:ko\s*)?(?:male|mard|larka|مرد|لڑکا|میل)/i.test(lower) ||
+    /^(?:set\s*voice|voice\s*set)\s*male$/i.test(lower) ||
+    /^(?:male\s*voice|mard\s*ki\s*awaz|larke\s*ki\s*awaz|مرد\s*کی\s*آواز|لڑکے\s*کی\s*آواز)$/i.test(lower)
+  ) {
+    return 'male';
+  }
+
+  // Toggle voice patterns: "change voice", "voice change", "switch voice", "awaz badlo", "awaz change", "آواز بدلو"
+  if (
+    /(?:change\s*voice|voice\s*change|switch\s*voice|voice\s*switch|toggle\s*voice|awaz\s*badlo|awaz\s*change|voice\s*badlo|آواز\s*بدلو|آواز\s*تبدیل)/i.test(lower)
+  ) {
+    return 'toggle';
+  }
+
+  return null;
+}
+
+/**
+ * Handles switching the merchant's voice gender and replying in that new voice.
+ */
+export async function handleVoiceGenderChange(merchant, genderChoice, source = 'text') {
+  let targetGender = genderChoice;
+  if (genderChoice === 'toggle') {
+    targetGender = merchant.voiceGender === 'male' ? 'female' : 'male';
+  }
+
+  merchant.voiceGender = targetGender;
+  await merchant.save();
+  emitDashboardUpdate(merchant._id, { type: 'profile' });
+
+  const phrases = spokenPhrases.voiceSwitched(merchant.language, targetGender);
+  return replyToMerchant(merchant, phrases, source === 'voice' ? 'voice' : 'text');
 }
 
 /**
