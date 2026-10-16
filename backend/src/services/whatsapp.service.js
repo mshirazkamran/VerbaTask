@@ -7,7 +7,7 @@ import { synthesizeSpeech } from './tts.service.js';
 import { uploadMedia } from './media.service.js';
 
 const GRAPH_VERSION = 'v20.0';
-const DEFAULT_COMPANION_TEXT = process.env.VOICE_REPLY_SEND_COMPANION_TEXT !== 'false';
+const DEFAULT_COMPANION_TEXT = process.env.VOICE_REPLY_SEND_COMPANION_TEXT === 'true';
 
 /** Pre-configured axios instance for the /{phone-number-id}/messages endpoint. */
 function graph() {

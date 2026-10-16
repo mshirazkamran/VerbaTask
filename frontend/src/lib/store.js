@@ -3,18 +3,71 @@ import { create } from 'zustand';
 const TOKEN_KEY = 'verbatask_token';
 const MERCHANT_ID_KEY = 'verbatask_merchant_id';
 const THEME_KEY = 'verbatask_theme';
+const COOKIE_TOKEN_KEY = 'vt_session';
+const COOKIE_MERCHANT_KEY = 'vt_merchant_id';
+
+function getCookie(name) {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function setCookie(name, value, days = 7) {
+  if (typeof document === 'undefined') return;
+  const maxAge = days * 24 * 60 * 60;
+  document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${maxAge}; path=/; SameSite=Lax`;
+}
+
+function removeCookie(name) {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${name}=; max-age=0; path=/; SameSite=Lax`;
+}
+
+function getInitialToken() {
+  if (typeof window === 'undefined') return null;
+  return (
+    localStorage.getItem(TOKEN_KEY) ||
+    getCookie(COOKIE_TOKEN_KEY) ||
+    getCookie(TOKEN_KEY) ||
+    null
+  );
+}
+
+function getInitialMerchantId() {
+  if (typeof window === 'undefined') return null;
+  return (
+    localStorage.getItem(MERCHANT_ID_KEY) ||
+    getCookie(COOKIE_MERCHANT_KEY) ||
+    getCookie(MERCHANT_ID_KEY) ||
+    null
+  );
+}
 
 export const useAuthStore = create((set) => ({
-  token: localStorage.getItem(TOKEN_KEY) || null,
-  merchantId: localStorage.getItem(MERCHANT_ID_KEY) || null,
+  token: getInitialToken(),
+  merchantId: getInitialMerchantId(),
   merchant: null,
 
   setAuth: (token, merchantId) => {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+      setCookie(COOKIE_TOKEN_KEY, token, 7);
+      setCookie(TOKEN_KEY, token, 7);
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+      removeCookie(COOKIE_TOKEN_KEY);
+      removeCookie(TOKEN_KEY);
+    }
 
-    if (merchantId) localStorage.setItem(MERCHANT_ID_KEY, merchantId);
-    else localStorage.removeItem(MERCHANT_ID_KEY);
+    if (merchantId) {
+      localStorage.setItem(MERCHANT_ID_KEY, merchantId);
+      setCookie(COOKIE_MERCHANT_KEY, merchantId, 7);
+      setCookie(MERCHANT_ID_KEY, merchantId, 7);
+    } else {
+      localStorage.removeItem(MERCHANT_ID_KEY);
+      removeCookie(COOKIE_MERCHANT_KEY);
+      removeCookie(MERCHANT_ID_KEY);
+    }
 
     set({ token, merchantId });
   },
@@ -24,7 +77,15 @@ export const useAuthStore = create((set) => ({
   logout: () => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(MERCHANT_ID_KEY);
+    removeCookie(COOKIE_TOKEN_KEY);
+    removeCookie(TOKEN_KEY);
+    removeCookie(COOKIE_MERCHANT_KEY);
+    removeCookie(MERCHANT_ID_KEY);
     set({ token: null, merchantId: null, merchant: null });
+    // Fire-and-forget server cookie clear
+    try {
+      fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+    } catch (_) {}
   },
 }));
 

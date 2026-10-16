@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { Menu, X, ArrowRight } from 'lucide-react';
+import { Menu, X, ArrowRight, LayoutDashboard, LogOut } from 'lucide-react';
 import { Logo } from './Logo';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { LanguageToggle } from '../ui/LanguageToggle';
 import { scrollToHash } from '../../lib/scroll';
-import { useUiStore } from '../../lib/store';
+import { useAuthStore, useUiStore } from '../../lib/store';
 import { getTranslations } from '../../lib/translations';
 
 // N1b · canonical three-section bar. Knobs: centre links=4, dropdowns=none, scroll=always-solid.
@@ -14,6 +14,8 @@ export function Nav() {
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const token = useAuthStore((s) => s.token);
+  const logout = useAuthStore((s) => s.logout);
   const language = useUiStore((s) => s.language);
   const t = getTranslations(language).nav;
 
@@ -75,15 +77,38 @@ export function Nav() {
         <div className="ms-auto flex items-center gap-2 lg:ms-0">
           <LanguageToggle className="hidden sm:inline-flex" />
           <ThemeToggle className="hidden sm:inline-flex" />
-          <Link
-            to="/login"
-            className="hidden whitespace-nowrap rounded-pill px-3.5 py-2 text-sm font-medium text-ink-2 transition-colors hover:bg-paper-2 hover:text-ink sm:inline-flex"
-          >
-            {t.signIn}
-          </Link>
-          <Link to="/signup" className="btn btn--sm">
-            {t.startFree}
-          </Link>
+          {token ? (
+            <>
+              <Link
+                to="/dashboard"
+                className="btn btn--sm inline-flex items-center gap-1.5"
+              >
+                <LayoutDashboard className="size-4" />
+                <span>{t.dashboard || 'Dashboard'}</span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => logout()}
+                className="hidden whitespace-nowrap rounded-pill px-3 py-2 text-xs font-medium text-ink-2 transition-colors hover:bg-paper-2 hover:text-ink sm:inline-flex items-center gap-1"
+                title={t.signOut || 'Sign out'}
+              >
+                <LogOut className="size-3.5" />
+                <span>{t.signOut || 'Sign out'}</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="hidden whitespace-nowrap rounded-pill px-3.5 py-2 text-sm font-medium text-ink-2 transition-colors hover:bg-paper-2 hover:text-ink sm:inline-flex"
+              >
+                {t.signIn}
+              </Link>
+              <Link to="/signup" className="btn btn--sm">
+                {t.startFree}
+              </Link>
+            </>
+          )}
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
@@ -99,6 +124,19 @@ export function Nav() {
       {open && (
         <div className="fixed inset-x-0 bottom-0 top-16 z-[200] overflow-y-auto bg-paper lg:hidden">
           <nav className="shell flex flex-col py-4" aria-label="Mobile">
+            {token && (
+              <Link
+                to="/dashboard"
+                onClick={() => setOpen(false)}
+                className="flex items-center justify-between border-b border-rule py-4 font-display text-2xl font-semibold tracking-tight text-primary"
+              >
+                <span className="inline-flex items-center gap-2.5">
+                  <LayoutDashboard className="size-6" />
+                  {t.dashboard || 'Dashboard'}
+                </span>
+                <ArrowRight className="size-5 text-primary rtl:rotate-180" />
+              </Link>
+            )}
             {links.map((l, i) => (
               <a
                 key={l.hash}
@@ -120,9 +158,23 @@ export function Nav() {
               <ArrowRight className="size-5 text-muted rtl:rotate-180" />
             </Link>
             <div className="mt-8 flex items-center gap-3">
-              <Link to="/login" onClick={() => setOpen(false)} className="btn btn--soft flex-1">
-                {t.signIn}
-              </Link>
+              {token ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    logout();
+                    setOpen(false);
+                  }}
+                  className="btn btn--soft flex-1 inline-flex items-center justify-center gap-2"
+                >
+                  <LogOut className="size-4" />
+                  <span>{t.signOut || 'Sign out'}</span>
+                </button>
+              ) : (
+                <Link to="/login" onClick={() => setOpen(false)} className="btn btn--soft flex-1">
+                  {t.signIn}
+                </Link>
+              )}
               <LanguageToggle />
               <ThemeToggle />
             </div>

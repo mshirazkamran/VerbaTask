@@ -264,4 +264,83 @@ export const spokenPhrases = {
       text: `📋 *VerbaTask Commands Guide*\n\nYou can manage your entire store by speaking or typing:\n\n🛒 *1. Log Sales*\n• Voice Note: Send audio like "2 kg sugar cash" or "5 rice easypaisa"\n• Text: Type "2 rice cash" or "10 milk jazzcash"\n• Guided Flow: Type *"order"* to pick from stock list\n\n📦 *2. Stock & Inventory*\n• Add Stock with Price: "add 50 rice price 300" or "maal aya 20 chini 150"\n• Set / Update Price: *"set price rice 300"* or *"price sugar 160"*\n• Check Stock: "stock rice" or "how much sugar left"\n• View All Stock: Type *"stock list"* or *"inventory"*\n\n📄 *3. Download PDF Reports*\n• Type *"report"* for sales, inventory, low stock, or expiring reports\n\n⚙️ *4. Store & Profile Settings*\n• View Store Info: Type *"profile"* or *"settings"*\n• Change Shop Name: *"set name [New Name]"*\n• Change Location: *"set location [City]"*\n• Switch Language: Type *"urdu"* or *"english"*\n• Voice Replies: Type *"voice on"* or *"voice off"*\n\n💳 *5. Payment & Banks*\n• View Accepted Methods: Type *"banks"* or *"payment methods"*\n• Enable / Disable: *"enable easypaisa"* or *"disable jazzcash"*\n\n⚡ *6. Automations & Alerts*\n• Create Alert: "alert me when cooking oil is below 5"\n• View Active Rules: Type *"workflows"*`,
     };
   },
+
+  orderReturned(language = 'ur', { orderNo, returnedItems = [], refundAmount = 0, customerName, newBalance } = {}) {
+    const itemsList = returnedItems.map((i) => `• ${i.name} x ${i.quantity}`).join('\n');
+    const khataNote = customerName && newBalance != null
+      ? (language === 'ur'
+          ? `\n👤 گاہک *${customerName}* کے کھاتے سے رقم کاٹ لی گئی۔ نیا بقایا: *Rs. ${newBalance.toLocaleString()}*`
+          : `\n👤 Customer *${customerName}* ledger updated. New balance: *Rs. ${newBalance.toLocaleString()}*`)
+      : '';
+
+    if (language === 'ur') {
+      return {
+        spoken: `آرڈر ${orderNo || ''} کی واپسی درج ہو گئی ہے۔ سامان اسٹاک میں شامل کر دیا گیا ہے۔ کل رقم ${refundAmount} روپے ہے۔`,
+        text: `↩️ *آرڈر واپسی درج ہو گئی!*\nآرڈر نمبر: *#${orderNo || 'VT-ORDER'}*\n\n📦 *واپس شدہ سامان:*\n${itemsList}\n\n💵 کل رقم: *Rs. ${refundAmount.toLocaleString()}*${khataNote}`,
+      };
+    }
+    return {
+      spoken: `Return recorded for order ${orderNo || ''}. Items have been restocked. Total amount Rs. ${refundAmount}.`,
+      text: `↩️ *Order Return Processed!*\nOrder #: *#${orderNo || 'VT-ORDER'}*\n\n📦 *Returned Items:*\n${itemsList}\n\n💵 Refund / Adjusted: *Rs. ${refundAmount.toLocaleString()}*${khataNote}`,
+    };
+  },
+
+  orderExchanged(language = 'ur', { orderNo, returnItem, newItem, priceDifference = 0, customerName, newBalance } = {}) {
+    const diffAbs = Math.abs(priceDifference);
+    const diffNoteUr = priceDifference > 0
+      ? `(گاہک سے *Rs. ${diffAbs.toLocaleString()}* مزید وصول کریں)`
+      : priceDifference < 0
+      ? `(گاہک کو *Rs. ${diffAbs.toLocaleString()}* واپس کریں)`
+      : `(برابر تبادلہ - کوئی بقایا نہیں)`;
+
+    const diffNoteEn = priceDifference > 0
+      ? `(Collect *Rs. ${diffAbs.toLocaleString()}* extra from customer)`
+      : priceDifference < 0
+      ? `(Refund *Rs. ${diffAbs.toLocaleString()}* to customer)`
+      : `(Even exchange - zero difference)`;
+
+    const khataNote = customerName && newBalance != null
+      ? (language === 'ur'
+          ? `\n👤 گاہک *${customerName}* کھاتہ اپڈیٹ: نیا بقایا *Rs. ${newBalance.toLocaleString()}*`
+          : `\n👤 Customer *${customerName}* ledger updated: New balance *Rs. ${newBalance.toLocaleString()}*`)
+      : '';
+
+    if (language === 'ur') {
+      return {
+        spoken: `آرڈر ${orderNo || ''} کا تبادلہ درج ہو گیا ہے۔ ${returnItem?.name || ''} واپس ہو گیا اور ${newItem?.name || ''} دے دیا گیا ہے۔`,
+        text: `🔄 *سامان کا تبادلہ (Exchange) مکمل!*\nآرڈر نمبر: *#${orderNo || 'VT-ORDER'}*\n\n↩️ واپس لیا: *${returnItem?.quantity}x ${returnItem?.name}*\n👉 نیا دیا: *${newItem?.quantity}x ${newItem?.name}*\n\n💰 فرق رقم: *Rs. ${diffAbs.toLocaleString()}* ${diffNoteUr}${khataNote}`,
+      };
+    }
+    return {
+      spoken: `Exchange recorded for order ${orderNo || ''}. Exchanged ${returnItem?.name || ''} for ${newItem?.name || ''}.`,
+      text: `🔄 *Item Exchange Completed!*\nOrder #: *#${orderNo || 'VT-ORDER'}*\n\n↩️ Returned: *${returnItem?.quantity}x ${returnItem?.name}*\n👉 Given: *${newItem?.quantity}x ${newItem?.name}*\n\n💰 Price Difference: *Rs. ${diffAbs.toLocaleString()}* ${diffNoteEn}${khataNote}`,
+    };
+  },
+
+  askReturnOrderNumber(language = 'ur') {
+    if (language === 'ur') {
+      return {
+        spoken: 'کون سا آرڈر یا کیا سامان واپس آیا ہے؟ برائے مہربانی آرڈر نمبر بتائیں یا جس میسج پر سیل ہوئی تھی اس پر ریپلائی کریں۔',
+        text: '❓ *آرڈر کی تفصیل بتائیں:*\nکون سا آرڈر یا سامان واپس آیا ہے؟\n\n👉 برائے مہربانی *آرڈر نمبر* لکھیں (مثلاً: *order VT-123456 wapis* یا *exchange*)\n👉 یا جس میسج پر سیل درج ہوئی تھی اس پر واٹس ایپ *ریپلائی (quote reply)* کریں۔',
+      };
+    }
+    return {
+      spoken: 'Which order or item is being returned? Please provide the order number or quote-reply to the sale message.',
+      text: '❓ *Order Details Needed:*\nWhich order or item is being returned?\n\n👉 Please specify the *Order Number* (e.g. *order VT-123456 return* or *exchange*)\n👉 Or quote-reply directly to the previous sale message in WhatsApp.',
+    };
+  },
+
+  customerDisambiguationPrompt(language = 'ur', { candidateName, currentBalance } = {}) {
+    const formattedBal = `Rs. ${(currentBalance || 0).toLocaleString()}`;
+    if (language === 'ur') {
+      return {
+        spoken: `کیا یہ پرانے گاہک ${candidateName} کا کھاتہ ہے جن کا بقایا ${currentBalance} روپے ہے؟`,
+        text: `👥 *گاہک کی تصدیق:*\nآپ کے کھاتے میں پہلے سے *${candidateName?.toUpperCase()}* موجود ہیں (موجودہ بقایا: *${formattedBal}*)۔\nکیا یہ وہی گاہک ہیں یا کوئی نیا گاہک ہے؟`,
+      };
+    }
+    return {
+      spoken: `Is this existing customer ${candidateName} who currently has a balance of Rs. ${currentBalance}?`,
+      text: `👥 *Customer Confirmation:*\nExisting customer *${candidateName?.toUpperCase()}* found in ledger (Current balance: *${formattedBal}*).\nIs this the same customer or a new one?`,
+    };
+  },
 };

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   signup,
   login,
+  logout,
   confirmLinkCode,
   getMe,
   updateMe,
@@ -16,6 +17,7 @@ const router = Router();
 // Public routes
 router.post('/signup', signup);
 router.post('/login', login);
+router.post('/logout', logout);
 router.post('/link-code/confirm', confirmLinkCode);
 router.post('/forgot-password/request', requestPasswordReset);
 router.post('/forgot-password/resend', resendPasswordResetCode);

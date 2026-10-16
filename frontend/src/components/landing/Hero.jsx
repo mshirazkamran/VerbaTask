@@ -1,9 +1,9 @@
 import { Link } from 'react-router';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, LayoutDashboard } from 'lucide-react';
 import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 import { VoiceLedger } from './VoiceLedger';
 import { scrollToHash } from '../../lib/scroll';
-import { useUiStore } from '../../lib/store';
+import { useAuthStore, useUiStore } from '../../lib/store';
 import { getTranslations } from '../../lib/translations';
 
 // Meter strip: a printed readout of the demo note — heights from two gaussians, never flat.
@@ -17,6 +17,7 @@ const TICKS = Array.from({ length: 96 }, (_, i) => {
 });
 
 export function Hero() {
+  const token = useAuthStore((s) => s.token);
   const language = useUiStore((s) => s.language);
   const t = getTranslations(language).hero;
 
@@ -52,10 +53,17 @@ export function Hero() {
             </p>
 
             <div className="reveal mt-9 flex flex-wrap items-center gap-x-7 gap-y-5" style={{ '--i': 3 }}>
-              <Link to="/signup" className="btn btn--lg">
-                <WhatsAppIcon className="size-5" />
-                {t.ctaPrimary}
-              </Link>
+              {token ? (
+                <Link to="/dashboard" className="btn btn--lg">
+                  <LayoutDashboard className="size-5" />
+                  {language === 'ur' ? 'ڈیش بورڈ پر جائیں' : 'Go to Dashboard'}
+                </Link>
+              ) : (
+                <Link to="/signup" className="btn btn--lg">
+                  <WhatsAppIcon className="size-5" />
+                  {t.ctaPrimary}
+                </Link>
+              )}
               <a
                 href="/#how-it-works"
                 onClick={(e) => {

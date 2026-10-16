@@ -50,3 +50,32 @@ export function useCreateOrder() {
     },
   });
 }
+
+export function useReturnOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload) => api.post('/api/orders/return', payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers() });
+    },
+  });
+}
+
+export function useExchangeOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload) => api.post('/api/orders/exchange', payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers() });
+    },
+  });
+}
+

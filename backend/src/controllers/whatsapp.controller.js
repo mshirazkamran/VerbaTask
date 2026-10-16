@@ -8,6 +8,7 @@ import PasswordResetCode from '../models/PasswordResetCode.js';
 import crypto from 'crypto';
 
 import { createOrder } from '../crm/order.service.js';
+import { processOrderReturn, processOrderExchange, findOrderByReference } from '../crm/return.service.js';
 import { restockItemViaCrm, checkStockViaCrm, getStockListSummary, updateItemPriceViaCrm } from '../crm/inventory.service.js';
 import { evaluateMessageWorkflows, prepareWorkflow, createWorkflow, WorkflowValidationError } from '../workflows/workflow.service.js';
 import { describeWorkflow, explainWorkflowError, capabilitiesText } from '../workflows/workflow.rules.js';
@@ -112,12 +113,11 @@ async function replyToMerchant(merchant, phrases, source = 'text', languageOverr
   }
 
   if (shouldReplyWithVoice(merchant, source)) {
-    const isReceipt = !!(textReceipt && (textReceipt.includes('✅') || textReceipt.includes('آرڈر #')));
     return sendVoiceReply(recipient, {
       spokenText,
-      textReceipt: isReceipt ? textReceipt : null,
+      textReceipt,
       language,
-      alsoSendText: isReceipt,
+      alsoSendText: false, // Strict single-reply policy to reduce WhatsApp API billing
     });
   }
 
@@ -531,6 +531,11 @@ async function handleOnboardedMerchant(merchant, message) {
         return await handleDisambiguationReply(merchant, buttonId);
       }
 
+      // Customer disambiguation replies
+      if (buttonId?.startsWith('cust_same_') || buttonId === 'cust_new') {
+        return await handleCustomerDisambiguationReply(merchant, buttonId);
+      }
+
       if (buttonId === 'wf_save' || buttonId === 'wf_cancel') {
         return await handleWorkflowConfirmReply(merchant, buttonId);
       }
@@ -640,7 +645,7 @@ async function handleOnboardedMerchant(merchant, message) {
     }
 
     if (message.type === 'text') {
-      return await handleTextMessage(merchant, message.text.body);
+      return await handleTextMessage(merchant, message.text.body, message);
     }
 
     if (message.type === 'interactive') {
@@ -667,7 +672,7 @@ async function handleOnboardedMerchant(merchant, message) {
     }
 
     if (message.type === 'audio') {
-      return await handleVoiceNote(merchant, message.audio.id);
+      return await handleVoiceNote(merchant, message.audio.id, message);
     }
 
     if (message.type === 'image') {
@@ -906,7 +911,7 @@ async function handleTextMessage(merchant, text) {
   try {
     const intent = await parseIntent(text, merchant);
     const detectedLanguage = /[\u0600-\u06FF]/.test(text) ? 'ur' : (merchant.language || 'ur');
-    return await routeParsedCommand(merchant, { ...intent, language: detectedLanguage }, 'text');
+    return await routeParsedCommand(merchant, { ...intent, language: detectedLanguage, incomingMessageId: rawMessage?.id, rawMessage }, 'text');
   } catch (err) {
     console.error('parseIntent failed:', err.message);
     return sendTextMessage(
@@ -917,12 +922,12 @@ async function handleTextMessage(merchant, text) {
 }
 
 /** Voice note: download audio, transcribe + parse via agent/, then run the command. */
-async function handleVoiceNote(merchant, mediaId) {
+async function handleVoiceNote(merchant, mediaId, rawMessage = null) {
   try {
     const { buffer, mimeType } = await downloadMedia(mediaId);
     const intent = await transcribeAndParse(buffer, mimeType, merchant.language, merchant);
     const effectiveLanguage = intent.detectedLanguage || merchant.language || 'ur';
-    return routeParsedCommand(merchant, { ...intent, language: effectiveLanguage }, 'voice');
+    return routeParsedCommand(merchant, { ...intent, language: effectiveLanguage, incomingMessageId: rawMessage?.id, rawMessage }, 'voice');
   } catch (err) {
     const status = err.response?.status;
     const body = err.response?.data ? JSON.stringify(err.response.data) : '';
@@ -1009,7 +1014,16 @@ async function routeParsedCommand(merchant, intent, source) {
       amount: intent.amount,
       source,
       language: effectiveLanguage,
+      incomingMessageId: intent.incomingMessageId,
     });
+  }
+
+  if (intent.type === 'return_order') {
+    return handleReturnOrderViaWhatsApp(merchant, intent, source, intent.rawMessage);
+  }
+
+  if (intent.type === 'exchange_order') {
+    return handleExchangeOrderViaWhatsApp(merchant, intent, source, intent.rawMessage);
   }
 
   if (intent.type === 'update_stock') {
@@ -1433,6 +1447,31 @@ async function createOrderViaCrm(merchant, command) {
     command.staffPhone = merchant._staffMember.whatsappNumber;
   }
 
+  // Check for customer disambiguation if udhaar sale and not previously confirmed
+  if (
+    command.paymentMethod === 'udhaar' &&
+    command.customerName &&
+    !command._skipCustomerDisambiguation
+  ) {
+    const rawName = command.customerName.trim();
+    const cleanName = rawName.toLowerCase();
+    const normalizedBase = cleanName.replace(/\b(bhai|sahab|sahib|sb|khan|ji|janab)\b/gi, '').trim();
+
+    // If exact name does NOT match, but a similar customer with existing balance exists:
+    const exact = await Customer.findOne({ merchantId: merchant._id, name: cleanName });
+    if (!exact && normalizedBase.length >= 3) {
+      const allCust = await Customer.find({ merchantId: merchant._id });
+      const candidate = allCust.find((c) => {
+        const cClean = c.name.toLowerCase().replace(/\b(bhai|sahab|sahib|sb|khan|ji|janab)\b/gi, '').trim();
+        return cClean === normalizedBase || cClean.includes(normalizedBase) || normalizedBase.includes(cClean);
+      });
+
+      if (candidate) {
+        return await offerCustomerDisambiguation(merchant, command, candidate);
+      }
+    }
+  }
+
   try {
     const order = await createOrder(command);
     const orderNo = order?.orderNumber || '';
@@ -1442,7 +1481,12 @@ async function createOrderViaCrm(merchant, command) {
       customerName: command.customerName,
       orderNo,
     });
-    return replyToMerchant(merchant, phrases, source);
+    const sendRes = await replyToMerchant(merchant, phrases, source);
+    if (order && sendRes?.messages?.[0]?.id) {
+      order.confirmationMessageId = sendRes.messages[0].id;
+      await order.save().catch(() => {});
+    }
+    return sendRes;
   } catch (err) {
     const message = err?.message ?? '';
 
@@ -1569,6 +1613,172 @@ async function handleDisambiguationReply(merchant, buttonId) {
     ...command,
     items,
   });
+}
+
+/**
+ * Prompts the merchant via WhatsApp interactive buttons to confirm whether a customer
+ * is the existing customer with matching name or a new distinct customer.
+ */
+async function offerCustomerDisambiguation(merchant, command, candidate) {
+  const source = command.source || 'text';
+  const language = command.language || merchant.language || 'ur';
+
+  await ConversationState.findOneAndUpdate(
+    { whatsappNumber: merchant.whatsappNumber },
+    {
+      merchantId: merchant._id,
+      flow: 'customer_disambiguation',
+      step: 'awaiting_customer_choice',
+      data: { command, candidateId: candidate._id.toString(), candidateName: candidate.name },
+    },
+    { upsert: true }
+  );
+
+  const phrases = spokenPhrases.customerDisambiguationPrompt(language, {
+    candidateName: candidate.name,
+    currentBalance: candidate.balance,
+  });
+
+  const buttons = [
+    { id: `cust_same_${candidate._id}`, title: `وہی (${candidate.name})`.slice(0, 20) },
+    { id: 'cust_new', title: (language === 'ur' ? 'نیا گاہک' : 'New Customer').slice(0, 20) },
+  ];
+
+  if (shouldReplyWithVoice(merchant, source)) {
+    await sendVoiceReply(merchant._replyToNumber || merchant.whatsappNumber, {
+      spokenText: phrases.spoken,
+      language,
+      alsoSendText: false,
+    });
+  }
+
+  return sendInteractiveButtons(merchant._replyToNumber || merchant.whatsappNumber, phrases.text, buttons);
+}
+
+/**
+ * Handles button tap response for customer disambiguation.
+ */
+async function handleCustomerDisambiguationReply(merchant, buttonId) {
+  const state = await ConversationState.findOne({
+    whatsappNumber: merchant.whatsappNumber,
+    flow: 'customer_disambiguation',
+  });
+  if (!state) {
+    return sendTextMessage(merchant.whatsappNumber, "Sorry, that choice expired — please send the sale again.");
+  }
+  await ConversationState.deleteOne({ _id: state._id });
+
+  const command = state.data?.command ?? {};
+  command._skipCustomerDisambiguation = true;
+
+  if (buttonId.startsWith('cust_same_')) {
+    command.customerName = state.data?.candidateName || command.customerName;
+  }
+
+  return createOrderViaCrm(merchant, command);
+}
+
+/**
+ * Handles processing an order return requested through WhatsApp voice or text.
+ */
+async function handleReturnOrderViaWhatsApp(merchant, intent, source = 'text', rawMessage = null) {
+  const language = merchant.language || 'ur';
+  const contextId = rawMessage?.context?.id || null;
+  const orderNumber = intent.orderNumber || null;
+
+  const order = await findOrderByReference(merchant._id, { orderNumber, contextId });
+  if (!order) {
+    // If no order number and no quote-reply: DO NOT guess recent order!
+    return replyToMerchant(merchant, spokenPhrases.askReturnOrderNumber(language), source);
+  }
+
+  try {
+    const result = await processOrderReturn(merchant._id, {
+      orderId: order._id,
+      items: intent.items,
+      reason: 'WhatsApp return',
+    });
+
+    const phrases = spokenPhrases.orderReturned(language, {
+      orderNo: result.order.orderNumber,
+      returnedItems: result.returnedItems,
+      refundAmount: result.refundAmount,
+      customerName: result.customer?.name,
+      newBalance: result.customer?.balance,
+    });
+
+    return replyToMerchant(merchant, phrases, source);
+  } catch (err) {
+    console.error('WhatsApp return failed:', err.message);
+    const errText = language === 'ur'
+      ? `❌ واپسی درج نہیں ہو سکی: ${err.message}`
+      : `❌ Could not process return: ${err.message}`;
+    return replyToMerchant(merchant, errText, source);
+  }
+}
+
+/**
+ * Handles processing an item exchange requested through WhatsApp voice or text.
+ */
+async function handleExchangeOrderViaWhatsApp(merchant, intent, source = 'text', rawMessage = null) {
+  const language = merchant.language || 'ur';
+  const contextId = rawMessage?.context?.id || null;
+  const orderNumber = intent.orderNumber || null;
+
+  const order = await findOrderByReference(merchant._id, { orderNumber, contextId });
+  if (!order) {
+    // If no order number and no quote-reply: DO NOT guess recent order!
+    return replyToMerchant(merchant, spokenPhrases.askReturnOrderNumber(language), source);
+  }
+
+  try {
+    let returnItem = intent.returnItem;
+    if (!returnItem && order.items?.length === 1) {
+      returnItem = { name: order.items[0].name, quantity: order.items[0].quantity };
+    } else if (!returnItem && order.items?.length > 1) {
+      returnItem = { name: order.items[0].name, quantity: 1 };
+    }
+
+    let newItem = intent.newItem;
+    if (!newItem && intent.newItemText) {
+      const match = intent.newItemText.match(/^(?:(\d+)\s+)?(.+)$/);
+      newItem = {
+        quantity: match && match[1] ? parseInt(match[1], 10) : 1,
+        name: match ? match[2].trim() : intent.newItemText.trim(),
+      };
+    }
+
+    if (!newItem || !newItem.name) {
+      const askMsg = language === 'ur'
+        ? `🔄 آرڈر *#${order.orderNumber}* مل گیا ہے۔ اس کی جگہ گاہک کو کیا نیا سامان دینا ہے؟ برائے مہربانی لکھیں (مثلاً: "is ki jagah 2 daal")۔`
+        : `🔄 Found Order *#${order.orderNumber}*. What replacement item should be given? Please specify (e.g. "is ki jagah 2 daal").`;
+      return replyToMerchant(merchant, askMsg, source);
+    }
+
+    const result = await processOrderExchange(merchant._id, {
+      orderId: order._id,
+      returnItem,
+      newItem,
+      reason: 'WhatsApp exchange',
+    });
+
+    const phrases = spokenPhrases.orderExchanged(language, {
+      orderNo: result.order.orderNumber,
+      returnItem: result.returnItem,
+      newItem: result.newItem,
+      priceDifference: result.priceDifference,
+      customerName: result.customer?.name,
+      newBalance: result.customer?.balance,
+    });
+
+    return replyToMerchant(merchant, phrases, source);
+  } catch (err) {
+    console.error('WhatsApp exchange failed:', err.message);
+    const errText = language === 'ur'
+      ? `❌ تبادلہ مکمل نہیں ہو سکا: ${err.message}`
+      : `❌ Could not process exchange: ${err.message}`;
+    return replyToMerchant(merchant, errText, source);
+  }
 }
 
 // Codes where the merchant asked for something we can't do at all (vs. a

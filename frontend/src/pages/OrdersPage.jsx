@@ -12,6 +12,9 @@ import {
   Plus,
   Trash2,
   Receipt,
+  RotateCcw,
+  ArrowLeftRight,
+  Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,7 +26,7 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
-import { useOrders, useCreateOrder } from '../hooks/useOrders';
+import { useOrders, useCreateOrder, useReturnOrder, useExchangeOrder } from '../hooks/useOrders';
 import { useInventory } from '../hooks/useInventory';
 import { useUiStore } from '../lib/store';
 import { getTranslations } from '../lib/translations';
@@ -207,6 +210,377 @@ function NewOrderModal({ isOpen, onClose }) {
  );
 }
 
+function ReturnExchangeModal({ isOpen, onClose, initialOrder = null }) {
+  const language = useUiStore((s) => s.language);
+  const isUrdu = language === 'ur';
+  const t = getTranslations(language).ordersPage;
+  const tDash = getTranslations(language).dashboard;
+
+  const { data: inventory } = useInventory();
+  const { data: orders } = useOrders();
+  const returnMutation = useReturnOrder();
+  const exchangeMutation = useExchangeOrder();
+
+  const [mode, setMode] = useState('return'); // 'return' | 'exchange'
+  const [orderSearch, setOrderSearch] = useState('');
+  const [targetOrder, setTargetOrder] = useState(initialOrder);
+  const [selectedItemIdx, setSelectedItemIdx] = useState(0);
+  const [returnQty, setReturnQty] = useState(1);
+  const [exchangeItemId, setExchangeItemId] = useState('');
+  const [exchangeQty, setExchangeQty] = useState(1);
+  const [reason, setReason] = useState('');
+
+  // Sync initialOrder
+  useEffect(() => {
+    if (initialOrder) {
+      setTargetOrder(initialOrder);
+      setSelectedItemIdx(0);
+      setReturnQty(1);
+    } else {
+      setTargetOrder(null);
+    }
+  }, [initialOrder, isOpen]);
+
+  // Inventory Map for fast item lookup
+  const inventoryMap = useMemo(() => {
+    const map = new Map();
+    (inventory || []).forEach((item) => map.set(item._id, item));
+    return map;
+  }, [inventory]);
+
+  // If no order selected yet, let them pick from orders or filter by search
+  const candidateOrders = useMemo(() => {
+    if (!orders) return [];
+    const valid = orders.filter((o) => o.status !== 'returned' && o.status !== 'rejected');
+    if (!orderSearch.trim()) return valid.slice(0, 10);
+    const q = orderSearch.trim().toLowerCase();
+    return valid.filter(
+      (o) =>
+        (o.orderNumber && String(o.orderNumber).toLowerCase().includes(q)) ||
+        (o._id && o._id.toLowerCase().includes(q)) ||
+        (o.customerName && o.customerName.toLowerCase().includes(q))
+    );
+  }, [orders, orderSearch]);
+
+  const currentItem = targetOrder?.items?.[selectedItemIdx];
+  const maxReturnQty = currentItem?.quantity || 1;
+  const returnUnitPrice = currentItem?.price || 0;
+  const returnTotalValue = returnUnitPrice * Number(returnQty || 0);
+
+  const replacementItem = inventoryMap.get(exchangeItemId);
+  const replacementUnitPrice = replacementItem?.price || 0;
+  const replacementTotalValue = replacementUnitPrice * Number(exchangeQty || 0);
+
+  const priceDiff = replacementTotalValue - returnTotalValue;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!targetOrder) {
+      toast.error(isUrdu ? 'پہلے آرڈر منتخب کریں' : 'Please select an order first');
+      return;
+    }
+    if (!currentItem) {
+      toast.error(isUrdu ? 'واپسی کے لیے چیز منتخب کریں' : 'Please select an item to return');
+      return;
+    }
+
+    try {
+      if (mode === 'return') {
+        await returnMutation.mutateAsync({
+          orderId: targetOrder._id,
+          orderNumber: targetOrder.orderNumber,
+          returnItem: {
+            inventoryItemId: currentItem.inventoryItemId,
+            name: currentItem.name,
+            quantity: Number(returnQty),
+            price: currentItem.price,
+          },
+          reason: reason.trim() || undefined,
+        });
+        toast.success(isUrdu ? 'سامان کی واپسی کامیابی سے درج ہو گئی' : 'Item returned successfully');
+      } else {
+        if (!replacementItem) {
+          toast.error(isUrdu ? 'تبادلے کے لیے نئی چیز منتخب کریں' : 'Please select a replacement item');
+          return;
+        }
+        await exchangeMutation.mutateAsync({
+          orderId: targetOrder._id,
+          orderNumber: targetOrder.orderNumber,
+          returnItem: {
+            inventoryItemId: currentItem.inventoryItemId,
+            name: currentItem.name,
+            quantity: Number(returnQty),
+            price: currentItem.price,
+          },
+          newItem: {
+            inventoryItemId: replacementItem._id,
+            name: replacementItem.name,
+            quantity: Number(exchangeQty),
+            price: replacementItem.price,
+          },
+          reason: reason.trim() || undefined,
+        });
+        toast.success(isUrdu ? 'سامان کا تبادلہ کامیابی سے مکمل ہو گیا' : 'Item exchanged successfully');
+      }
+      onClose();
+    } catch (err) {
+      toast.error(err.message || (isUrdu ? 'عمل مکمل کرنے میں ناکامی' : 'Failed to process request'));
+    }
+  };
+
+  const isPending = returnMutation.isPending || exchangeMutation.isPending;
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isUrdu ? 'سامان کی واپسی یا تبادلہ' : 'Return or Exchange Items'}
+      description={isUrdu ? 'گاہک کا واپس آیا سامان اسٹاک میں دوبارہ شامل کریں یا دوسری چیز سے تبدیل کریں۔' : 'Restock returned items into inventory or swap them with other shelf items.'}
+      maxWidth="max-w-xl"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Mode Switcher Tabs */}
+        <div className="grid grid-cols-2 p-1 bg-paper-2 rounded-card border border-hairline">
+          <button
+            type="button"
+            onClick={() => setMode('return')}
+            className={`flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
+              mode === 'return'
+                ? 'bg-ink text-paper shadow-xs'
+                : 'text-ink-2 hover:text-ink'
+            }`}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            {t.returnBtn}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('exchange')}
+            className={`flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
+              mode === 'exchange'
+                ? 'bg-ink text-paper shadow-xs'
+                : 'text-ink-2 hover:text-ink'
+            }`}
+          >
+            <ArrowLeftRight className="w-3.5 h-3.5" />
+            {t.exchangeBtn}
+          </button>
+        </div>
+
+        {/* Order Selection */}
+        {!targetOrder ? (
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-ink-secondary block">
+              {t.selectItem} / {t.orderNumber}
+            </label>
+            <Input
+              placeholder={t.enterOrderNumber}
+              value={orderSearch}
+              onChange={(e) => setOrderSearch(e.target.value)}
+            />
+            <div className="max-h-40 overflow-y-auto divide-y divide-hairline rounded-lg border border-hairline bg-surface">
+              {candidateOrders.map((ord) => (
+                <div
+                  key={ord._id}
+                  onClick={() => {
+                    setTargetOrder(ord);
+                    setSelectedItemIdx(0);
+                    setReturnQty(1);
+                  }}
+                  className="p-2.5 text-xs hover:bg-paper-2 cursor-pointer flex items-center justify-between"
+                >
+                  <div>
+                    <span className="font-mono font-bold text-ink">#{ord.orderNumber || ord._id.slice(-6)}</span>
+                    <span className="text-ink-mute ml-2 font-tabular">{formatPKR(ord.total)}</span>
+                    {ord.customerName && <span className="ml-2 text-primary font-medium">({ord.customerName})</span>}
+                  </div>
+                  <span className="text-ink-mute font-mono text-[11px]">{formatDate(ord.createdAt, language)}</span>
+                </div>
+              ))}
+              {candidateOrders.length === 0 && (
+                <div className="p-3 text-xs text-center text-ink-mute">
+                  {t.noOrdersYet}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="p-3 rounded-card bg-paper-2 border border-hairline flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="label">{t.orderNumber}</span>
+                <span className="font-mono font-bold text-sm text-ink">#{targetOrder.orderNumber || targetOrder._id.slice(-6)}</span>
+                <Badge variant={targetOrder.status} size="sm">{tDash[targetOrder.status] || targetOrder.status}</Badge>
+              </div>
+              <p className="text-xs text-ink-mute mt-1">
+                {formatPKR(targetOrder.total)} · {targetOrder.items?.length || 0} items
+                {targetOrder.customerName && ` · Customer: ${targetOrder.customerName}`}
+              </p>
+            </div>
+            {!initialOrder && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setTargetOrder(null)}
+                className="text-xs text-muted hover:text-ink"
+              >
+                Change
+              </Button>
+            )}
+          </div>
+        )}
+
+        {targetOrder && (
+          <>
+            {/* Return Item Selection */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2">
+                <label className="text-xs font-medium text-ink-secondary block mb-1">
+                  {t.selectItemToReturn}
+                </label>
+                <select
+                  value={selectedItemIdx}
+                  onChange={(e) => {
+                    const idx = Number(e.target.value);
+                    setSelectedItemIdx(idx);
+                    setReturnQty(1);
+                  }}
+                  className="w-full h-10 px-3 text-xs bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                >
+                  {(targetOrder.items || []).map((itm, idx) => (
+                    <option key={idx} value={idx}>
+                      {itm.name} ({itm.quantity} bought @ {formatPKR(itm.price)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-ink-secondary block mb-1">
+                  {t.returnQuantity} (Max {maxReturnQty})
+                </label>
+                <Input
+                  type="number"
+                  min="0.01"
+                  max={maxReturnQty}
+                  step="any"
+                  value={returnQty}
+                  onChange={(e) => setReturnQty(Math.min(maxReturnQty, Math.max(0, Number(e.target.value))))}
+                  className="h-10 text-xs"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Exchange Item Selection (Only in Exchange Mode) */}
+            {mode === 'exchange' && (
+              <div className="pt-3 border-t border-hairline space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-medium text-ink-secondary block mb-1">
+                      {t.exchangeWith}
+                    </label>
+                    <select
+                      value={exchangeItemId}
+                      onChange={(e) => setExchangeItemId(e.target.value)}
+                      className="w-full h-10 px-3 text-xs bg-canvas text-ink border border-hairline-input rounded-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                      required
+                    >
+                      <option value="" disabled>
+                        {t.selectItem}
+                      </option>
+                      {(inventory || []).map((inv) => (
+                        <option key={inv._id} value={inv._id}>
+                          {inv.name} ({formatQuantity(inv.quantity, inv.unit)} in stock @ {formatPKR(inv.price)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-ink-secondary block mb-1">
+                      {t.replacementQuantity}
+                    </label>
+                    <Input
+                      type="number"
+                      min="0.01"
+                      step="any"
+                      value={exchangeQty}
+                      onChange={(e) => setExchangeQty(Number(e.target.value))}
+                      className="h-10 text-xs"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Live Price Difference Card */}
+                {replacementItem && (
+                  <div className="p-3.5 rounded-card bg-paper-2 border border-hairline flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="text-xs space-y-1">
+                      <div className="flex items-center gap-2 text-ink-mute">
+                        <span>Return credit:</span>
+                        <span className="font-mono font-medium text-ink">{formatPKR(returnTotalValue)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-ink-mute">
+                        <span>New item cost:</span>
+                        <span className="font-mono font-medium text-ink">{formatPKR(replacementTotalValue)}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="label block">{t.priceDifference}</span>
+                      {priceDiff > 0 ? (
+                        <p className="font-mono font-bold text-sm text-coral">
+                          +{formatPKR(priceDiff)} ({t.customerPays})
+                        </p>
+                      ) : priceDiff < 0 ? (
+                        <p className="font-mono font-bold text-sm text-primary">
+                          -{formatPKR(Math.abs(priceDiff))} ({t.storeRefunds})
+                        </p>
+                      ) : (
+                        <p className="font-mono font-bold text-sm text-ink">
+                          {t.evenExchange}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Optional Reason */}
+            <div>
+              <label className="text-xs font-medium text-ink-secondary block mb-1">
+                {t.reason}
+              </label>
+              <Input
+                placeholder={t.reasonPlaceholder}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="text-xs"
+              />
+            </div>
+          </>
+        )}
+
+        <div className="flex justify-end gap-2 pt-2 border-t border-hairline">
+          <Button type="button" variant="ghost" onClick={onClose} disabled={isPending}>
+            {t.cancel}
+          </Button>
+          <Button
+            type="submit"
+            loading={isPending}
+            disabled={!targetOrder}
+            leftIcon={mode === 'return' ? <RotateCcw className="w-4 h-4" /> : <ArrowLeftRight className="w-4 h-4" />}
+          >
+            {mode === 'return' ? t.returnBtn : t.exchangeBtn}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export function OrdersPage() {
   const language = useUiStore((s) => s.language);
   const isUrdu = language === 'ur';
@@ -218,15 +592,18 @@ export function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [newOrderOpen, setNewOrderOpen] = useState(false);
+  const [returnModalOpen, setReturnModalOpen] = useState(false);
+  const [returnModalOrder, setReturnModalOrder] = useState(null);
 
   const statusTabs = useMemo(
     () => [
       { id: 'all', label: t.all },
       { id: 'completed', label: t.completed },
+      { id: 'returned', label: tDash.returned || (isUrdu ? 'واپس شدہ' : 'Returned') },
       { id: 'pending_approval', label: t.waitingApproval },
       { id: 'rejected', label: t.rejected },
     ],
-    [t]
+    [t, tDash, isUrdu]
   );
 
   const counts = useMemo(() => {
@@ -234,6 +611,7 @@ export function OrdersPage() {
     return {
       all: list.length,
       completed: list.filter((o) => o.status === 'completed' || o.status === 'approved').length,
+      returned: list.filter((o) => o.status === 'returned' || o.status === 'partially_returned' || o.status === 'exchanged').length,
       pending_approval: list.filter((o) => o.status === 'pending_approval').length,
       rejected: list.filter((o) => o.status === 'rejected').length,
     };
@@ -244,6 +622,9 @@ export function OrdersPage() {
     if (statusFilter === 'all') return orders;
     if (statusFilter === 'completed') {
       return orders.filter((o) => o.status === 'completed' || o.status === 'approved');
+    }
+    if (statusFilter === 'returned') {
+      return orders.filter((o) => o.status === 'returned' || o.status === 'partially_returned' || o.status === 'exchanged');
     }
     return orders.filter((o) => o.status === statusFilter);
   }, [orders, statusFilter]);
@@ -261,6 +642,18 @@ export function OrdersPage() {
 
   const columns = useMemo(
     () => [
+      {
+        accessorKey: 'orderNumber',
+        header: '#',
+        cell: ({ getValue, row }) => {
+          const val = getValue() || row.original._id?.slice(-4);
+          return (
+            <span className="font-mono text-xs font-semibold text-ink">
+              #{val}
+            </span>
+          );
+        },
+      },
       {
         accessorKey: 'createdAt',
         header: t.date,
@@ -371,6 +764,7 @@ export function OrdersPage() {
  const statusTone = {
  all: 'bg-ink',
  completed: 'bg-primary',
+ returned: 'bg-coral',
  pending_approval: 'bg-pear-deep',
  rejected: 'bg-coral',
  };
@@ -382,9 +776,21 @@ export function OrdersPage() {
  <p className="label">{t.ledger}</p>
  <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)]">{t.orders}</h1>
  </div>
+ <div className="flex items-center gap-2">
+ <Button
+ variant="outline"
+ leftIcon={<RotateCcw className="size-4" />}
+ onClick={() => {
+ setReturnModalOrder(null);
+ setReturnModalOpen(true);
+ }}
+ >
+ {t.returnExchange}
+ </Button>
  <Button leftIcon={<Plus className="size-4" />} onClick={() => setNewOrderOpen(true)}>
  {t.newOrder}
  </Button>
+ </div>
  </div>
 
  {/* Volume slab (5) beside a status ledger that filters the table (7) */}
@@ -480,6 +886,14 @@ export function OrdersPage() {
  </Card>
 
  <NewOrderModal isOpen={newOrderOpen} onClose={() => setNewOrderOpen(false)} />
+ <ReturnExchangeModal
+ isOpen={returnModalOpen}
+ onClose={() => {
+ setReturnModalOpen(false);
+ setReturnModalOrder(null);
+ }}
+ initialOrder={returnModalOrder}
+ />
 
  <Modal
  isOpen={!!selectedOrder}
@@ -491,6 +905,7 @@ export function OrdersPage() {
  <div className="space-y-5">
  <div className="flex items-end justify-between gap-4 rounded-card bg-paper-2 p-4">
  <div>
+ <span className="font-mono text-xs font-semibold text-ink-mute block mb-0.5">#{selectedOrder.orderNumber || selectedOrder._id.slice(-6)}</span>
  <p className="label">{t.total}</p>
  <p className="mt-1 font-display text-3xl font-semibold tracking-tight text-ink font-tabular">{formatPKR(selectedOrder.total)}</p>
  </div>
@@ -498,6 +913,12 @@ export function OrdersPage() {
  </div>
 
  <div className="space-y-3">
+ {selectedOrder.customerName && (
+ <div className="flex items-center justify-between text-sm">
+ <span className="text-ink-secondary">{isUrdu ? 'گاہک' : 'Customer'}</span>
+ <span className="text-primary font-medium">{selectedOrder.customerName}</span>
+ </div>
+ )}
  <div className="flex items-center justify-between text-sm">
  <span className="text-ink-secondary">{t.paymentMethod}</span>
  <span className="capitalize text-ink font-medium">{tDash[selectedOrder.paymentMethod] || selectedOrder.paymentMethod}</span>
@@ -534,7 +955,68 @@ export function OrdersPage() {
  </ul>
  </div>
 
- <div className="flex justify-end pt-2">
+ {selectedOrder.returnHistory?.length > 0 && (
+ <div className="pt-1">
+ <p className="label mb-2 text-danger-ink">{isUrdu ? 'واپسی کی تاریخ' : 'Return History'}</p>
+ <div className="space-y-2">
+ {selectedOrder.returnHistory.map((rh, idx) => (
+ <div key={idx} className="p-2.5 rounded-lg bg-coral-tint/40 border border-coral-tint text-xs space-y-1">
+ <div className="flex items-center justify-between font-mono">
+ <span className="font-semibold text-danger-ink">Refund: -{formatPKR(rh.refundAmount)}</span>
+ <span className="text-ink-mute text-[10px]">{formatDate(rh.returnedAt, language)}</span>
+ </div>
+ <div className="text-ink-2">
+ {(rh.items || []).map((ri, riIdx) => (
+ <span key={riIdx}>{ri.name} x{ri.quantity}{riIdx < rh.items.length - 1 ? ', ' : ''}</span>
+ ))}
+ </div>
+ {rh.reason && <p className="text-[11px] text-ink-mute italic">Reason: {rh.reason}</p>}
+ </div>
+ ))}
+ </div>
+ </div>
+ )}
+
+ {selectedOrder.exchangeHistory?.length > 0 && (
+ <div className="pt-1">
+ <p className="label mb-2 text-sky-ink">{isUrdu ? 'تبادلے کی تاریخ' : 'Exchange History'}</p>
+ <div className="space-y-2">
+ {selectedOrder.exchangeHistory.map((eh, idx) => (
+ <div key={idx} className="p-2.5 rounded-lg bg-sky-tint/40 border border-sky-tint text-xs space-y-1">
+ <div className="flex items-center justify-between font-mono">
+ <span className="font-semibold text-ink">
+ {eh.priceDifference > 0 ? `+${formatPKR(eh.priceDifference)} (Paid)` : eh.priceDifference < 0 ? `-${formatPKR(Math.abs(eh.priceDifference))} (Refunded)` : 'Even Exchange'}
+ </span>
+ <span className="text-ink-mute text-[10px]">{formatDate(eh.exchangedAt, language)}</span>
+ </div>
+ <div className="text-ink-2">
+ <span>Returned: {eh.returnItem?.name} x{eh.returnItem?.quantity}</span>
+ <span className="mx-1">→</span>
+ <span>New: {eh.newItem?.name} x{eh.newItem?.quantity}</span>
+ </div>
+ {eh.reason && <p className="text-[11px] text-ink-mute italic">Reason: {eh.reason}</p>}
+ </div>
+ ))}
+ </div>
+ </div>
+ )}
+
+ <div className="flex items-center justify-between pt-2">
+ {selectedOrder.status !== 'returned' && selectedOrder.status !== 'rejected' ? (
+ <Button
+ variant="outline"
+ size="sm"
+ leftIcon={<RotateCcw className="w-4 h-4" />}
+ onClick={() => {
+ const ord = selectedOrder;
+ setSelectedOrder(null);
+ setReturnModalOrder(ord);
+ setReturnModalOpen(true);
+ }}
+ >
+ {t.returnExchange}
+ </Button>
+ ) : <div />}
  <Button variant="outline" onClick={() => setSelectedOrder(null)} leftIcon={<X className="w-4 h-4" />}>
  {t.close}
  </Button>

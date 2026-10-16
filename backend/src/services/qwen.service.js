@@ -73,7 +73,15 @@ If the merchant asks for an automation whose action is NOT one of the two action
 6. Requesting a PDF report (e.g. "send me sales report", "inventory report", "mujhe inventory ki report bhejo", "sales ki report", "short stock report", "رپورٹ بھیجو"):
 {"type":"generate_report","reportType":"inventory"|"sales"|"low_stock"|"top_selling"|"expiring"}
 
-7. Anything else where NO product, report, greeting, stock update, or automation can be identified:
+7. Returning an item or order:
+{"type":"return_order","orderNumber":"<order number or null>","items":[{"name":"<item name>","quantity":<number>}],"reason":"<reason or null>"}
+- Used when a customer returns goods (e.g. "ye wapis aa gaya", "wapis aaya", "return order VT-123456", "chawal wapis kar lo", "مال واپس آیا").
+
+8. Exchanging an item:
+{"type":"exchange_order","orderNumber":"<order number or null>","returnItem":{"name":"<returned item name>","quantity":<number>},"newItem":{"name":"<new replacement item name>","quantity":<number>}}
+- Used when a customer swaps one item for another (e.g. "is ki jagah 2 daal de do", "badal ke daal de do", "exchange with sugar", "اس کی جگہ دال دے دو").
+
+9. Anything else where NO product, report, greeting, stock update, or automation can be identified:
 {"type":"unknown","rawText":"<original text>"}`;
 
 const BUSINESS_DETAILS_PROMPT = `You extract business details from a merchant's
@@ -217,13 +225,16 @@ const URDU_DIGITS_MAP = {
   '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9',
 };
 
-const NUMBER_WORDS_MAP = {
+export const NUMBER_WORDS_MAP = {
   'ایک': 1, 'دو': 2, 'تین': 3, 'چار': 4, 'پانچ': 5, 'چھ': 6, 'سات': 7, 'آٹھ': 8, 'نو': 9, 'دس': 10,
   'گیارہ': 11, 'بارہ': 12, 'تیرہ': 13, 'چودہ': 14, 'پندرہ': 15, 'سولہ': 16, 'سترہ': 17, 'اٹھارہ': 18, 'انیس': 19, 'بیس': 20,
   'پچیس': 25, 'تیس': 30, 'چالیس': 40, 'پچاس': 50, 'سو': 100,
+  'پاؤ': 0.25, 'پاو': 0.25, 'آدھا': 0.5, 'ادھا': 0.5, 'سوا': 1.25, 'ڈیڑھ': 1.5, 'پونے': 0.75, 'ڈھائی': 2.5,
   'ek': 1, 'do': 2, 'teen': 3, 'char': 4, 'panch': 5, 'che': 6, 'chhe': 6, 'saat': 7, 'aath': 8, 'nau': 9, 'das': 10,
   'gyarah': 11, 'barah': 12, 'terah': 13, 'chaudah': 14, 'pandrah': 15, 'solah': 16, 'satrah': 17, 'atharah': 18, 'unnees': 19, 'bees': 20,
   'pachees': 25, 'tees': 30, 'chalees': 40, 'pachas': 50, 'sau': 100,
+  'pao': 0.25, 'paon': 0.25, 'aadha': 0.5, 'adha': 0.5, 'half': 0.5,
+  'sawa': 1.25, 'dedh': 1.5, 'derh': 1.5, 'pone': 0.75, 'paune': 0.75, 'dhai': 2.5, 'dhaiy': 2.5,
 };
 
 const NUMBER_WORDS_REGEX = new RegExp(
@@ -231,7 +242,7 @@ const NUMBER_WORDS_REGEX = new RegExp(
   'gi'
 );
 
-const UNIT_REGEX = /(?:^|\s)(kg|kilo|kilos|g|gram|grams|gm|litre|liter|litres|liters|ml|packet|packets|pkt|box|boxes|bottle|bottles|strip|strips|piece|pieces|pcs|pc|darjan|dozen|bori|sack|suit|meter|meters|کلو|گرام|لیٹر|درجن|پیکٹ|بوری|بوتل|ڈبہ|پتہ|میٹر)(?:\s|$)/i;
+const UNIT_REGEX = /(?:^|\s)(kg|kilo|kilos|g|gram|grams|gm|pao|paon|litre|liter|litres|liters|ml|packet|packets|pkt|box|boxes|bottle|bottles|strip|strips|piece|pieces|pcs|pc|darjan|dozen|bori|sack|suit|meter|meters|کلو|گرام|پاؤ|پاو|لیٹر|درجن|پیکٹ|بوری|بوتل|ڈبہ|پتہ|میٹر)(?:\s|$)/i;
 
 /**
  * Fast-path heuristic parser for stock restocks and stock inquiries.
@@ -355,6 +366,108 @@ function parseSingleRestockChunk(textChunk) {
 }
 
 /**
+ * Fast-path heuristic parser for return and exchange requests.
+ */
+export function parseReturnOrExchangeHeuristic(text) {
+  if (!text || typeof text !== 'string') return null;
+  const lower = text.trim().toLowerCase();
+
+  // Extract order number if mentioned (e.g. "VT-123456", "#123456", "order 1042", "order #1042", "VT-9988")
+  const orderNumMatch = text.match(/(?:order\s*#?|#)\s*([a-zA-Z0-9-]+)|\b(VT-?[a-zA-Z0-9-]+)\b|\b(\d{3,8})\b/i);
+  const orderNumber = orderNumMatch ? (orderNumMatch[1] || orderNumMatch[2] || orderNumMatch[3]) : null;
+
+  // 1. Exchange: "is ki jagah 2 daal de do", "badal ke daal de do", "exchange with daal"
+  const isExchange = /(?:is\s*ki\s*jagah|iss\s*ki\s*jagah|badal|exchange|تبادلہ|اس\s*کی\s*جگہ|بدل)/i.test(lower);
+  if (isExchange) {
+    const newItemPart = lower
+      .replace(/.*(?:is\s*ki\s*jagah|iss\s*ki\s*jagah|badal\s*ke|exchange\s*with|تبادلہ|اس\s*کی\s*جگہ|بدل\s*کے)\s*/i, '')
+      .replace(/(?:de\s*do|le\s*lo|do|dy\s*do|dy\s*dy|دے\s*دو|لے\s*لو)/gi, '')
+      .trim();
+    return {
+      type: 'exchange_order',
+      intent: 'exchange_order',
+      orderNumber,
+      rawText: text,
+      newItemText: newItemPart || null,
+      newItemName: newItemPart || null,
+    };
+  }
+
+  // 2. Return: "ye wapis aa gaya", "wapis kar lo", "order wapis", "return kar do", "مال واپس"
+  const isReturn = /(?:wapis|wapas|return|واپس|واپسی)/i.test(lower);
+  if (isReturn) {
+    const itemPart = lower
+      .replace(/(?:ye\s*wapis|ye\s*wapas|wapis\s*kar\s*lo|wapis\s*kar\s*do|return\s*kar\s*do|wapis\s*aa\s*gaya|wapas\s*aa\s*gaya|wapas\s*aya|wapis\s*aaya|wapis|wapas|return|واپس\s*آیا|واپس\s*کر\s*لو|واپس|واپسی)/gi, '')
+      .replace(/(?:order\s*#?|#)?\s*(?:VT-?[a-zA-Z0-9-]+|\b\d{3,8}\b)/gi, '')
+      .trim();
+    return {
+      type: 'return_order',
+      intent: 'return_order',
+      orderNumber,
+      rawText: text,
+      itemName: itemPart || null,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Fast-path heuristic parser for money-first sales ("20 ki chini") and fractional units ("1 pao chawal").
+ */
+export function parseMoneyFirstSaleHeuristic(text) {
+  if (!text || typeof text !== 'string') return null;
+  const normalizedDigits = text.replace(/[۰-۹]/g, (d) => URDU_DIGITS_MAP[d] || d);
+  const lower = normalizedDigits.trim().toLowerCase();
+
+  // Exclude restock, reports, greetings
+  if (/\b(?:maal\s*a[y|i]a|restock|report|salam|hello|hi|wapis|wapas|return)\b/i.test(lower)) {
+    return null;
+  }
+
+  // "20 ki chini", "50 ka chawal", "70 rupay ki daal", "30 ki mirch", "70 ka doodh mila cash"
+  const moneyMatch = lower.match(/^(\d+)\s*(?:rupay|rs|روپے)?\s*(?:ki|ka|ke|کی|کا|کے)\s+([a-zA-Z\u0600-\u06FF]+)(?:[\s\w\u0600-\u06FF]*)/i);
+  if (moneyMatch) {
+    const targetAmount = parseInt(moneyMatch[1], 10);
+    let itemName = moneyMatch[2].trim();
+    itemName = itemName.replace(/\b(?:mila|mile|diye|becha|cash|kash|udhaar|ملے|دیے|کیش|ادھار)\b/gi, '').trim();
+    if (itemName && targetAmount > 0) {
+      return {
+        type: 'log_sale',
+        intent: 'log_sale',
+        targetAmount,
+        itemName,
+        items: [{ name: itemName, quantity: 1, targetAmount }],
+        amount: targetAmount,
+        paymentMethod: lower.includes('udhaar') ? 'udhaar' : 'cash',
+        customerName: null,
+      };
+    }
+  }
+
+  // Fractional unit sales: e.g. "1 pao chawal", "aadha kilo chini", "dedh kilo daal", "dhai kilo aalo", "پاؤ چینی"
+  const fracMatch = lower.match(/^(?:(\d+)\s*)?(pao|paon|aadha|adha|half|dedh|derh|dhai|sawa|paune|pone|پاؤ|پاو|آدھا|ادھا|ڈیڑھ|ڈھائی|سوا|پونے)\s*(?:kilo|kg|کلو)?\s+([a-zA-Z\u0600-\u06FF\s]+)$/i);
+  if (fracMatch) {
+    const mult = fracMatch[1] ? parseInt(fracMatch[1], 10) : 1;
+    const fracWord = fracMatch[2];
+    const baseVal = NUMBER_WORDS_MAP[fracWord] || 1;
+    const quantity = mult === 1 ? baseVal : mult * baseVal;
+    const itemName = fracMatch[3].trim();
+    if (itemName) {
+      return {
+        type: 'log_sale',
+        items: [{ name: itemName, quantity }],
+        amount: null,
+        paymentMethod: 'cash',
+        customerName: null,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
  * Returns one of the command-contract shapes. Shared by the
  * typed-text path and (via the agent module) the voice-transcript path.
  * Injects dynamic merchant catalog context when available.
@@ -364,7 +477,18 @@ export async function parseIntent(text, merchant = null) {
     return { type: 'unknown', rawText: '' };
   }
 
-  // Check fast-path stock heuristic first
+  // Check return/exchange and money-first heuristics first
+  const returnOrExchangeHeuristic = parseReturnOrExchangeHeuristic(text);
+  if (returnOrExchangeHeuristic) {
+    return returnOrExchangeHeuristic;
+  }
+
+  const moneyFirstHeuristic = parseMoneyFirstSaleHeuristic(text);
+  if (moneyFirstHeuristic) {
+    return moneyFirstHeuristic;
+  }
+
+  // Check fast-path stock heuristic
   const stockHeuristic = parseStockHeuristic(text);
 
   if (!llmConfigured()) {
@@ -389,7 +513,7 @@ export async function parseIntent(text, merchant = null) {
     const raw = await chatCompletion(prompt, text);
     const parsed = extractJson(raw);
 
-    if (parsed && ['log_sale', 'update_stock', 'check_stock', 'create_workflow', 'unsupported_workflow', 'greeting', 'generate_report', 'unknown'].includes(parsed.type)) {
+    if (parsed && ['log_sale', 'update_stock', 'check_stock', 'create_workflow', 'unsupported_workflow', 'greeting', 'generate_report', 'return_order', 'exchange_order', 'unknown'].includes(parsed.type)) {
       // Guard: If model misclassified restock speech as a sale, override it
       if (parsed.type === 'log_sale' && stockHeuristic?.type === 'update_stock') {
         return stockHeuristic;

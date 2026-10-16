@@ -13,6 +13,7 @@ async function request(path, options = {}) {
   };
 
   const config = {
+    credentials: 'include',
     ...options,
     headers,
   };
@@ -92,14 +93,14 @@ export async function downloadFile(path, filename) {
 
   let res;
   try {
-    res = await fetch(primaryUrl, { headers });
+    res = await fetch(primaryUrl, { headers, credentials: 'include' });
     if (!res.ok && res.status >= 500 && fallbackUrl && fallbackUrl !== primaryUrl) {
-      res = await fetch(fallbackUrl, { headers });
+      res = await fetch(fallbackUrl, { headers, credentials: 'include' });
     }
   } catch (err) {
     if (fallbackUrl && fallbackUrl !== primaryUrl) {
       try {
-        res = await fetch(fallbackUrl, { headers });
+        res = await fetch(fallbackUrl, { headers, credentials: 'include' });
       } catch (fallbackErr) {
         console.error(`[API] Download failed on both primary and fallback:`, fallbackErr);
         throw new Error('Network error. Failed to download file.', { cause: fallbackErr });

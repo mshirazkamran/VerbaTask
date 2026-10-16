@@ -51,6 +51,8 @@ export async function getProfile(req, res) {
         voiceReplies: merchant.voiceReplies ?? true,
         replyPreference: merchant.replyPreference || 'voice_on_voice',
         confirmAutomations: merchant.confirmAutomations ?? false,
+        requireApprovalForHighValue: merchant.requireApprovalForHighValue ?? false,
+        highValueThreshold: merchant.highValueThreshold ?? 10000,
         acceptedPaymentMethods: merchant.acceptedPaymentMethods?.length
           ? merchant.acceptedPaymentMethods
           : DEFAULT_ACCEPTED_PAYMENT_METHODS,
@@ -81,6 +83,8 @@ export async function updateProfile(req, res) {
       'voiceReplies',
       'replyPreference',
       'confirmAutomations',
+      'requireApprovalForHighValue',
+      'highValueThreshold',
       'acceptedPaymentMethods',
       'paymentDetails',
       'defaultPaymentMethod',
