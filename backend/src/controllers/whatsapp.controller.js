@@ -714,7 +714,7 @@ async function handleOnboardedMerchant(merchant, message) {
 }
 
 /** Typed text: "order" starts the guided flow, "link"/"code" resends the dashboard linking code, message workflows are checked next, anything else goes through Qwen NLP. */
-async function handleTextMessage(merchant, text) {
+async function handleTextMessage(merchant, text, rawMessage = null) {
   const normalized = text.trim().toLowerCase();
 
   // 1. Core Guided & Link Commands
@@ -951,9 +951,12 @@ async function handleTextMessage(merchant, text) {
     return await routeParsedCommand(merchant, { ...intent, language: detectedLanguage, incomingMessageId: rawMessage?.id, rawMessage }, 'text');
   } catch (err) {
     console.error('parseIntent failed:', err.message);
+    const lang = merchant.language || 'ur';
     return sendTextMessage(
       merchant.whatsappNumber,
-      "I didn't quite catch that — try 'help' to see all commands or 'order' to log a sale."
+      lang === 'en'
+        ? "I didn't quite catch that — try 'help' to see all commands or 'order' to log a sale."
+        : "معذرت، بات سمجھ نہیں آئی — تمام کمانڈز دیکھنے کے لیے 'help' لکھیں یا آرڈر کے لیے 'order' بولیں یا لکھیں۔"
     );
   }
 }

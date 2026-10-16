@@ -31,6 +31,12 @@ describe('Return, Exchange & Fractional Units System Tests', () => {
       assert.ok(res);
       assert.equal(res.intent, 'return_order');
       assert.equal(res.orderNumber, null);
+
+      const res2 = parseReturnOrExchangeHeuristic('returned');
+      assert.ok(res2);
+      assert.equal(res2.intent, 'return_order');
+      assert.equal(res2.orderNumber, null);
+      assert.equal(res2.itemName, null);
     });
 
     test('parses exchange intent with replacement item', () => {

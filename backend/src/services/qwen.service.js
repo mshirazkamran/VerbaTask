@@ -488,11 +488,11 @@ export function parseReturnOrExchangeHeuristic(text) {
     };
   }
 
-  // 2. Return: "ye wapis aa gaya", "wapis kar lo", "order wapis", "return kar do", "مال واپس"
-  const isReturn = /(?:wapis|wapas|return|واپس|واپسی)/i.test(lower);
+  // 2. Return: "ye wapis aa gaya", "wapis kar lo", "order wapis", "return kar do", "returned", "مال واپس"
+  const isReturn = /(?:wapis|wapas|\breturn\b|\breturned\b|واپس|واپسی)/i.test(lower);
   if (isReturn) {
     const itemPart = lower
-      .replace(/(?:ye\s*wapis\s*(?:aa\s*gaya|aagya|aya|aaya)?|ye\s*wapas\s*(?:aa\s*gaya|aagya|aya|aaya)?|wapis\s*(?:aa\s*gaya|aagya|aya|aaya|kar\s*lo|kar\s*do)?|wapas\s*(?:aa\s*gaya|aagya|aya|aaya|kar\s*lo|kar\s*do)?|return\s*kar\s*do|return|واپس\s*آیا|واپس\s*کر\s*لو|واپس|واپسی|\baa\s*gaya\b|\baagya\b|\bgaya\b|\bgayi\b|\baye\b|\baaya\b|\baya\b|\bye\b|\byeh\b)/gi, '')
+      .replace(/(?:ye\s*wapis\s*(?:aa\s*gaya|aagya|aya|aaya)?|ye\s*wapas\s*(?:aa\s*gaya|aagya|aya|aaya)?|wapis\s*(?:aa\s*gaya|aagya|aya|aaya|kar\s*lo|kar\s*do)?|wapas\s*(?:aa\s*gaya|aagya|aya|aaya|kar\s*lo|kar\s*do)?|\breturn\s*kar\s*do\b|\breturned\b|\breturn\b|واپس\s*آیا|واپس\s*کر\s*لو|واپس|واپسی|\baa\s*gaya\b|\baagya\b|\bgaya\b|\bgayi\b|\baye\b|\baaya\b|\baya\b|\bye\b|\byeh\b)/gi, '')
       .replace(/(?:order\s*#?|#)?\s*(?:VT-?[a-zA-Z0-9-]+|\b\d{3,8}\b)/gi, '')
       .trim();
     return {
