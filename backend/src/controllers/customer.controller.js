@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Customer from '../models/Customer.js';
 import { emitDashboardUpdate } from '../socket.js';
 
@@ -62,6 +63,10 @@ export async function createCustomer(req, res) {
 
 export async function updateCustomer(req, res) {
   try {
+    if (!req.params?.id) {
+      return res.status(400).json({ success: false, error: { message: 'Customer ID is required' } });
+    }
+
     const customer = await Customer.findOne({ _id: req.params.id, merchantId: req.merchantId });
     if (!customer) {
       return res.status(404).json({ success: false, error: { message: 'Customer not found' } });
@@ -112,12 +117,19 @@ export async function updateCustomer(req, res) {
 
     res.json({ success: true, data: customer });
   } catch (err) {
+    if (err.name === 'CastError') {
+      return res.status(400).json({ success: false, error: { message: 'Invalid customer ID' } });
+    }
     res.status(500).json({ success: false, error: { message: err.message } });
   }
 }
 
 export async function deleteCustomer(req, res) {
   try {
+    if (!req.params?.id) {
+      return res.status(400).json({ success: false, error: { message: 'Customer ID is required' } });
+    }
+
     const customer = await Customer.findOneAndDelete({ _id: req.params.id, merchantId: req.merchantId });
     if (!customer) {
       return res.status(404).json({ success: false, error: { message: 'Customer not found' } });
@@ -132,16 +144,23 @@ export async function deleteCustomer(req, res) {
 
     res.json({ success: true, message: 'Customer deleted from ledger' });
   } catch (err) {
+    if (err.name === 'CastError') {
+      return res.status(400).json({ success: false, error: { message: 'Invalid customer ID' } });
+    }
     res.status(500).json({ success: false, error: { message: err.message } });
   }
 }
 
 export async function settleBalance(req, res) {
   try {
-    const { amount } = req.body;
+    const { amount } = req.body || {};
     const amountNum = Number(amount);
     if (!amountNum || amountNum <= 0) {
       return res.status(400).json({ success: false, error: { message: 'Invalid amount' } });
+    }
+
+    if (!req.params?.id) {
+      return res.status(400).json({ success: false, error: { message: 'Customer ID is required' } });
     }
 
     const customer = await Customer.findOne({ _id: req.params.id, merchantId: req.merchantId });
@@ -163,6 +182,9 @@ export async function settleBalance(req, res) {
 
     res.json({ success: true, data: customer });
   } catch (err) {
+    if (err.name === 'CastError') {
+      return res.status(400).json({ success: false, error: { message: 'Invalid customer ID' } });
+    }
     res.status(500).json({ success: false, error: { message: err.message } });
   }
 }

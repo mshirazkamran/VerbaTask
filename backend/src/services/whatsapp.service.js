@@ -68,13 +68,15 @@ export async function sendDocumentMessage(to, mediaId, filename, caption = '') {
  * @param {string} [options.language='ur'] - 'ur' or 'en'
  * @param {boolean} [options.alsoSendText] - Whether to send companion text alongside voice
  */
-export async function sendVoiceReply(to, { spokenText, textReceipt = null, language = 'ur', alsoSendText = DEFAULT_COMPANION_TEXT }) {
+export async function sendVoiceReply(to, { spokenText, textReceipt = null, language = 'ur', alsoSendText = DEFAULT_COMPANION_TEXT, voice = null, voiceGender = null }) {
   try {
-    const { buffer, mimeType, provider, voice } = await synthesizeSpeech(spokenText, {
+    const { buffer, mimeType, provider, voice: usedVoice } = await synthesizeSpeech(spokenText, {
       language,
+      voice,
+      voiceGender,
       strictNeuralOnly: true,
     });
-    console.log(`[voice-out] Generated audio for ${to} using provider="${provider}" voice="${voice}"`);
+    console.log(`[voice-out] Generated audio for ${to} using provider="${provider}" voice="${usedVoice}" gender="${voiceGender || 'default'}"`);
 
     const { id: mediaId } = await uploadMedia(buffer, mimeType, 'voice_reply.mp3');
     const audioRes = await sendAudioMessage(to, mediaId);

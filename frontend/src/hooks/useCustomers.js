@@ -87,7 +87,9 @@ export function useSettleBalance() {
         console.warn('[Customers] Settle fallback to local overlay:', err.message);
         const store = getLocalStore(mId);
         const currentUpdated = store.updated[customerId] || {};
-        const oldBal = currentUpdated.balance ?? 0;
+        const cachedList = queryClient.getQueryData(['customers']);
+        const cachedCust = Array.isArray(cachedList) ? cachedList.find((c) => c._id === customerId) : null;
+        const oldBal = currentUpdated.balance ?? cachedCust?.balance ?? 0;
         store.updated[customerId] = {
           ...currentUpdated,
           balance: Math.max(0, oldBal - Number(amount)),
