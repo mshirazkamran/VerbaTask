@@ -62,7 +62,7 @@ export function LinkCodePage() {
  return (
  <AuthLayout
  title="Link WhatsApp number"
- subtitle="Enter your email and the verification code sent by the VerbaTask bot."
+ subtitle="Enter your email and the verification code sent by the BolDukan bot."
  >
  {linked ? (
  <div className="text-center py-4 space-y-4">
@@ -74,7 +74,7 @@ export function LinkCodePage() {
  Number linked successfully!
  </h2>
  <p className="text-xs text-ink-mute">
- Your WhatsApp line is connected to your VerbaTask merchant account.
+ Your WhatsApp line is connected to your BolDukan merchant account.
  </p>
  </div>
  <div className="pt-2">

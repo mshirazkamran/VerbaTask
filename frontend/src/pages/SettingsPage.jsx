@@ -88,7 +88,7 @@ export function SettingsPage() {
 
   const handleShareInvite = (code) => {
     if (!code) return;
-    const msg = `As-salamu alaykum! Join our shop account on VerbaTask by sending: join ${code} [Your Name]`;
+    const msg = `As-salamu alaykum! Join our shop account on BolDukan by sending: join ${code} [Your Name]`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
   };
@@ -743,9 +743,9 @@ export function SettingsPage() {
                       <span className="font-bold text-ink">{isUrdu ? '1. ملازم کیسے شامل ہو:' : '1. How staff join:'}</span>
                       <span>
                         {isUrdu ? (
-                          <>ملازم وربا ٹاسک بوٹ کو <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {effectiveShopCode} Ali</code> لکھ کر بھیجے۔</>
+                          <>ملازم بول دکان بوٹ کو <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {effectiveShopCode} Ali</code> لکھ کر بھیجے۔</>
                         ) : (
-                          <>Assistant texts <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {effectiveShopCode} Ali</code> to the VerbaTask WhatsApp bot.</>
+                          <>Assistant texts <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {effectiveShopCode} Ali</code> to the BolDukan WhatsApp bot.</>
                         )}
                       </span>
                     </div>

@@ -98,18 +98,19 @@ export async function sendVoiceReply(to, { spokenText, textReceipt = null, langu
  * Reply buttons — max 3, each title max 20 chars (WhatsApp's hard limit).
  * buttons: [{ id: 'confirm_order', title: 'Confirm' }, ...]
  */
-export async function sendInteractiveButtons(to, bodyText, buttons) {
-  if (buttons.length > 3) throw new Error('WhatsApp reply buttons: max 3 allowed');
+export async function sendInteractiveButtons(to, bodyText, buttons = []) {
+  const safeButtons = (buttons || []).slice(0, 3);
+  const truncatedBody = String(bodyText || '').slice(0, 1024);
   return send({
     to,
     type: 'interactive',
     interactive: {
       type: 'button',
-      body: { text: bodyText },
+      body: { text: truncatedBody },
       action: {
-        buttons: buttons.map((b) => ({
+        buttons: safeButtons.map((b) => ({
           type: 'reply',
-          reply: { id: b.id, title: b.title.slice(0, 20) },
+          reply: { id: String(b.id), title: String(b.title || '').slice(0, 20) },
         })),
       },
     },
@@ -119,20 +120,34 @@ export async function sendInteractiveButtons(to, bodyText, buttons) {
 /**
  * List message — use this for the item picker (stock lists routinely exceed
  * the 3-button cap). WhatsApp caps list messages at 10 rows total across all
- * sections — if a merchant's stock list is bigger than that, page it
- * (see paginateRows below) rather than silently truncating.
+ * sections. We safely clamp rows to 10 and titles/descriptions to Meta's hard limits.
  * sections: [{ title: 'Rice', rows: [{ id, title, description }] }]
  */
-export async function sendInteractiveList(to, bodyText, buttonText, sections) {
-  const totalRows = sections.reduce((sum, s) => sum + s.rows.length, 0);
-  if (totalRows > 10) throw new Error('WhatsApp list message: max 10 rows total');
+export async function sendInteractiveList(to, bodyText, buttonText, sections = []) {
+  let rowCount = 0;
+  const safeSections = [];
+  for (const s of (sections || [])) {
+    if (rowCount >= 10) break;
+    const remainingSlots = 10 - rowCount;
+    const safeRows = (s.rows || []).slice(0, remainingSlots).map((r) => ({
+      id: String(r.id),
+      title: String(r.title || '').slice(0, 24),
+      ...(r.description ? { description: String(r.description).slice(0, 72) } : {}),
+    }));
+    rowCount += safeRows.length;
+    safeSections.push({
+      title: String(s.title || 'Options').slice(0, 24),
+      rows: safeRows,
+    });
+  }
+
   return send({
     to,
     type: 'interactive',
     interactive: {
       type: 'list',
-      body: { text: bodyText },
-      action: { button: buttonText.slice(0, 20), sections },
+      body: { text: String(bodyText || '').slice(0, 1024) },
+      action: { button: String(buttonText || 'Select').slice(0, 20), sections: safeSections },
     },
   });
 }
@@ -146,7 +161,7 @@ export function paginateRows(items, pageSize = 9) {
 }
 
 /**
- * Template message — required for anything VerbaTask sends *first*, outside
+ * Template message — required for anything BolDukan sends *first*, outside
  * a 24h reply window (e.g. a scheduled workflow alert). Must match an
  * approved template name/language exactly.
  * bodyParams: ['Ahmed\'s Store', 'Rice stock is running low (3 bags left)']

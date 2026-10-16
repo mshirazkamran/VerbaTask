@@ -30,6 +30,26 @@ describe('Session Tokens & Cookie Authentication Tests', () => {
     assert.equal(req.merchantId, merchantId);
   });
 
+  test('requireAuth authenticates via Cookie boldukan_session header', () => {
+    const merchantId = 'merchant_boldukan_cookie_123';
+    const token = jwt.sign({ merchantId }, JWT_SECRET);
+
+    const req = {
+      headers: {
+        cookie: `other_pref=dark; boldukan_session=${token}; lang=en`,
+      },
+    };
+    let nextCalled = false;
+    const res = {};
+
+    requireAuth(req, res, () => {
+      nextCalled = true;
+    });
+
+    assert.equal(nextCalled, true);
+    assert.equal(req.merchantId, merchantId);
+  });
+
   test('requireAuth authenticates via Cookie vt_session header', () => {
     const merchantId = 'merchant_cookie_456';
     const token = jwt.sign({ merchantId }, JWT_SECRET);
@@ -171,6 +191,14 @@ describe('Session Tokens & Cookie Authentication Tests', () => {
       assert.ok(responseBody.data.token);
       assert.equal(responseBody.data.merchantId, 'merchant_login_test_1');
 
+      assert.ok(cookiesSet.boldukan_session);
+      assert.equal(cookiesSet.boldukan_session.value, responseBody.data.token);
+      assert.equal(cookiesSet.boldukan_session.options.path, '/');
+      assert.equal(cookiesSet.boldukan_session.options.sameSite, 'lax');
+
+      assert.ok(cookiesSet.boldukan_merchant_id);
+      assert.equal(cookiesSet.boldukan_merchant_id.value, 'merchant_login_test_1');
+
       assert.ok(cookiesSet.vt_session);
       assert.equal(cookiesSet.vt_session.value, responseBody.data.token);
       assert.equal(cookiesSet.vt_session.options.path, '/');
@@ -228,6 +256,11 @@ describe('Session Tokens & Cookie Authentication Tests', () => {
       assert.ok(responseBody.data.token);
       assert.equal(responseBody.data.merchantId, 'merchant_signup_test_2');
 
+      assert.ok(cookiesSet.boldukan_session);
+      assert.equal(cookiesSet.boldukan_session.value, responseBody.data.token);
+      assert.ok(cookiesSet.boldukan_merchant_id);
+      assert.equal(cookiesSet.boldukan_merchant_id.value, 'merchant_signup_test_2');
+
       assert.ok(cookiesSet.vt_session);
       assert.equal(cookiesSet.vt_session.value, responseBody.data.token);
       assert.ok(cookiesSet.vt_merchant_id);
@@ -265,7 +298,7 @@ describe('Session Tokens & Cookie Authentication Tests', () => {
     assert.equal(responseBody.success, true);
     assert.deepEqual(
       cookiesCleared.map((c) => c.name),
-      ['vt_session', 'vt_merchant_id']
+      ['boldukan_session', 'boldukan_merchant_id', 'vt_session', 'vt_merchant_id']
     );
   });
 });

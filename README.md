@@ -1,6 +1,6 @@
-# VerbaTask
+# BolDukan — Retail Voice OS
 
-VerbaTask helps small shopkeepers in Pakistan run their business through
+BolDukan helps small shopkeepers in Pakistan run their business through
 WhatsApp — the app they already use all day — instead of learning a new
 tool.
 
@@ -11,7 +11,7 @@ or on paper, inside WhatsApp chats. Nothing is automated because every
 existing automation tool assumes you're comfortable with English, a computer,
 and technical setup. Most shopkeepers aren't, and don't have time to be.
 
-## What VerbaTask does
+## What BolDukan does
 
 A merchant talks to one WhatsApp number. That's the whole interface.
 
@@ -19,7 +19,7 @@ A merchant talks to one WhatsApp number. That's the whole interface.
   the merchant's own stock list, pick how they got paid (EasyPaisa,
   JazzCash, bank transfer, or cash), done. No typing needed.
 - **Prefer talking instead of tapping?** Send a voice note in Urdu or Roman
-  Urdu — "do bori chawal, easypaisa se, 1500" — and VerbaTask understands it
+  Urdu — "do bori chawal, easypaisa se, 1500" — and BolDukan understands it
   and logs the exact same sale. Whichever is easier for that merchant, that
   moment.
 - **Automations in plain language** — "jab chawal ka stock 5 se kam ho jaye
@@ -29,7 +29,7 @@ A merchant talks to one WhatsApp number. That's the whole interface.
   the same stock list. The merchant always knows what they actually have
   left.
 - **Big or unusual actions ask first** — a surprisingly large order or
-  payment doesn't happen silently. VerbaTask asks the merchant to confirm
+  payment doesn't happen silently. BolDukan asks the merchant to confirm
   before it goes through.
 - **A simple dashboard, if they want it** — a lightweight web page shows
   daily sales, profit, stock levels, and what the automations have been
@@ -40,5 +40,5 @@ A merchant talks to one WhatsApp number. That's the whole interface.
 
 Shopkeepers don't need to install anything, learn anything, or sign up for a
 developer account. They message a number, same as they'd message a friend,
-and the business runs itself a little more every day. VerbaTask meets
+and the business runs itself a little more every day. BolDukan meets
 merchants exactly where they already are.

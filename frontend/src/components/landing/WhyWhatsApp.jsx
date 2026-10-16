@@ -18,7 +18,7 @@ export function WhyWhatsApp() {
           </p>
         </div>
 
-        <div className="mt-12 border-t-2 border-ink" role="table" aria-label="Desktop POS compared with VerbaTask">
+        <div className="mt-12 border-t-2 border-ink" role="table" aria-label="Desktop POS compared with BolDukan">
           <div role="row" className="hidden grid-cols-[minmax(0,3fr)_minmax(0,4fr)_minmax(0,5fr)] gap-6 border-b border-rule py-3 md:grid">
             <span role="columnheader" className="label">{t.headers.counter}</span>
             <span role="columnheader" className="label">{t.headers.pos}</span>
@@ -38,7 +38,7 @@ export function WhyWhatsApp() {
                 {r.pos}
               </span>
               <span role="cell" className="text-sm font-medium leading-relaxed text-ink">
-                <span className="label me-2 md:hidden">VerbaTask</span>
+                <span className="label me-2 md:hidden">BolDukan</span>
                 {r.vt}
               </span>
             </div>

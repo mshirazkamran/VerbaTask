@@ -146,7 +146,7 @@ function NewOrderModal({ isOpen, onClose }) {
  const isOverStock = availableStock != null && Number(item.quantity) > availableStock;
 
  return (
- <div key={idx} className="flex items-start gap-2">
+ <div key={idx} className="flex flex-col sm:flex-row sm:items-start gap-2 p-2.5 sm:p-0 rounded-md bg-paper-2 sm:bg-transparent border border-rule sm:border-0">
  <div className="flex-1">
  <select
  value={item.inventoryItemId}
@@ -173,16 +173,20 @@ function NewOrderModal({ isOpen, onClose }) {
    </div>
  )}
  </div>
+ <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
+ <div className="flex items-center gap-1.5">
+ <span className="text-xs text-ink-muted sm:hidden">{isUrdu ? 'تعداد:' : 'Qty:'}</span>
  <Input
  type="number"
  min="1"
  max={availableStock ?? undefined}
  value={item.quantity}
  onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })}
- className={`w-24 ${isOverStock ? 'border-red-500 focus:border-red-500' : ''}`}
+ className={`w-20 sm:w-24 ${isOverStock ? 'border-red-500 focus:border-red-500' : ''}`}
  required
  />
- <div className="w-28 pt-2 text-sm text-ink font-tabular text-right">
+ </div>
+ <div className="w-24 sm:w-28 pt-0 sm:pt-2 text-sm text-ink font-tabular text-right shrink-0">
  {formatPKR((item.price || 0) * (Number(item.quantity) || 0))}
  </div>
  {items.length > 1 && (
@@ -190,13 +194,14 @@ function NewOrderModal({ isOpen, onClose }) {
  type="button"
  variant="ghost"
  size="sm"
- className="!text-danger-ink hover:!bg-coral-tint !px-2.5"
+ className="!text-danger-ink hover:!bg-coral-tint !px-2.5 shrink-0"
  aria-label="Remove line"
  onClick={() => removeLine(idx)}
  >
  <Trash2 className="w-4 h-4" />
  </Button>
  )}
+ </div>
  </div>
  );
  })}
@@ -812,7 +817,7 @@ export function OrdersPage() {
  <p className="label">{t.ledger}</p>
  <h1 className="display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)]">{t.orders}</h1>
  </div>
- <div className="flex items-center gap-2">
+ <div className="flex flex-wrap items-center gap-2">
  <Button
  variant="outline"
  leftIcon={<RotateCcw className="size-4" />}

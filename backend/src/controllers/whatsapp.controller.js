@@ -290,7 +290,7 @@ async function handleStaffJoinFlow(from, text) {
   if (activeStaff.length >= limit) {
     await sendTextMessage(
       from,
-      `⚠️ *Staff Limit Reached*\n\nIs dukaan par staff members ki hadd (${limit}) mukammal ho chuki hai. Dukaan k malik se bolein ke VerbaTask Pro plan upgrade karein.`
+      `⚠️ *Staff Limit Reached*\n\nIs dukaan par staff members ki hadd (${limit}) mukammal ho chuki hai. Dukaan k malik se bolein ke BolDukan Pro plan upgrade karein.`
     );
     return true;
   }
@@ -309,7 +309,7 @@ async function handleStaffJoinFlow(from, text) {
   // Notify assistant
   await sendTextMessage(
     from,
-    `🎉 *Mubarak! Aap VerbaTask Team mein shamil ho gaye hain!*\n\n🏪 Dukaan: *${merchant.businessName || 'Store'}*\n👤 Naam: *${finalName}*\n\nAb aap yahan se direct sales, inventory check, aur udhaar darj kar sakte hain. Shuru karne ke liye koi bhi sale bolain ya likhein (maslan: *2 doodh 400* ya *ali ne 500 udhaar liye*).`
+    `🎉 *Mubarak! Aap BolDukan Team mein shamil ho gaye hain!*\n\n🏪 Dukaan: *${merchant.businessName || 'Store'}*\n👤 Naam: *${finalName}*\n\nAb aap yahan se direct sales, inventory check, aur udhaar darj kar sakte hain. Shuru karne ke liye koi bhi sale bolain ya likhein (maslan: *2 doodh 400* ya *ali ne 500 udhaar liye*).`
   );
 
   // Notify store owner
@@ -341,7 +341,7 @@ async function handleUnregisteredNumber(whatsappNumber) {
 
   await sendTextMessage(
     whatsappNumber,
-    `Welcome to VerbaTask! 👋\n\nTo get started, create your account here:\n${SIGNUP_BASE_URL}\n\nYour linking code: *${linkCode.code}*\n(valid for 15 minutes)`
+    `Welcome to BolDukan! 👋\n\nTo get started, create your account here:\n${SIGNUP_BASE_URL}\n\nYour linking code: *${linkCode.code}*\n(valid for 15 minutes)`
   );
 }
 
@@ -350,7 +350,7 @@ async function sendLinkCodeToMerchant(merchant) {
 
   await sendTextMessage(
     merchant.whatsappNumber,
-    `Your VerbaTask linking code: *${linkCode.code}*\n(valid for 15 minutes)\n\nEnter it on the Link Code page to connect this number to your dashboard account.`
+    `Your BolDukan linking code: *${linkCode.code}*\n(valid for 15 minutes)\n\nEnter it on the Link Code page to connect this number to your dashboard account.`
   );
 }
 

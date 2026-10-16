@@ -6,7 +6,7 @@ const REPO = 'https://github.com/soban-iftikhar/VerbaTask';
 const links = [
   { title: 'Source code', desc: 'Read the full codebase or star the repo.', href: REPO, action: 'GitHub' },
   { title: 'Report a bug', desc: 'Something broken? Open an issue and we’ll look at it.', href: `${REPO}/issues`, action: 'Issues' },
-  { title: 'Request a feature', desc: 'An idea for VerbaTask? Put it in an issue.', href: `${REPO}/issues`, action: 'Issues' },
+  { title: 'Request a feature', desc: 'An idea for BolDukan? Put it in an issue.', href: `${REPO}/issues`, action: 'Issues' },
   { title: 'Contribute', desc: 'Fork the repo, make a change, open a pull request.', href: `${REPO}/fork`, action: 'Fork' },
 ];
 
@@ -18,7 +18,7 @@ export function ContactPage() {
         <div className="shell">
           <h1 className="display text-[length:var(--fs-2xl)] text-ink sm:text-[length:var(--text-display)]">Write to us.</h1>
           <p className="mt-6 max-w-[32rem] leading-relaxed text-ink-2">
-            Business questions, feedback or help getting set up — email is quickest. VerbaTask is open
+            Business questions, feedback or help getting set up — email is quickest. BolDukan is open
             source, so code questions are best on GitHub.
           </p>
 

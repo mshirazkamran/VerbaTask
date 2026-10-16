@@ -18,7 +18,7 @@ export const translations = {
       titleHighlight: 'talking',
       titleAfter: ' to it.',
       subtitle:
-        'Send a voice note when you make a sale. VerbaTask logs it, takes it off your stock, and asks you only what it couldn’t hear. Built for kiryana stores and pharmacies, not for people who like filling in forms.',
+        'Send a voice note when you make a sale. BolDukan logs it, takes it off your stock, and asks you only what it couldn’t hear. Built for kiryana stores and pharmacies, not for people who like filling in forms.',
       ctaPrimary: 'Start free on WhatsApp',
       ctaSecondary: 'See how it works',
       hardwareLabel: 'Hardware',
@@ -76,7 +76,7 @@ export const translations = {
     howItWorks: {
       heading: 'Four steps. Three of them happen in WhatsApp.',
       linkCodeLabel: 'Your link code',
-      linkCodeHelp: 'Send it to the VerbaTask number on WhatsApp. That’s the whole setup.',
+      linkCodeHelp: 'Send it to the BolDukan number on WhatsApp. That’s the whole setup.',
       shelfLive: 'Shelf · live',
       sampleOrder: 'Ord-9021',
       sampleOrderAmount: '18,500',
@@ -102,7 +102,7 @@ export const translations = {
           word: 'Link',
           title: 'Pair your WhatsApp number.',
           body:
-            'Sign up, then send the six-digit code to the VerbaTask number. No app to install, nothing to configure.',
+            'Sign up, then send the six-digit code to the BolDukan number. No app to install, nothing to configure.',
         },
         {
           num: '2.0',
@@ -130,7 +130,7 @@ export const translations = {
     features: {
       title: 'It speaks the way your counter speaks.',
       body:
-        'Kiryana words, Roman Urdu spellings, half-English sentences. Tap a line to see what VerbaTask writes down.',
+        'Kiryana words, Roman Urdu spellings, half-English sentences. Tap a line to see what BolDukan writes down.',
       phrases: [
         { said: 'Do kilo chawal aur ek kilo daal, 500 ka note mila', heard: '2 kg rice · 1 kg daal · cash 500' },
         { said: 'Rashid bhai ne 1500 udhaar liya', heard: 'Rashid · udhaar · Rs. 1,500' },
@@ -149,11 +149,11 @@ export const translations = {
     whyWhatsApp: {
       heading: 'A desktop till, or the phone already in your hand.',
       subheading:
-        'Shop software fails when it asks shopkeepers to sit behind a machine. VerbaTask works in the chat app you already have open all day.',
+        'Shop software fails when it asks shopkeepers to sit behind a machine. BolDukan works in the chat app you already have open all day.',
       headers: {
         counter: 'At the counter',
         pos: 'Desktop POS',
-        vt: 'VerbaTask on WhatsApp',
+        vt: 'BolDukan on WhatsApp',
       },
       rows: [
         {
@@ -205,7 +205,7 @@ export const translations = {
       items: [
         {
           q: 'Do I have to change how I run my counter?',
-          a: 'No. You serve customers the way you do today. The only new habit is a quick voice note or text to the VerbaTask chat: “2 carton oil bech diye, cash mil gaya.”',
+          a: 'No. You serve customers the way you do today. The only new habit is a quick voice note or text to the BolDukan chat: “2 carton oil bech diye, cash mil gaya.”',
         },
         {
           q: 'What if it gets an amount or item wrong?',
@@ -225,7 +225,7 @@ export const translations = {
         },
         {
           q: 'What if my phone loses signal?',
-          a: 'WhatsApp holds your message and sends it when the signal comes back. VerbaTask then processes messages in order, so nothing is skipped.',
+          a: 'WhatsApp holds your message and sends it when the signal comes back. BolDukan then processes messages in order, so nothing is skipped.',
         },
       ],
     },
@@ -238,7 +238,7 @@ export const translations = {
       contact: 'Contact',
       email: 'Email',
       github: 'GitHub',
-      copyright: 'VerbaTask · open source',
+      copyright: 'BolDukan · open source',
     },
     topBar: {
       overview: 'Overview',
@@ -428,7 +428,7 @@ export const translations = {
       noWorkflowsYet: 'No workflows yet',
       noWorkflowsDesc: 'Set a stock level and get a WhatsApp message the moment an item drops below it.',
       runningNow: 'Running now',
-      explainerText: 'When a sale takes an item below its level, VerbaTask messages you on WhatsApp straight away. Pause a rule any time without deleting it.',
+      explainerText: 'When a sale takes an item below its level, BolDukan messages you on WhatsApp straight away. Pause a rule any time without deleting it.',
       newWorkflowModalTitle: 'New workflow',
       newWorkflowModalDesc: 'Get alerted on WhatsApp when an item drops below a stock threshold.',
       trigger: 'Trigger',
@@ -481,7 +481,7 @@ export const translations = {
       resendIn: 'Resend in',
       resetPasswordBtn: 'Reset Password',
       changeIdentifier: 'Change email / phone',
-      loginTitle: 'Sign in to VerbaTask',
+      loginTitle: 'Sign in to BolDukan',
       loginSubtitle: 'Enter your email and password to access your shop ledger.',
       emailLabel: 'Email address',
       passwordLabel: 'Password',
@@ -926,7 +926,7 @@ export const translations = {
       noWorkflowsYet: 'ابھی کوئی ورک فلو نہیں ہے',
       noWorkflowsDesc: 'اسٹاک کی کم از کم حد مقرر کریں اور اس سے کم ہوتے ہی واٹس ایپ پر فوری الرٹ پائیں۔',
       runningNow: 'فعال قواعد',
-      explainerText: 'جب کسی سیل کے بعد آئٹم کی تعداد کم ہو جائے تو VerbaTask آپ کو فوری طور پر واٹس ایپ پر پیغام بھیجتا ہے۔ آپ کسی بھی اصول کو حذف کیے بغیر عارضی طور پر روک سکتے ہیں۔',
+      explainerText: 'جب کسی سیل کے بعد آئٹم کی تعداد کم ہو جائے تو بول دکان (BolDukan) آپ کو فوری طور پر واٹس ایپ پر پیغام بھیجتا ہے۔ آپ کسی بھی اصول کو حذف کیے بغیر عارضی طور پر روک سکتے ہیں۔',
       newWorkflowModalTitle: 'نیا ورک فلو شامل کریں',
       newWorkflowModalDesc: 'اسٹاک کم ہونے پر واٹس ایپ پر الرٹ حاصل کرنے کے لیے اصول مقرر کریں۔',
       trigger: 'ٹرگر (کب عمل ہو)',

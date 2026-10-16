@@ -11,7 +11,11 @@ export const requireAuth = (req, res, next) => {
   let token = header.startsWith('Bearer ') ? header.slice(7).trim() : null;
 
   if (!token && req.headers.cookie) {
-    token = getCookie(req.headers.cookie, 'vt_session') || getCookie(req.headers.cookie, 'verbatask_token');
+    token =
+      getCookie(req.headers.cookie, 'boldukan_session') ||
+      getCookie(req.headers.cookie, 'boldukan_token') ||
+      getCookie(req.headers.cookie, 'vt_session') ||
+      getCookie(req.headers.cookie, 'verbatask_token');
   }
   
   if (!token) {

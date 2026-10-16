@@ -6,7 +6,9 @@ import { useAuthStore } from '../lib/store';
 
 function getLocalStore(mId) {
   try {
-    const raw = localStorage.getItem(`verbatask_customers_${mId}`);
+    const raw =
+      localStorage.getItem(`boldukan_customers_${mId}`) ||
+      localStorage.getItem(`verbatask_customers_${mId}`);
     return raw ? JSON.parse(raw) : { created: [], updated: {}, deleted: [] };
   } catch (_) {
     return { created: [], updated: {}, deleted: [] };
@@ -15,7 +17,7 @@ function getLocalStore(mId) {
 
 function saveLocalStore(mId, store) {
   try {
-    localStorage.setItem(`verbatask_customers_${mId}`, JSON.stringify(store));
+    localStorage.setItem(`boldukan_customers_${mId}`, JSON.stringify(store));
   } catch (_) {}
 }
 

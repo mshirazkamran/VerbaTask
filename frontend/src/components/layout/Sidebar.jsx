@@ -70,7 +70,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
   const content = (compact) => (
     <div className="flex h-full flex-col bg-paper-2 select-none">
       <div className={`flex h-16 shrink-0 items-center ${compact ? 'justify-center' : 'justify-between px-5'}`}>
-        <Link to="/" onClick={onMobileClose} className="rounded-sm" title="Back to the VerbaTask site">
+        <Link to="/" onClick={onMobileClose} className="rounded-sm" title="Back to the BolDukan site">
           <Logo showWordmark={!compact} size={30} textSize="text-xl" />
         </Link>
         {mobileOpen && (
