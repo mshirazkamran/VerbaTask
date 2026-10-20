@@ -61,12 +61,42 @@ export async function restockItemViaCrm(merchant, command) {
     }
 
     const standardizedName = cleanAndStandardizeItemName(rawName);
+    const hasPrice = price != null && Number(price) > 0;
+    const hasUnit = Boolean(unit && typeof unit === 'string' && unit.trim());
+
+    // If new item is missing price or unit, restrain and require details
+    if (!hasPrice || !hasUnit) {
+      const prompt = spokenPhrases.newItemDetailsRequired(language, {
+        itemName: standardizedName,
+        missingPrice: !hasPrice,
+        missingUnit: !hasUnit,
+        unit: hasUnit ? unit.trim() : null,
+      });
+
+      return {
+        requiresDetails: true,
+        item: {
+          name: standardizedName,
+          rawName,
+          quantity,
+          price: hasPrice ? Number(price) : null,
+          unit: hasUnit ? unit.trim() : null,
+        },
+        missing: {
+          price: !hasPrice,
+          unit: !hasUnit,
+        },
+        spoken: prompt.spoken,
+        text: prompt.text,
+      };
+    }
+
     item = await InventoryItem.create({
       merchantId: merchant._id,
       name: standardizedName,
       quantity,
-      ...(price != null && { price }),
-      ...(unit && { unit }),
+      price: Number(price),
+      unit: unit.trim(),
     });
 
     // Restock re-arms any low-stock alert that already fired for this item.
@@ -81,6 +111,8 @@ export async function restockItemViaCrm(merchant, command) {
       itemId: item._id,
       itemName: item.name,
       quantity: item.quantity,
+      price: item.price,
+      unit: item.unit,
     });
 
     return spokenPhrases.stockUpdated(language, {
@@ -94,13 +126,13 @@ export async function restockItemViaCrm(merchant, command) {
 
   // Multi-item restock processing
   const results = [];
-  const missingPrices = [];
+  const itemsRequiringDetails = [];
 
   for (const itm of incomingItems) {
     const rawName = itm?.name?.trim() || 'Item';
     const quantity = Math.max(1, parseInt(itm?.quantity, 10) || 1);
-    const price = itm?.price != null ? Number(itm.price) : null;
-    const unit = itm?.unit || null;
+    const price = itm?.price != null && Number(itm.price) > 0 ? Number(itm.price) : null;
+    const unit = itm?.unit && typeof itm.unit === 'string' && itm.unit.trim() ? itm.unit.trim() : null;
 
     let item = await InventoryItem.findOne({
       merchantId: merchant._id,
@@ -116,36 +148,65 @@ export async function restockItemViaCrm(merchant, command) {
       item.quantity = (item.quantity || 0) + quantity;
       if (price != null) {
         item.price = price;
-      } else if (!item.price) {
-        missingPrices.push(item.name);
       }
       if (unit) item.unit = unit;
       await item.save();
 
       results.push({ name: item.name, added: quantity, total: item.quantity, price: item.price, unit: item.unit });
+      emitDashboardUpdate(merchant._id, {
+        type: 'inventory',
+        action: 'update',
+        itemId: item._id,
+        itemName: item.name,
+        quantity: item.quantity,
+      });
     } else {
       const standardizedName = cleanAndStandardizeItemName(rawName);
-      item = await InventoryItem.create({
-        merchantId: merchant._id,
-        name: standardizedName,
-        quantity,
-        ...(price != null && { price }),
-        ...(unit && { unit }),
-      });
+      if (!price || !unit) {
+        itemsRequiringDetails.push({
+          name: standardizedName,
+          rawName,
+          quantity,
+          price,
+          unit,
+          missing: { price: !price, unit: !unit },
+        });
+      } else {
+        item = await InventoryItem.create({
+          merchantId: merchant._id,
+          name: standardizedName,
+          quantity,
+          price,
+          unit,
+        });
 
-      if (price == null) {
-        missingPrices.push(standardizedName);
+        results.push({ name: standardizedName, added: quantity, total: quantity, price, unit });
+        emitDashboardUpdate(merchant._id, {
+          type: 'inventory',
+          action: 'create',
+          itemId: item._id,
+          itemName: item.name,
+          quantity: item.quantity,
+        });
       }
-      results.push({ name: standardizedName, added: quantity, total: quantity, price, unit });
     }
+  }
 
-    emitDashboardUpdate(merchant._id, {
-      type: 'inventory',
-      action: 'update',
-      itemId: item._id,
-      itemName: item.name,
-      quantity: item.quantity,
+  if (itemsRequiringDetails.length > 0) {
+    const firstMissing = itemsRequiringDetails[0];
+    const prompt = spokenPhrases.newItemDetailsRequired(language, {
+      itemName: firstMissing.name,
+      missingPrice: firstMissing.missing.price,
+      missingUnit: firstMissing.missing.unit,
+      unit: firstMissing.unit,
     });
+    return {
+      requiresDetails: true,
+      item: firstMissing,
+      missing: firstMissing.missing,
+      spoken: prompt.spoken,
+      text: prompt.text,
+    };
   }
 
   invalidateMerchantCatalog(merchant._id);

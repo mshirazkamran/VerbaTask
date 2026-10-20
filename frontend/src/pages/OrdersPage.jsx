@@ -14,7 +14,6 @@ import {
   Receipt,
   RotateCcw,
   ArrowLeftRight,
-  Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -33,6 +32,13 @@ import { getTranslations } from '../lib/translations';
 import { formatPKR, formatDate, formatQuantity } from '../lib/format';
 
 const PAYMENT_METHODS = ['cash', 'easypaisa', 'jazzcash', 'bank'];
+
+const PAYMENT_DOTS = {
+  cash: 'bg-primary',
+  easypaisa: 'bg-pear-deep',
+  jazzcash: 'bg-coral',
+  bank: 'bg-sky',
+};
 
 function NewOrderModal({ isOpen, onClose }) {
   const language = useUiStore((s) => s.language);
@@ -271,16 +277,14 @@ function ReturnExchangeModal({ isOpen, onClose, initialOrder = null }) {
   const [exchangeQty, setExchangeQty] = useState(1);
   const [reason, setReason] = useState('');
 
-  // Sync initialOrder
-  useEffect(() => {
-    if (initialOrder) {
-      setTargetOrder(initialOrder);
-      setSelectedItemIdx(0);
-      setReturnQty(1);
-    } else {
-      setTargetOrder(null);
-    }
-  }, [initialOrder, isOpen]);
+  // Sync state when initialOrder changes (React pattern: adjusting state during render)
+  const [prevInitialOrder, setPrevInitialOrder] = useState(initialOrder);
+  if (initialOrder !== prevInitialOrder) {
+    setPrevInitialOrder(initialOrder);
+    setTargetOrder(initialOrder);
+    setSelectedItemIdx(0);
+    setReturnQty(1);
+  }
 
   // Inventory Map for fast item lookup
   const inventoryMap = useMemo(() => {
@@ -674,13 +678,6 @@ export function OrdersPage() {
     return (orders || []).reduce((sum, o) => sum + (o.total || 0), 0);
   }, [orders]);
 
-  const paymentDots = {
-    cash: 'bg-primary',
-    easypaisa: 'bg-pear-deep',
-    jazzcash: 'bg-coral',
-    bank: 'bg-sky',
-  };
-
   const columns = useMemo(
     () => [
       {
@@ -737,7 +734,7 @@ export function OrdersPage() {
           const key = (getValue() || 'cash').toLowerCase();
           return (
             <span className="inline-flex items-center gap-2 text-xs font-medium capitalize text-ink-2">
-              <span className={`size-2 rounded-pill ${paymentDots[key] || 'bg-muted'}`} />
+              <span className={`size-2 rounded-pill ${PAYMENT_DOTS[key] || 'bg-muted'}`} />
               {tDash[key] || key}
             </span>
           );
@@ -928,13 +925,14 @@ export function OrdersPage() {
 
  <NewOrderModal isOpen={newOrderOpen} onClose={() => setNewOrderOpen(false)} />
  <ReturnExchangeModal
- isOpen={returnModalOpen}
- onClose={() => {
- setReturnModalOpen(false);
- setReturnModalOrder(null);
- }}
- initialOrder={returnModalOrder}
- />
+    key={returnModalOpen ? (returnModalOrder?._id || 'open') : 'closed'}
+    isOpen={returnModalOpen}
+    onClose={() => {
+      setReturnModalOpen(false);
+      setReturnModalOrder(null);
+    }}
+    initialOrder={returnModalOrder}
+  />
 
  <Modal
  isOpen={!!selectedOrder}

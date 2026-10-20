@@ -74,8 +74,36 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
 
  const isFieldEmpty = useCallback((fieldName) => {
  const val = form[fieldName];
+ if (fieldName === 'price') return val === '' || val === null || val === undefined || Number(val) <= 0;
+ if (fieldName === 'unit') return !val || !String(val).trim();
  return val === '' || val === null || val === undefined;
  }, [form]);
+
+ const validateAndSubmit = () => {
+ if (!form.name.trim()) {
+ nameRef.current?.focus();
+ toast.error(isUrdu ? 'آئٹم کا نام درج کریں' : 'Please enter item name');
+ return;
+ }
+ const numPrice = Number(form.price);
+ if (form.price === '' || form.price === null || isNaN(numPrice) || numPrice <= 0) {
+ priceRef.current?.focus();
+ toast.error(isUrdu ? 'قیمت درج کرنا لازمی ہے اور صفر سے زیادہ ہونی چاہیے' : 'Price is compulsory and must be greater than 0');
+ return;
+ }
+ if (!form.unit || !form.unit.trim()) {
+ unitRef.current?.focus();
+ toast.error(isUrdu ? 'یونٹ درج کرنا لازمی ہے (مثلاً کلو، پیکٹ، عدد)' : 'Unit is compulsory (e.g. kg, packet, piece)');
+ return;
+ }
+ onSubmit({
+ name: form.name.trim(),
+ quantity: Number(form.quantity) || 0,
+ price: numPrice,
+ unit: form.unit.trim(),
+ expiryDates: form.expiryDates || []
+ });
+ };
 
  const handleKeyDown = (e) => {
  if (e.key !== 'Enter') return;
@@ -101,26 +129,12 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
  }
 
  // All fields filled — submit
- if (!form.name.trim()) return;
- onSubmit({
- name: form.name.trim(),
- quantity: Number(form.quantity) || 0,
- price: Number(form.price) || 0,
- unit: form.unit.trim() || undefined,
- expiryDates: form.expiryDates || []
- });
+ validateAndSubmit();
  };
 
  const handleSubmit = (e) => {
  e.preventDefault();
- if (!form.name.trim()) return;
- onSubmit({
- name: form.name.trim(),
- quantity: Number(form.quantity) || 0,
- price: Number(form.price) || 0,
- unit: form.unit.trim() || undefined,
- expiryDates: form.expiryDates || []
- });
+ validateAndSubmit();
  };
 
  const fieldKeyDown = (fieldName) => ({
@@ -151,20 +165,22 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
  {...fieldKeyDown('quantity')}
  />
  <Input
- label={t.priceLabel}
+ label={t.priceLabel + ' *'}
  type="number"
- min="0"
- step="0.01"
+ min="0.01"
+ step="any"
  value={form.price}
  onChange={handleChange}
- placeholder="0"
+ placeholder="0.00"
+ required
  {...fieldKeyDown('price')}
  />
  <Input
- label={t.unitLabel}
+ label={t.unitLabel + ' *'}
  value={form.unit}
  onChange={handleChange}
- placeholder={isUrdu ? 'مثلاً کلو، 250 گرام، لیٹر' : 'e.g. kg, 250g, litre'}
+ placeholder={isUrdu ? 'مثلاً کلو، پیکٹ، لیٹر، عدد' : 'e.g. kg, packet, litre, piece'}
+ required
  {...fieldKeyDown('unit')}
  />
  </div>

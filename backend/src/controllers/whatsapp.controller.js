@@ -16,7 +16,7 @@ import { respond as respondToApproval, findPendingByOrderId } from '../approvals
 import { generateLinkCode } from './auth.controller.js';
 import { getStaffLimit } from './merchant.controller.js';
 import { emitDashboardUpdate } from '../socket.js';
-import { parseIntent, extractBusinessDetails, extractInventoryItems, resolveItemName, parseKhataSettleHeuristic, parseKhataInquiryHeuristic } from '../services/qwen.service.js';
+import { parseIntent, extractBusinessDetails, extractInventoryItems, resolveItemName, parseKhataSettleHeuristic, parseKhataInquiryHeuristic, parsePriceAndUnit } from '../services/qwen.service.js';
 import { findSimilarInventoryItems, cleanAndStandardizeItemName } from '../crm/item-matching.js';
 import { transcribeAndParse } from '../agent/transcribeAndParse.js';
 import { downloadMedia } from '../services/media.service.js';
@@ -241,7 +241,8 @@ async function handleStaffJoinFlow(from, text) {
   const staffName = (joinMatch[2] || '').trim();
 
   const codeWithoutDash = rawCode.replace(/-/g, '');
-  const codeRegex = new RegExp(`^VT[-]?${codeWithoutDash.replace(/^VT/i, '')}$`, 'i');
+  const cleanCode = codeWithoutDash.replace(/^(VT|BD)/i, '');
+  const codeRegex = new RegExp(`^(VT|BD)[-]?${cleanCode}$`, 'i');
 
   const merchant = await Merchant.findOne({
     $or: [
@@ -299,7 +300,7 @@ async function handleStaffJoinFlow(from, text) {
   if (activeStaff.length >= limit) {
     await sendTextMessage(
       from,
-      `⚠️ *Staff Limit Reached*\n\nIs dukaan par staff members ki hadd (${limit}) mukammal ho chuki hai. Dukaan k malik se bolein ke BolDukan Pro plan upgrade karein.`
+      `⚠️ *Staff Limit Reached*\n\nIs dukaan par staff members ki hadd (${limit}) mukammal ho chuki hai. Dukaan k malik se bolein ke VerbaTask Pro plan upgrade karein.`
     );
     return true;
   }
@@ -318,7 +319,7 @@ async function handleStaffJoinFlow(from, text) {
   // Notify assistant
   await sendTextMessage(
     from,
-    `🎉 *Mubarak! Aap BolDukan Team mein shamil ho gaye hain!*\n\n🏪 Dukaan: *${merchant.businessName || 'Store'}*\n👤 Naam: *${finalName}*\n\nAb aap yahan se direct sales, inventory check, aur udhaar darj kar sakte hain. Shuru karne ke liye koi bhi sale bolain ya likhein (maslan: *2 doodh 400* ya *ali ne 500 udhaar liye*).`
+    `🎉 *Mubarak! Aap VerbaTask Team mein shamil ho gaye hain!*\n\n🏪 Dukaan: *${merchant.businessName || 'Store'}*\n👤 Naam: *${finalName}*\n\nAb aap yahan se direct sales, inventory check, aur udhaar darj kar sakte hain. Shuru karne ke liye koi bhi sale bolain یا likhein (maslan: *2 doodh 400* ya *ali ne 500 udhaar liye*).`
   );
 
   // Notify store owner
@@ -350,7 +351,7 @@ async function handleUnregisteredNumber(whatsappNumber) {
 
   await sendTextMessage(
     whatsappNumber,
-    `Welcome to BolDukan! 👋\n\nTo get started, create your account here:\n${SIGNUP_BASE_URL}\n\nYour linking code: *${linkCode.code}*\n(valid for 15 minutes)`
+    `Welcome to VerbaTask! 👋\n\nTo get started, create your account here:\n${SIGNUP_BASE_URL}\n\nYour linking code: *${linkCode.code}*\n(valid for 15 minutes)`
   );
 }
 
@@ -359,7 +360,7 @@ async function sendLinkCodeToMerchant(merchant) {
 
   await sendTextMessage(
     merchant.whatsappNumber,
-    `Your BolDukan linking code: *${linkCode.code}*\n(valid for 15 minutes)\n\nEnter it on the Link Code page to connect this number to your dashboard account.`
+    `Your VerbaTask linking code: *${linkCode.code}*\n(valid for 15 minutes)\n\nEnter it on the Link Code page to connect this number to your dashboard account.`
   );
 }
 
@@ -713,9 +714,113 @@ async function handleOnboardedMerchant(merchant, message) {
   }
 }
 
+/** Handles follow-up replies when a merchant is adding a new item that requires compulsory price & unit. */
+export async function handlePendingNewItemReply(merchant, text, source, pendingState, rawMessage = null) {
+  const language = merchant.language || 'ur';
+  const isUrdu = language === 'ur';
+  const lower = text.trim().toLowerCase();
+
+  // Cancel check
+  if (/^(cancel|no|nahi|منسوخ|خارج|چھوڑو|نہیں|stop)$/i.test(lower)) {
+    await ConversationState.deleteOne({ _id: pendingState._id });
+    const phrases = isUrdu
+      ? {
+          text: '❌ نیا آئٹم شامل کرنے کا عمل منسوخ کر دیا گیا ہے۔',
+          spoken: 'نیا آئٹم شامل کرنے کا عمل منسوخ کر دیا گیا ہے۔',
+        }
+      : {
+          text: '❌ New item addition has been cancelled.',
+          spoken: 'New item addition has been cancelled.',
+        };
+    return replyToMerchant(merchant, phrases, source, language);
+  }
+
+  const { price: parsedPrice, unit: parsedUnit } = parsePriceAndUnit(text);
+  const data = pendingState.data || {};
+  const currentItem = data.item || {};
+
+  if (parsedPrice && parsedPrice > 0) {
+    currentItem.price = parsedPrice;
+  }
+  if (parsedUnit) {
+    currentItem.unit = parsedUnit;
+  }
+
+  const hasPrice = currentItem.price != null && Number(currentItem.price) > 0;
+  const hasUnit = Boolean(currentItem.unit && String(currentItem.unit).trim());
+
+  if (hasPrice && hasUnit) {
+    const itemName = currentItem.name || currentItem.rawName || 'Item';
+    const quantity = Math.max(1, parseInt(currentItem.quantity, 10) || 1);
+    const price = Number(currentItem.price);
+    const unit = String(currentItem.unit).trim();
+
+    const item = await InventoryItem.create({
+      merchantId: merchant._id,
+      name: itemName,
+      quantity,
+      price,
+      unit,
+    });
+
+    await ConversationState.deleteOne({ _id: pendingState._id });
+
+    invalidateMerchantCatalog(merchant._id);
+    emitDashboardUpdate(merchant._id, {
+      type: 'inventory',
+      action: 'create',
+      itemId: item._id,
+      itemName: item.name,
+      quantity: item.quantity,
+      price: item.price,
+      unit: item.unit,
+    });
+
+    evaluateThresholdWorkflows(merchant._id, item).catch((err) =>
+      console.error('Threshold workflow evaluation failed:', err.message)
+    );
+
+    const phrases = spokenPhrases.newItemAdded(language, {
+      itemName: item.name,
+      quantity: item.quantity,
+      price: item.price,
+      unit: item.unit,
+    });
+
+    return replyToMerchant(merchant, phrases, source, language);
+  }
+
+  // Still missing either price or unit
+  data.item = currentItem;
+  await ConversationState.findByIdAndUpdate(pendingState._id, { $set: { data } });
+
+  const prompt = spokenPhrases.newItemDetailsRequired(language, {
+    itemName: currentItem.name || currentItem.rawName || 'Item',
+    missingPrice: !hasPrice,
+    missingUnit: !hasUnit,
+    unit: hasUnit ? currentItem.unit : null,
+  });
+
+  return replyToMerchant(merchant, { text: prompt.text, spoken: prompt.spoken }, source, language);
+}
+
 /** Typed text: "order" starts the guided flow, "link"/"code" resends the dashboard linking code, message workflows are checked next, anything else goes through Qwen NLP. */
 async function handleTextMessage(merchant, text, rawMessage = null) {
   const normalized = text.trim().toLowerCase();
+
+  // 0. Active Pending New Item flow check
+  const pendingNewItem = await ConversationState.findOne({
+    whatsappNumber: merchant.whatsappNumber,
+    flow: 'pending_new_item',
+  });
+  if (pendingNewItem) {
+    const idleMs = Date.now() - new Date(pendingNewItem.updatedAt).getTime();
+    if (idleMs > 30 * 60 * 1000) {
+      await ConversationState.deleteOne({ _id: pendingNewItem._id });
+    } else {
+      return await handlePendingNewItemReply(merchant, text, 'text', pendingNewItem, rawMessage);
+    }
+  }
 
   // 1. Core Guided & Link Commands
   if (/^(order|sale|log)$/i.test(normalized)) return startGuidedOrder(merchant);
@@ -921,7 +1026,6 @@ async function handleTextMessage(merchant, text, rawMessage = null) {
 
   // 15. Staff / Team List (e.g. "staff", "staff list", "team", "ہماری ٹیم", "ہمارا سٹاف")
   if (/^(?:staff|staff\s*list|team|hamara\s*staff|ہماری\s*ٹیم|ہمارا\s*سٹاف|عملہ)$/i.test(normalized)) {
-    const activeStaff = (merchant.staffMembers || []).filter((s) => s.active);
     const limit = getStaffLimit(merchant.subscriptionTier || 'pro');
     if (activeStaff.length === 0) {
       const msg = merchant.language === 'ur'
@@ -968,6 +1072,20 @@ async function handleVoiceNote(merchant, mediaId, rawMessage = null) {
     const intent = await transcribeAndParse(buffer, mimeType, merchant.language, merchant);
     const effectiveLanguage = intent.detectedLanguage || merchant.language || 'ur';
     const transcript = intent.transcript || intent.rawText || '';
+
+    // 0. Active Pending New Item reply from VN
+    const pendingNewItem = await ConversationState.findOne({
+      whatsappNumber: merchant.whatsappNumber,
+      flow: 'pending_new_item',
+    });
+    if (pendingNewItem) {
+      const idleMs = Date.now() - new Date(pendingNewItem.updatedAt).getTime();
+      if (idleMs > 30 * 60 * 1000) {
+        await ConversationState.deleteOne({ _id: pendingNewItem._id });
+      } else {
+        return await handlePendingNewItemReply(merchant, transcript, 'voice', pendingNewItem, rawMessage);
+      }
+    }
 
     // 1. Fast-path voice gender switch from VN
     const genderChoice = parseVoiceGenderChange(transcript);
@@ -1094,6 +1212,11 @@ async function routeParsedCommand(merchant, intent, source) {
     return handleExchangeOrderViaWhatsApp(merchant, intent, source, intent.rawMessage);
   }
 
+  if (intent.type === 'stock_guide') {
+    const phrases = spokenPhrases.stockGuide(effectiveLanguage);
+    return replyToMerchant(merchant, phrases, source, effectiveLanguage);
+  }
+
   if (intent.type === 'update_stock') {
     const phrases = await restockItemViaCrm(merchant, {
       type: 'update_stock',
@@ -1103,6 +1226,25 @@ async function routeParsedCommand(merchant, intent, source) {
       source,
       language: effectiveLanguage,
     });
+
+    if (phrases?.requiresDetails) {
+      await ConversationState.findOneAndUpdate(
+        { whatsappNumber: merchant.whatsappNumber },
+        {
+          merchantId: merchant._id,
+          flow: 'pending_new_item',
+          step: 'awaiting_price_unit',
+          data: {
+            item: phrases.item,
+            missing: phrases.missing,
+            language: effectiveLanguage,
+          },
+        },
+        { upsert: true }
+      );
+      return replyToMerchant(merchant, { text: phrases.text, spoken: phrases.spoken }, source, effectiveLanguage);
+    }
+
     return replyToMerchant(merchant, phrases, source, effectiveLanguage);
   }
 

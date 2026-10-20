@@ -1,5 +1,5 @@
-/* The BolDukan mark: Voice-first retail identity featuring a microphone capsule,
-   acoustic soundwaves ("Bol"), and a conversational speech frame ("Dukan")
+/* The VerbaTask mark: Voice-first retail identity featuring a microphone capsule,
+   acoustic soundwaves, and a conversational speech frame
    harmonized across light and dark tokens. */
 export function LogoMark({ size = 34, className = '' }) {
   return (
@@ -9,7 +9,7 @@ export function LogoMark({ size = 34, className = '' }) {
       viewBox="0 0 32 32"
       fill="none"
       role="img"
-      aria-label="BolDukan"
+      aria-label="VerbaTask"
       className={`shrink-0 ${className}`}
     >
       {/* Conversational speech frame */}
@@ -73,8 +73,8 @@ export function Logo({
         <span
           className={`font-display ${textSize} font-bold leading-none tracking-[-0.03em]`}
         >
-          <span className="text-current opacity-90">Bol</span>
-          <span style={{ color: 'var(--logo-accent, var(--color-primary))' }}>Dukan</span>
+          <span className="text-current opacity-90">Verba</span>
+          <span style={{ color: 'var(--logo-accent, var(--color-primary))' }}>Task</span>
         </span>
       )}
     </span>

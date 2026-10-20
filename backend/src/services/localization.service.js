@@ -170,12 +170,12 @@ export const spokenPhrases = {
   onboardingAskDetails(language = 'ur') {
     if (language === 'ur') {
       return {
-        spoken: `محترم، بول دکان میں خوش آمدید! اپنے کاروبار کا نام، مقام، اور آپ کیا بیچتے ہیں، ایک میسج یا وائس نوٹ میں بتا دیں۔`,
+        spoken: `محترم، وربا ٹاسک میں خوش آمدید! اپنے کاروبار کا نام، مقام، اور آپ کیا بیچتے ہیں، ایک میسج یا وائس نوٹ میں بتا دیں۔`,
         text: `Business ka naam, location, aur aap kya bechte hain, ek message mein bata dein.`,
       };
     }
     return {
-      spoken: `Welcome to BolDukan! Please tell me your business name, location, and what you sell — all in one message is fine.`,
+      spoken: `Welcome to VerbaTask! Please tell me your business name, location, and what you sell — all in one message is fine.`,
       text: `Tell me your business name, location, and what you sell — all in one message is fine.`,
     };
   },
@@ -240,6 +240,58 @@ export const spokenPhrases = {
     };
   },
 
+  newItemDetailsRequired(language = 'ur', { itemName, missingPrice = true, missingUnit = true, unit = null } = {}) {
+    if (language === 'ur') {
+      if (missingPrice && missingUnit) {
+        return {
+          spoken: `جی محترم، ${itemName} آپ کی انوینٹری میں نیا آئٹم ہے۔ برائے مہربانی اس کا یونٹ اور فی یونٹ قیمت بتائیں، جیسے ڈیڑھ سو روپے کلو۔`,
+          text: `📦 *نئے آئٹم کی تفصیل درکار ہے:*\n\nمحترم، *"${itemName}"* نیا آئٹم ہے۔\nبراہ کرم اس کا *یونٹ* (مثلاً کلو، پیکٹ، درجن، یا عدد) اور *فی یونٹ قیمت* (مثلاً 150 روپے) بتائیں تاکہ اسے شامل کیا جا سکے۔\n\n_مثال لکھیں یا بولیں: "150 روپے کلو" یا "50 فی پیکٹ"_`,
+        };
+      }
+      if (missingPrice) {
+        return {
+          spoken: `جی محترم، ${itemName} نیا آئٹم ہے۔ برائے مہربانی اس کی فی ${unit || 'یونٹ'} قیمت بتائیں۔`,
+          text: `📦 *قیمت درکار ہے:*\n\nمحترم، *"${itemName}"* نیا آئٹم ہے۔ براہ کرم اس کی فی ${unit || 'یونٹ'} قیمت بتائیں (مثلاً: "150 روپے")۔`,
+        };
+      }
+      return {
+        spoken: `جی محترم، ${itemName} نیا آئٹم ہے۔ برائے مہربانی اس کا یونٹ بتائیں، مثلاً کلو یا پیکٹ۔`,
+        text: `📦 *یونٹ درکار ہے:*\n\nمحترم، *"${itemName}"* نیا آئٹم ہے۔ براہ کرم اس کا یونٹ بتائیں (مثلاً: کلو، پیکٹ، درجن، لیٹر، یا عدد)۔`,
+      };
+    }
+
+    if (missingPrice && missingUnit) {
+      return {
+        spoken: `${itemName} is a new item. Please provide its unit and price per unit, for example 150 per kg.`,
+        text: `📦 *Price & Unit Required:*\n\n*"${itemName}"* is a new item in your inventory.\nPlease reply with its *unit* (e.g. kg, packet, dozen, or piece) and *price per unit* (e.g. Rs 150).\n\n_Example: "150 per kg" or "50 per packet"_`,
+      };
+    }
+    if (missingPrice) {
+      return {
+        spoken: `${itemName} is a new item. Please specify its price per ${unit || 'unit'}.`,
+        text: `📦 *Price Required:*\n\n*"${itemName}"* is a new item. Please reply with its price per ${unit || 'unit'} (e.g. Rs 150).`,
+      };
+    }
+    return {
+      spoken: `${itemName} is a new item. Please specify its unit of measurement, such as kg or packet.`,
+      text: `📦 *Unit Required:*\n\n*"${itemName}"* is a new item. Please reply with its unit (e.g. kg, packet, dozen, or piece).`,
+    };
+  },
+
+  newItemAdded(language = 'ur', { itemName, quantity, price, unit } = {}) {
+    const unitStr = unit ? ` ${unit}` : '';
+    if (language === 'ur') {
+      return {
+        spoken: `جی محترم، نیا آئٹم ${itemName}، ${quantity}${unitStr}، ${price} روپے کے حساب سے اسٹاک میں شامل کر دیا گیا ہے۔ جزاک اللہ!`,
+        text: `✅ *نیا آئٹم اسٹاک میں شامل کر دیا گیا!*\n\n• آئٹم: *${itemName}*\n• تعداد: *${quantity}${unitStr}*\n• قیمت: *Rs. ${price} / ${unit}*\n\nاب آپ اس کی فروخت درج کر سکتے ہیں۔`,
+      };
+    }
+    return {
+      spoken: `New item ${itemName}, ${quantity}${unitStr} at Rs. ${price} each has been successfully added to stock. Thank you!`,
+      text: `✅ *New item added to inventory!*\n\n• Item: *${itemName}*\n• Stock: *${quantity}${unitStr}*\n• Price: *Rs. ${price} / ${unit}*\n\nYou can now log sales for this item.`,
+    };
+  },
+
   stockChecked(language = 'ur', { itemName, quantity, price, unit } = {}) {
     const unitText = unit ? ` ${unit}` : '';
     if (language === 'ur') {
@@ -299,8 +351,21 @@ export const spokenPhrases = {
       };
     }
     return {
-      spoken: `Here is your BolDukan commands guide. You can log sales, add stock, check inventory, download PDF reports, and manage store settings by speaking or typing.`,
-      text: `📋 *BolDukan Commands Guide*\n\nYou can manage your entire store by speaking or typing:\n\n🛒 *1. Log Sales*\n• Voice Note: Send audio like "2 kg sugar cash" or "5 rice easypaisa"\n• Text: Type "2 rice cash" or "10 milk jazzcash"\n• Guided Flow: Type *"order"* to pick from stock list\n\n📦 *2. Stock & Inventory*\n• Add Stock with Price: "add 50 rice price 300" or "maal aya 20 chini 150"\n• Set / Update Price: *"set price rice 300"* or *"price sugar 160"*\n• Check Stock: "stock rice" or "how much sugar left"\n• View All Stock: Type *"stock list"* or *"inventory"*\n\n📄 *3. Download PDF Reports*\n• Type *"report"* for sales, inventory, low stock, or expiring reports\n\n⚙️ *4. Store & Profile Settings*\n• View Store Info: Type *"profile"* or *"settings"*\n• Change Shop Name: *"set name [New Name]"*\n• Change Location: *"set location [City]"*\n• Switch Language: Type *"urdu"* or *"english"*\n• Voice Replies: Type *"voice on"* or *"voice off"*\n\n💳 *5. Payment & Banks*\n• View Accepted Methods: Type *"banks"* or *"payment methods"*\n• Enable / Disable: *"enable easypaisa"* or *"disable jazzcash"*\n\n⚡ *6. Automations & Alerts*\n• Create Alert: "alert me when cooking oil is below 5"\n• View Active Rules: Type *"workflows"*`,
+      spoken: `Here is your VerbaTask commands guide. You can log sales, add stock, check inventory, download PDF reports, and manage store settings by speaking or typing.`,
+      text: `📋 *VerbaTask Commands Guide*\n\nYou can manage your entire store by speaking or typing:\n\n🛒 *1. Log Sales*\n• Voice Note: Send audio like "2 kg sugar cash" or "5 rice easypaisa"\n• Text: Type "2 rice cash" or "10 milk jazzcash"\n• Guided Flow: Type *"order"* to pick from stock list\n\n📦 *2. Stock & Inventory*\n• Add Stock with Price: "add 50 rice price 300" or "maal aya 20 chini 150"\n• Set / Update Price: *"set price rice 300"* or *"price sugar 160"*\n• Check Stock: "stock rice" or "how much sugar left"\n• View All Stock: Type *"stock list"* or *"inventory"*\n\n📄 *3. Download PDF Reports*\n• Type *"report"* for sales, inventory, low stock, or expiring reports\n\n⚙️ *4. Store & Profile Settings*\n• View Store Info: Type *"profile"* or *"settings"*\n• Change Shop Name: *"set name [New Name]"*\n• Change Location: *"set location [City]"*\n• Switch Language: Type *"urdu"* or *"english"*\n• Voice Replies: Type *"voice on"* or *"voice off"*\n\n💳 *5. Payment & Banks*\n• View Accepted Methods: Type *"banks"* or *"payment methods"*\n• Enable / Disable: *"enable easypaisa"* or *"disable jazzcash"*\n\n⚡ *6. Automations & Alerts*\n• Create Alert: "alert me when cooking oil is below 5"\n• View Active Rules: Type *"workflows"*`,
+    };
+  },
+
+  stockGuide(language = 'ur') {
+    if (language === 'ur') {
+      return {
+        spoken: `محترم، نیا مال یا اسٹاک شامل کرنے کے لیے سامان کا نام، تعداد اور قیمت بول کر یا لکھ کر بھیجیں، جیسے "maal aya 20 chini 150" یا "add 50 rice price 300"۔ شکریہ!`,
+        text: `📦 *اسٹاک / نیا مال شامل کرنے کا طریقہ*\n\nنیا مال شامل کرنے کے لیے وائس نوٹ یا میسج بھیجیں:\n• *maal aya 20 chini 150*\n• *add 50 rice price 300*\n• *20 کلو چاول آئے ہیں*\n• *add 20 rice to stock*\n\nیا ڈیش بورڈ پر لاگ ان کر کے *Inventory* ٹیب سے نیا سامان شامل کریں۔`,
+      };
+    }
+    return {
+      spoken: `To add or restock inventory, please speak or text the item name, quantity, and price, for example "add 50 rice price 300" or "maal aya 20 chini 150". Thank you!`,
+      text: `📦 *How to Add Stock or Inventory*\n\nTo restock items, send a voice note or message with the item, quantity, and price:\n• *add 50 rice price 300*\n• *maal aya 20 chini 150*\n• *add 20 rice to stock*\n• *20 kg rice received*\n\nYou can also add new items directly from your web dashboard *Inventory* tab.`,
     };
   },
 

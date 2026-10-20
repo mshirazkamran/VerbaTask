@@ -36,11 +36,16 @@ English, Urdu script, or Roman Urdu) for ANY retail trade (general store, grocer
 - Used when new stock ARRIVES, goods are received, inventory is added, or stock is updated.
 - Supports ONE or MULTIPLE items in a single message (e.g. "maal aya 20 chini 150 aur 10 daal 200").
 - If price is not mentioned, set price to null. Default quantity to 1 if not stated.
-- Common keywords: "maal aya", "aaya", "aayi", "restock", "add stock", "stock update", "added", "delivered", "وصول", "مال آیا", "آئے ہیں", "اسٹاک میں شامل کریں", "نیا مال".
+- Common keywords: "maal aya", "aaya", "aayi", "restock", "add stock", "add inventory", "add to stock", "add to inventory", "stock update", "stock add", "inventory add", "added", "delivered", "وصول", "مال آیا", "آئے ہیں", "اسٹاک میں شامل کریں", "نیا مال", "ایڈ اسٹاک".
 - Examples: "maal aya 50 panadol 300" -> {"type":"update_stock","items":[{"name":"panadol","quantity":50,"price":300}],"action":"add"}
+- "add stock 20 rice" -> {"type":"update_stock","items":[{"name":"rice","quantity":20}],"action":"add"}
+- "add 20 rice to inventory" -> {"type":"update_stock","items":[{"name":"rice","quantity":20}],"action":"add"}
+- "add inventory 20 rice" -> {"type":"update_stock","items":[{"name":"rice","quantity":20}],"action":"add"}
+- "add rice 20" -> {"type":"update_stock","items":[{"name":"rice","quantity":20}],"action":"add"}
 - "maal aya 20 chini 150 aur 10 daal 200" -> {"type":"update_stock","items":[{"name":"chini","quantity":20,"price":150},{"name":"daal","quantity":10,"price":200}],"action":"add"}
-- "add 20 spark plug 450" -> {"type":"update_stock","items":[{"name":"spark plug","quantity":20,"price":450}],"action":"add"}
 - "20 کلو چاول آئے ہیں" -> {"type":"update_stock","items":[{"name":"چاول","quantity":20,"unit":"کلو"}],"action":"add"}
+- If the merchant asks generally how to add stock/inventory or says "add stock" / "add inventory" without items or quantities: {"type":"stock_guide"}
+- CRITICAL: ANY request mentioning "add stock", "add inventory", "to stock", "to inventory", "restock", "maal aya", "مال آیا", "اسٹاک میں شامل" is an update_stock or stock_guide, NEVER a log_sale!
 
 3. Checking stock of a specific item:
 {"type":"check_stock","item":{"name":"<item name>"}}
@@ -136,9 +141,9 @@ async function chatCompletionWithGemini(systemPrompt, userText) {
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
 
   const modelsToTry = [
-    process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
+    process.env.GEMINI_MODEL || 'gemini-3.8-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3.5-flash',
   ];
 
   let lastError = null;
@@ -157,7 +162,7 @@ async function chatCompletionWithGemini(systemPrompt, userText) {
             temperature: 0,
           },
         },
-        { timeout: 10_000 }
+        { timeout: 18_000 }
       );
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (text) return text;
@@ -233,8 +238,8 @@ async function chatCompletion(systemPrompt, userText) {
   if (process.env.GROQ_API_KEY) {
     const modelsToTry = [
       process.env.LLM_MODEL || 'qwen/qwen3.8-27b',
-      'qwen/qwen3.6-27b',
       'openai/gpt-oss-120b',
+      'openai/gpt-oss-20b',
     ];
 
     let lastError = null;
@@ -336,7 +341,68 @@ const NUMBER_WORDS_REGEX = new RegExp(
   'gi'
 );
 
-const UNIT_REGEX = /(?:^|\s)(kg|kilo|kilos|g|gram|grams|gm|pao|paon|litre|liter|litres|liters|ml|packet|packets|pkt|box|boxes|bottle|bottles|strip|strips|piece|pieces|pcs|pc|darjan|dozen|bori|sack|suit|meter|meters|کلو|گرام|پاؤ|پاو|لیٹر|درجن|پیکٹ|بوری|بوتل|ڈبہ|پتہ|میٹر)(?:\s|$)/i;
+const UNIT_REGEX = /(?:^|\s)(kg|kilo|kilos|kilogram|g|gram|grams|gm|pao|paon|litre|liter|litres|liters|ml|packet|packets|pkt|box|boxes|bottle|bottles|strip|strips|piece|pieces|pcs|pc|dana|adad|item|darjan|dozen|bori|sack|suit|meter|meters|کلو|گرام|پاؤ|پاو|لیٹر|درجن|پیکٹ|بوری|بوتل|ڈبہ|پتہ|میٹر|عدد|دانہ)(?:\s|$)/i;
+
+export const UNIT_CANONICAL_MAP = {
+  'kg': 'kg', 'kilo': 'kg', 'kilos': 'kg', 'kilogram': 'kg', 'کلو': 'کلو',
+  'g': 'gram', 'gram': 'gram', 'grams': 'gram', 'gm': 'gram', 'گرام': 'گرام',
+  'pao': 'pao', 'paon': 'pao', 'پاؤ': 'پاؤ', 'پاو': 'پاؤ',
+  'litre': 'litre', 'liter': 'litre', 'litres': 'litre', 'liters': 'litre', 'l': 'litre', 'ltr': 'litre', 'لیٹر': 'لیٹر',
+  'ml': 'ml',
+  'packet': 'packet', 'packets': 'packet', 'pkt': 'packet', 'پیکٹ': 'پیکٹ',
+  'box': 'box', 'boxes': 'box', 'ڈبہ': 'ڈبہ', 'dabba': 'box',
+  'bottle': 'bottle', 'bottles': 'bottle', 'بوتل': 'بوتل',
+  'strip': 'strip', 'strips': 'strip', 'پتہ': 'پتہ', 'patti': 'strip',
+  'piece': 'piece', 'pieces': 'piece', 'pcs': 'piece', 'pc': 'piece', 'dana': 'piece', 'عدد': 'عدد', 'adad': 'piece', 'item': 'piece', 'دانہ': 'دانہ',
+  'dozen': 'dozen', 'darjan': 'dozen', 'dz': 'dozen', 'درجن': 'درجن',
+  'bori': 'bori', 'sack': 'bori', 'بوری': 'بوری',
+  'meter': 'meter', 'meters': 'meter', 'metre': 'meter', 'میٹر': 'میٹر',
+};
+
+/**
+ * Parses price and unit from user replies when adding a new item.
+ * Supports numbers, currencies (rs, rupay, روپے), word numbers, and common Pakistani retail units.
+ */
+export function parsePriceAndUnit(text) {
+  if (!text || typeof text !== 'string') return { price: null, unit: null };
+  const normalizedDigits = text.replace(/[۰-۹]/g, (d) => URDU_DIGITS_MAP[d] || d);
+  const lower = normalizedDigits.trim().toLowerCase();
+
+  let price = null;
+  let unit = null;
+
+  // 1. Match Unit
+  const unitMatch = lower.match(UNIT_REGEX);
+  if (unitMatch) {
+    const rawUnit = unitMatch[1].trim().toLowerCase();
+    unit = UNIT_CANONICAL_MAP[rawUnit] || rawUnit;
+  }
+
+  // 2. Match Explicit Price
+  const explicitPriceMatch = lower.match(/(?:price|rate|قیمت|روپے|روپیہ|روپئے|rs|rupay|rupees|roopay|pkr)\s*[:=]?\s*(\d+(?:\.\d+)?)/i) ||
+                             lower.match(/(\d+(?:\.\d+)?)\s*(?:rs|rupay|rupees|roopay|pkr|روپے|روپیہ)/i) ||
+                             lower.match(/(?:per|\/|فی)\s*(?:[a-z\u0600-\u06FF]+)?\s*(\d+(?:\.\d+)?)/i);
+  if (explicitPriceMatch) {
+    price = parseFloat(explicitPriceMatch[1]);
+  } else {
+    // If no explicit price indicator, look for numbers that are not part of unit
+    const nums = lower.match(/\b\d+(?:\.\d+)?\b/g);
+    if (nums && nums.length > 0) {
+      price = parseFloat(nums[0]);
+    } else {
+      // Check word numbers for price
+      const words = lower.split(/\s+/);
+      for (const w of words) {
+        if (NUMBER_WORDS_MAP[w] && NUMBER_WORDS_MAP[w] >= 1) {
+          price = NUMBER_WORDS_MAP[w];
+          break;
+        }
+      }
+    }
+  }
+
+  return { price, unit };
+}
 
 /**
  * Fast-path heuristic parser for stock restocks and stock inquiries.
@@ -352,81 +418,107 @@ export function parseStockHeuristic(text) {
     return null;
   }
 
+  // 0. Stock Guidance requests (e.g. "add stock", "add inventory", "how to add stock", "stock add", "inventory add")
+  const isGeneralGuide =
+    /^(?:how\s+to\s+)?(?:add|update|new|restock)\s+(?:to\s+)?(?:stock|inventory)(?:\s+or\s+(?:stock|inventory))?$/i.test(lower) ||
+    /^(?:i\s+(?:want|need)\s+to\s+)?(?:add|update|restock)\s+(?:to\s+)?(?:stock|inventory)$/i.test(lower) ||
+    /^(?:add|update)\s+(?:stock|inventory)$/i.test(lower) ||
+    /^(?:stock|inventory)\s*(?:update|add|guidance|help)$/i.test(lower) ||
+    /^(?:نیا\s*مال|اسٹاک\s*میں\s*اضافہ|اسٹاک\s*شامل|ایڈ\s*اسٹاک|ایڈ\s*انوینٹری|اسٹاک\s*کیسے\s*شامل\s*کریں)$/.test(lower);
+  if (isGeneralGuide) {
+    return { type: 'stock_guide', rawText: text };
+  }
+
   // 1. Check stock inquiry: "rice kitna hai", "check stock sugar", "chini kitni hai", "how much oil left", "stock rice"
-  const isStockCheck = /(kitna\s*(?:hai|bacha|rah\s*gaya)|kitni\s*(?:hai|bachi|rah\s*gayi)|kitne\s*(?:hai|bache|rah\s*gaye)|check\s*stock|stock\s*check|how\s*much.*left|how\s*many.*left|کتنا\s*ہے|کتنی\s*ہے|کتنا\s*بچا|اسٹاک\s*چیک)/i.test(lower) ||
-    /^stock\s+(?!list\b|summary\b|report\b)([a-zA-Z\u0600-\u06FF\s]+)$/i.test(lower) ||
-    /^[a-zA-Z\u0600-\u06FF\s]+\s+stock$/i.test(lower);
+  const isStockCheck = (
+    /(kitna\s*(?:hai|bacha|rah\s*gaya)|kitni\s*(?:hai|bachi|rah\s*gayi)|kitne\s*(?:hai|bache|rah\s*gaye)|check\s*stock|stock\s*check|how\s*much.*left|how\s*many.*left|کتنا\s*ہے|کتنی\s*ہے|کتنا\s*بچا|اسٹاک\s*چیک)/i.test(lower) ||
+    /^stock\s+(?!list\b|summary\b|report\b|add\b|update\b|in\b|to\b)([a-zA-Z\u0600-\u06FF\s]+)$/i.test(lower) ||
+    /^(?!add\b|new\b|update\b|put\b|incoming\b|how\b|want\b)[a-zA-Z\u0600-\u06FF\s]+\s+stock$/i.test(lower)
+  ) && !/(?:add|restock|maal\s*a[y|i]a|نیا\s*مال|شامل|اضافہ|ایڈ\s*اسٹاک|to\s*stock|in\s*stock|into\s*stock)/i.test(lower);
 
   if (isStockCheck) {
     const cleaned = lower
       .replace(/(check\s*stock|stock\s*check|stock\s*of|^stock\b|\bstock$|kitna\s*hai|kitni\s*hai|kitne\s*hai|kitna\s*bacha\s*hai|kitni\s*bachi\s*hai|kitne\s*bache\s*hai|kitna\s*bacha|kitni\s*bachi|kitne\s*bache|rah\s*gaya|rah\s*gayi|rah\s*gaye|ka\s*stock|ki\s*stock|how\s*much|how\s*many|left|کتنا\s*ہے|کتنی\s*ہے|کتنا\s*بچا|کا\s*اسٹاک|اسٹاک)/gi, '')
       .trim();
-    if (cleaned) {
+    if (cleaned && !/^(?:add|new|update|inventory|list|summary|report)$/i.test(cleaned)) {
       return { type: 'check_stock', item: { name: cleaned } };
     }
   }
 
-  // 2. Restock / incoming inventory: "maal aya 20 chini", "maal aaya 10 chini", "mal aya 10 daal", "add 50 rice", "stock update 20 oil", "20 کلو چاول آئے ہیں"
-  const RESTOCK_PATTERN = /(?:maal|mal)\s*(?:a+y*a+|a+g+a+y*a+|pohnch|received)|(?:a+y*a+|a+y*i+|aaye)\s*(?:hai|hain)|restock|add\s*stock|stock\s*update|stock\s*add|مال\s*(?:آیا|پہنچ)|آئے\s*ہیں|اسٹاک\s*میں\s*شامل|نیا\s*مال/i;
+  // 2. Restock / incoming inventory:
+  // Examples:
+  // "maal aya 20 chini", "add 50 rice price 300", "add stock 20 rice", "add inventory 20 rice",
+  // "add 20 rice to stock", "add 20 rice to inventory", "add rice 20", "20 کلو چاول آئے ہیں",
+  // "اسٹاک میں 20 چاول شامل کریں", "20 chini maal aya 150"
+  const RESTOCK_PATTERN = /(?:maal|mal)\s*(?:a+y*a+|a+g+a+y*a+|pohnch|received)|(?:a+y*a+|a+y*i+|aaye)\s*(?:hai|hain)|restock|add\s*(?:new\s*)?(?:stock|inventory)|(?:stock|inventory)\s*(?:add|update)|(?:to|in|into)\s*(?:stock|inventory)|(?:stock|inventory)\s*(?:mein|me|main)\s*(?:add|shamil|daal|dal|ڈال)|مال\s*(?:آیا|پہنچ)|آئے\s*ہیں|اسٹاک\s*میں\s*(?:شامل|ڈال)|نیا\s*مال|ایڈ\s*(?:اسٹاک|انوینٹری)/i;
   const isRestock = RESTOCK_PATTERN.test(lower) ||
-                    /^add\s+\d+/i.test(lower) ||
-                    /^(شامل|اضافہ)\b/.test(lower);
+                    /^add\s+(?:stock\s+(?:of\s+)?)?\d+/i.test(lower) ||
+                    /^add\s+[a-zA-Z\u0600-\u06FF\s]+\s+\d+/i.test(lower) ||
+                    /^(شامل|اضافہ|نیا\s*مال)\b/.test(lower);
 
-function parseSingleRestockChunk(textChunk) {
-  let quantity = 1;
-  let price = null;
-  let unit = null;
+  function parseSingleRestockChunk(textChunk) {
+    let quantity = 1;
+    let price = null;
+    let unit = null;
 
-  const unitMatch = textChunk.match(UNIT_REGEX);
-  if (unitMatch) {
-    unit = unitMatch[1].trim();
-  }
+    const unitMatch = textChunk.match(UNIT_REGEX);
+    if (unitMatch) {
+      unit = unitMatch[1].trim();
+    }
 
-  const explicitPriceMatch = textChunk.match(/(?:price|rate|rs|rupay|rupees|قیمت|روپے)\s*[:=]?\s*(\d+)/i) ||
-                             textChunk.match(/(\d+)\s*(?:rs|rupay|rupees|روپے)/i);
-  if (explicitPriceMatch) {
-    price = parseInt(explicitPriceMatch[1], 10);
-  }
+    const explicitPriceMatch = textChunk.match(/(?:price|rate|rs|rupay|rupees|قیمت|روپے)\s*[:=]?\s*(\d+)/i) ||
+                               textChunk.match(/(\d+)\s*(?:rs|rupay|rupees|روپے)/i);
+    if (explicitPriceMatch) {
+      price = parseInt(explicitPriceMatch[1], 10);
+    }
 
-  const nums = textChunk.match(/\d+/g);
-  if (nums && nums.length > 0) {
-    if (price !== null) {
-      const otherNums = nums.map((n) => parseInt(n, 10)).filter((n) => n !== price);
-      if (otherNums.length > 0) {
-        quantity = otherNums[0];
+    const nums = textChunk.match(/\d+/g);
+    if (nums && nums.length > 0) {
+      if (price !== null) {
+        const otherNums = nums.map((n) => parseInt(n, 10)).filter((n) => n !== price);
+        if (otherNums.length > 0) {
+          quantity = otherNums[0];
+        }
+      } else if (nums.length >= 2) {
+        quantity = parseInt(nums[0], 10);
+        price = parseInt(nums[1], 10);
+      } else {
+        quantity = parseInt(nums[0], 10);
       }
-    } else if (nums.length >= 2) {
-      quantity = parseInt(nums[0], 10);
-      price = parseInt(nums[1], 10);
     } else {
-      quantity = parseInt(nums[0], 10);
-    }
-  } else {
-    // Look for word-based numbers e.g. "bees", "بیس", "panch", "پانچ"
-    const words = textChunk.split(/\s+/);
-    for (const w of words) {
-      if (NUMBER_WORDS_MAP[w]) {
-        quantity = NUMBER_WORDS_MAP[w];
-        break;
+      // Look for word-based numbers e.g. "bees", "بیس", "panch", "پانچ"
+      const words = textChunk.split(/\s+/);
+      for (const w of words) {
+        if (NUMBER_WORDS_MAP[w]) {
+          quantity = NUMBER_WORDS_MAP[w];
+          break;
+        }
       }
     }
+
+    const stripped = textChunk
+      .replace(/(?:maal|mal)\s*(?:a+y*a+\s*hai|a+y*a+|a+\s*g+a+y*a+|aagaya|pohnch|received)|(?:a+y*a+|a+y*i+|aaye)\s*(?:hai|hain)/gi, ' ')
+      .replace(/(?:add|new|update|incoming)\s*(?:to\s+)?(?:stock|inventory)/gi, ' ')
+      .replace(/(?:to|in|into)\s+(?:stock|inventory)/gi, ' ')
+      .replace(/(?:stock|inventory)\s*(?:mein|me|main)\s*(?:add|shamil|daal|dal|ڈال)?/gi, ' ')
+      .replace(/\b(?:restock|stock|inventory|add|new|naya|item|please|plz|for|of|ki|ka|ke|ko|mein|me|main|bhai|janab|karo|kar\s*do|kar\s*dein)\b/gi, ' ')
+      .replace(/(?:مال\s*(?:آیا|پہنچ|آئے\s*ہیں|آیا\s*ہے)?|آئے\s*ہیں|اسٹاک\s*میں\s*(?:شامل|ڈال)?|نیا\s*مال|شامل\s*(?:کرو|کریں|کر\s*دو|کر\s*دیں)?|شامل|اضافہ|ایڈ\s*اسٹاک|ایڈ\s*انوینٹری|ایڈ|اسٹاک|انوینٹری|ڈال\s*(?:دیں|دو)?|کرو|کریں|آیا|آئے)/gi, ' ')
+      .replace(/\b(?:aa\s*gaya|aagya|gaya|gaye|aya|aaya)\b/gi, ' ')
+      .replace(/(?:روپے|روپیہ|روپئے|rs|rupay|rupees|roopay|pkr|price|rate)\s*[:=]?\s*\d*/gi, ' ')
+      .replace(/\d+/g, ' ')
+      .replace(UNIT_REGEX, ' ')
+      .replace(NUMBER_WORDS_REGEX, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!stripped) return null;
+    return { name: stripped, quantity, price, unit };
   }
-
-  const stripped = textChunk
-    .replace(/(?:maal|mal)\s*(?:a+y*a+\s*hai|a+y*a+|a+\s*g+a+y*a+|aagaya|pohnch|received)|(?:a+y*a+|a+y*i+|aaye)\s*(?:hai|hain)|restock|add\s*stock|stock\s*update|stock\s*add|add|new|naya|item|مال\s*(?:آیا|پہنچ)|آئے\s*ہیں|اسٹاک\s*میں\s*شامل|نیا\s*مال|شامل\s*کرو|شامل|اضافہ|\b(?:aa\s*gaya|aagya|gaya|gaye|aya|aaya)\b|روپے|روپیہ|روپئے|rs|rupay|rupees|roopay|pkr|price|rate|\d+/gi, ' ')
-    .replace(UNIT_REGEX, ' ')
-    .replace(NUMBER_WORDS_REGEX, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (!stripped) return null;
-  return { name: stripped, quantity, price, unit };
-}
 
   if (isRestock) {
     // Check for multi-item restock separated by comma, "aur", "and", "اور"
     const content = lower
-      .replace(/^(?:(?:maal|mal)\s*(?:a+y*a+\s*hai|a+y*a+|a+\s*g+a+y*a+|aagaya)|restock|add\s*stock|stock\s*update|stock\s*add|add|مال\s*آیا\s*ہے|مال\s*آیا|نیا\s*مال|اسٹاک\s*میں\s*شامل\s*کریں)\s+/i, '')
+      .replace(/^(?:(?:maal|mal)\s*(?:a+y*a+\s*hai|a+y*a+|a+\s*g+a+y*a+|aagaya)|restock|add\s*(?:new\s*)?(?:stock|inventory)|stock\s*update|stock\s*add|inventory\s*add|add|مال\s*آیا\s*ہے|مال\s*آیا|نیا\s*مال|اسٹاک\s*میں\s*شامل\s*کریں|ایڈ\s*اسٹاک)\s+/i, '')
       .trim();
 
     const parts = content.split(/(?:,\s*|\s+aur\s+|\s+and\s+|\s+اور\s+)/i).filter(Boolean);
@@ -737,7 +829,9 @@ export function parseStandardSaleHeuristic(text) {
   // Exclude greetings, restock, stock inquiries, automations, reports, and returns
   if (
     /^(?:suno|salam|assalam|aoa|hello|hi|hey|bhai|janab|adaab|help|مدد|سلام|وعلیکم|ہیلو|سنو)\b/i.test(lower) ||
-    /(?:maal|mal)\s*(?:a+y*a+|a+g+a+y*a+|pohnch|received)|(?:a+y*a+|a+y*i+|aaye)\s*(?:hai|hain)|restock|add\s*stock|stock\s*update|stock\s*add|مال\s*(?:آیا|پہنچ)|آئے\s*ہیں|اسٹاک\s*میں\s*شامل|نیا\s*مال/i.test(lower) ||
+    /(?:maal|mal)\s*(?:a+y*a+|a+g+a+y*a+|pohnch|received)|(?:a+y*a+|a+y*i+|aaye)\s*(?:hai|hain)|restock|add\s*(?:new\s*)?(?:stock|inventory)|(?:stock|inventory)\s*(?:add|update)|(?:to|in|into)\s*(?:stock|inventory)|(?:stock|inventory)\s*(?:mein|me|main)|مال\s*(?:آیا|پہنچ)|آئے\s*ہیں|اسٹاک\s*میں|نیا\s*مال|ایڈ\s*(?:اسٹاک|انوینٹری)|\b(?:inventory|restock)\b/i.test(lower) ||
+    /^add\s+(?:stock\s+(?:of\s+)?)?\d+/i.test(lower) ||
+    /^add\s+[a-zA-Z\u0600-\u06FF\s]+\s+\d+/i.test(lower) ||
     /(?:kitna|kitni|kitne|check\s*stock|stock\s*check|how\s*much|how\s*many|report|summary|hisab|رپورٹ|کھاتہ|wapis|wapas|return|واپس|تبادلہ|exchange|badal)/i.test(lower) ||
     /^(?:stock\s*list|inventory|saman)\b/i.test(lower)
   ) {
@@ -901,8 +995,14 @@ export async function parseIntent(text, merchant = null) {
         return khataSettleHeuristic;
       }
       // Guard: If model misclassified restock speech as a sale, override it
-      if (parsed.type === 'log_sale' && stockHeuristic?.type === 'update_stock') {
-        return stockHeuristic;
+      if (parsed.type === 'log_sale') {
+        if (stockHeuristic?.type === 'update_stock' || stockHeuristic?.type === 'stock_guide') {
+          return stockHeuristic;
+        }
+        if (/(?:add\s*stock|add\s*inventory|to\s*stock|to\s*inventory|restock|maal\s*a[y|i]a|مال\s*آیا|نیا\s*مال|اسٹاک\s*میں|ایڈ\s*اسٹاک|\b(?:inventory|restock)\b)/i.test(text)) {
+          if (stockHeuristic?.type === 'update_stock') return stockHeuristic;
+          return { type: 'stock_guide', rawText: text };
+        }
       }
 
       if (parsed.type === 'log_sale') {

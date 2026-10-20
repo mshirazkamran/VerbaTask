@@ -83,6 +83,10 @@ export const router = createBrowserRouter([
  element: <ApprovalsPage />,
  },
  {
+ path: 'team',
+ element: <SettingsPage initialTab="team" />,
+ },
+ {
  path: 'settings',
  element: <SettingsPage />,
  },

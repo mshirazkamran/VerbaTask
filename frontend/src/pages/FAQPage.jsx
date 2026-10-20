@@ -4,12 +4,12 @@ import { FaqList } from '../components/landing/Faq';
 
 const faqs = [
   {
-    q: 'What is BolDukan?',
+    q: 'What is VerbaTask?',
     a: 'A WhatsApp-first sales and stock tool for small shops in Pakistan. You say a sale in Urdu or English, and it records the order, takes it off your stock and runs any workflows you’ve set up. There’s no separate app.',
   },
   {
     q: 'Do I need to download an app?',
-    a: 'No. BolDukan works inside WhatsApp. The web dashboard is there for charts and detail, but the everyday flow lives in the chat.',
+    a: 'No. VerbaTask works inside WhatsApp. The web dashboard is there for charts and detail, but the everyday flow lives in the chat.',
   },
   {
     q: 'What languages are supported?',
@@ -17,7 +17,7 @@ const faqs = [
   },
   {
     q: 'How do I link my WhatsApp number?',
-    a: 'After you sign up with your email you’ll land on the link page. Message the BolDukan number on WhatsApp, you’ll get a six-digit code, and you enter it with your email to link the number.',
+    a: 'After you sign up with your email you’ll land on the link page. Message the VerbaTask number on WhatsApp, you’ll get a six-digit code, and you enter it with your email to link the number.',
   },
   {
     q: 'Is my data secure?',
@@ -36,7 +36,7 @@ const faqs = [
     a: 'Cash, Easypaisa, JazzCash and bank transfers. Every order records how it was paid, and the dashboard shows the split.',
   },
   {
-    q: 'Is BolDukan free?',
+    q: 'Is VerbaTask free?',
     a: 'Yes. It’s free and open source, and the code is on GitHub for anyone to use or contribute to.',
   },
   {
@@ -54,7 +54,7 @@ export function FAQPage() {
             Questions, answered plainly.
           </h1>
           <p className="max-w-[26rem] leading-relaxed text-ink-2 lg:col-span-5 lg:self-end lg:justify-self-end">
-            How BolDukan works, what it costs and how your data is handled. Missing something?{' '}
+            How VerbaTask works, what it costs and how your data is handled. Missing something?{' '}
             <Link to="/contact" className="link-type">
               Ask us
             </Link>

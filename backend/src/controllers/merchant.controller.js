@@ -384,7 +384,7 @@ export async function requestPhoneChange(req, res) {
 
     // Send OTP to the NEW WhatsApp number
     try {
-      const msg = `🔐 *BolDukan Phone Verification*\n\nYour OTP to update and activate your store WhatsApp number is: *${code}*\n\nThis code will expire in 10 minutes.\nDo not share this code with anyone.`;
+      const msg = `🔐 *VerbaTask Phone Verification*\n\nYour OTP to update and activate your store WhatsApp number is: *${code}*\n\nThis code will expire in 10 minutes.\nDo not share this code with anyone.`;
       await sendTextMessage(normalized, msg);
     } catch (err) {
       console.warn('Failed to send WhatsApp phone verification message:', err.message);
@@ -623,7 +623,7 @@ export async function addStaffMember(req, res) {
     try {
       await sendTextMessage(
         normalized,
-        `Welcome to *${merchant.businessName || 'BolDukan'}*! 🎉\n\nYou have been added as a store assistant. You can now send voice notes or text messages here to log sales, restock inventory, or check stock directly into the shop ledger.`
+        `Welcome to *${merchant.businessName || 'VerbaTask'}*! 🎉\n\nYou have been added as a store assistant. You can now send voice notes or text messages here to log sales, restock inventory, or check stock directly into the shop ledger.`
       );
     } catch (e) {
       console.warn('Failed to send welcome SMS to staff member:', e.message);

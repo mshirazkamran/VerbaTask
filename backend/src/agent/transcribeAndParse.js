@@ -16,19 +16,20 @@ import { getMerchantCatalog } from '../services/catalogCache.service.js';
 
 /**
  * Builds dynamic transcription vocabulary prompt tailored to the merchant's real catalog.
+ * Uses natural continuous text with sales, restock, and payment keywords in English, Roman Urdu, and Urdu script.
  */
 export function buildVocabularyPrompt(merchant, catalog) {
   const businessName = catalog?.businessName || merchant?.businessName || '';
   const businessType = catalog?.businessType || merchant?.businessType || 'Retail';
-  const commonTerms = 'cash, easypaisa, jazzcash, sadapay, nayapay, raast, meezan, hbl, ubl, bill, sale, total, rupay, rupees, روپے, kg, piece, packet, box, bottle, dozen';
+  const commonTerms = 'cash, easypaisa, jazzcash, sadapay, nayapay, raast, meezan, hbl, ubl, bill, sale, total, rupay, rupees, روپے, kg, piece, packet, box, bottle, dozen, add stock, restock, inventory, maal aya, naya maal, ایڈ اسٹاک';
 
   if (catalog?.names?.length) {
     const header = businessName ? `[${businessName} - ${businessType}]` : `[${businessType}]`;
-    return `${header} Catalog: ${catalog.names.slice(0, 45).join(', ')}. Terms: ${commonTerms}`;
+    return `${header} Catalog: ${catalog.names.slice(0, 45).join(', ')}. Terms: ${commonTerms}. Context: 2 kg chawal 300 cash, add stock 50 rice, maal aya 20 chini 150, ali ne 500 diye, udhaar, دو کلو چینی کیش، مال آیا`;
   }
 
   const header = businessName ? `[${businessName} - ${businessType}] ` : '';
-  return `${header}Pakistani retail commerce & payment terms: ${commonTerms}`;
+  return `${header}Pakistani retail commerce & payment terms: ${commonTerms}. Context: 2 kg chawal 300 cash, add stock 50 rice, maal aya 20 chini 150, ali ne 500 diye, udhaar, دو کلو چینی کیش، مال آیا`;
 }
 
 /**
@@ -67,21 +68,28 @@ export async function transcribeAndParse(buffer, mimeType, language = 'ur', merc
 }
 
 async function transcribeWithRetry(buffer, cleanMimeType, language, prompt = '') {
-  const primaryModel = language === 'ur' ? 'whisper-large-v3' : 'whisper-large-v3-turbo';
-  const fallbackModel = language === 'ur' ? 'whisper-large-v3-turbo' : 'whisper-large-v3';
+  const primaryModel = 'whisper-large-v3';
+  const fallbackModel = 'whisper-large-v3-turbo';
 
   try {
     return await transcribe(buffer, cleanMimeType, language, primaryModel, prompt);
   } catch (err1) {
     const status1 = err1.response?.status;
-    console.warn(`[voice] ${primaryModel} (${language}) failed (${status1 || err1.message}). Retrying with auto-detect...`);
+    console.warn(`[voice] ${primaryModel} failed (${status1 || err1.message}). Retrying with ${fallbackModel}...`);
 
     try {
-      return await transcribe(buffer, cleanMimeType, null, primaryModel, prompt);
+      return await transcribe(buffer, cleanMimeType, language, fallbackModel, prompt);
     } catch (err2) {
       const status2 = err2.response?.status;
-      console.warn(`[voice] ${primaryModel} (auto) failed (${status2 || err2.message}). Falling back to ${fallbackModel}...`);
-      return await transcribe(buffer, cleanMimeType, language, fallbackModel, prompt);
+      console.warn(`[voice] ${fallbackModel} failed (${status2 || err2.message}). Falling back to Gemini...`);
+      if (process.env.GEMINI_API_KEY) {
+        try {
+          return await transcribeWithGemini(buffer, cleanMimeType, prompt);
+        } catch (geminiErr) {
+          console.warn(`[voice] Gemini audio transcription fallback also failed (${geminiErr.message})`);
+        }
+      }
+      throw err2;
     }
   }
 }
@@ -89,7 +97,7 @@ async function transcribeWithRetry(buffer, cleanMimeType, language, prompt = '')
 /**
  * Raw Whisper transcription with dynamic vocabulary prompt.
  */
-export async function transcribe(buffer, mimeType, language, model = 'whisper-large-v3-turbo', prompt = '') {
+export async function transcribe(buffer, mimeType, language, model = 'whisper-large-v3', prompt = '') {
   if (!process.env.GROQ_API_KEY) {
     throw new Error('GROQ_API_KEY not set');
   }
@@ -100,8 +108,6 @@ export async function transcribe(buffer, mimeType, language, model = 'whisper-la
   form.append('model', model);
   if (language === 'en') {
     form.append('language', 'en');
-  } else if (language === 'ur') {
-    form.append('language', 'ur');
   }
   if (prompt) {
     form.append('prompt', prompt);
@@ -117,6 +123,40 @@ export async function transcribe(buffer, mimeType, language, model = 'whisper-la
   });
 
   return data.text;
+}
+
+/**
+ * Gemini multimodal audio transcription fallback.
+ */
+async function transcribeWithGemini(buffer, mimeType, prompt = '') {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+
+  const { data } = await axios.post(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
+    {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              text: `Transcribe this retail store audio voice note accurately. Return ONLY the transcription text, nothing else. If it contains Urdu, English, or Roman Urdu, preserve the words as spoken.\n${prompt ? `Context: ${prompt}` : ''}`,
+            },
+            {
+              inlineData: {
+                mimeType: mimeType || 'audio/ogg',
+                data: buffer.toString('base64'),
+              },
+            },
+          ],
+        },
+      ],
+    },
+    { timeout: 20_000 }
+  );
+
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+  return text;
 }
 
 function filenameFor(mimeType) {

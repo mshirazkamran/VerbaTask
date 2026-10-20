@@ -66,13 +66,21 @@ export const createInventoryItem = async (req, res) => {
             return res.status(200).json({ success: true, data: item });
         }
 
-        // 3. Item does not exist: Create a brand new entry
+        // 3. Item does not exist: Create a brand new entry (Price and unit are compulsory)
+        const numPrice = Number(price);
+        if (price == null || price === '' || isNaN(numPrice) || numPrice <= 0 || !unit || !String(unit).trim()) {
+            return res.status(400).json({
+                success: false,
+                error: { message: 'Price and unit are compulsory when adding a new item' }
+            });
+        }
+
         item = await InventoryItem.create({
             merchantId: req.merchantId,
-            name,
+            name: name.trim(),
             quantity: safeQty,
-            price,
-            unit,
+            price: numPrice,
+            unit: String(unit).trim(),
             expiryDates: Array.isArray(expiryDates) ? expiryDates : []
         });
 

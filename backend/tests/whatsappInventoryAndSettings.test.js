@@ -1,10 +1,12 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseStockHeuristic } from '../src/services/qwen.service.js';
+import { parseStockHeuristic, parsePriceAndUnit } from '../src/services/qwen.service.js';
 import { spokenPhrases } from '../src/services/localization.service.js';
 import { normalizePaymentMethod } from '../src/constants/paymentMethods.js';
 import InventoryItem from '../src/models/InventoryItem.js';
+import ConversationState from '../src/models/ConversationState.js';
 import { restockItemViaCrm, checkStockViaCrm, getStockListSummary, updateItemPriceViaCrm } from '../src/crm/inventory.service.js';
+import { handlePendingNewItemReply } from '../src/controllers/whatsapp.controller.js';
 
 describe('WhatsApp Inventory, Stock Queries & Command Guides Tests', () => {
   describe('parseStockHeuristic - Incoming Stock & Restock', () => {
@@ -76,6 +78,44 @@ describe('WhatsApp Inventory, Stock Queries & Command Guides Tests', () => {
       assert.equal(parsed.type, 'update_stock');
       assert.equal(parsed.item.name, 'چاول');
       assert.equal(parsed.item.quantity, 20);
+    });
+
+    test('parses English inventory restock "add inventory 20 rice"', () => {
+      const parsed = parseStockHeuristic('add inventory 20 rice');
+      assert.ok(parsed);
+      assert.equal(parsed.type, 'update_stock');
+      assert.equal(parsed.item.name, 'rice');
+      assert.equal(parsed.item.quantity, 20);
+    });
+
+    test('parses "add 20 rice to stock" and "add 20 rice to inventory"', () => {
+      const p1 = parseStockHeuristic('add 20 rice to stock');
+      assert.ok(p1);
+      assert.equal(p1.type, 'update_stock');
+      assert.equal(p1.item.name, 'rice');
+      assert.equal(p1.item.quantity, 20);
+
+      const p2 = parseStockHeuristic('add 20 rice to inventory');
+      assert.ok(p2);
+      assert.equal(p2.type, 'update_stock');
+      assert.equal(p2.item.name, 'rice');
+      assert.equal(p2.item.quantity, 20);
+    });
+
+    test('parses name before quantity "add rice 20"', () => {
+      const parsed = parseStockHeuristic('add rice 20');
+      assert.ok(parsed);
+      assert.equal(parsed.type, 'update_stock');
+      assert.equal(parsed.item.name, 'rice');
+      assert.equal(parsed.item.quantity, 20);
+    });
+
+    test('parses general stock guidance phrases as stock_guide', () => {
+      assert.equal(parseStockHeuristic('add stock')?.type, 'stock_guide');
+      assert.equal(parseStockHeuristic('add inventory')?.type, 'stock_guide');
+      assert.equal(parseStockHeuristic('how to add stock')?.type, 'stock_guide');
+      assert.equal(parseStockHeuristic('add stock or inventory')?.type, 'stock_guide');
+      assert.equal(parseStockHeuristic('stock add')?.type, 'stock_guide');
     });
 
     test('does NOT trigger restock on sale messages', () => {
@@ -288,6 +328,97 @@ describe('WhatsApp Inventory, Stock Queries & Command Guides Tests', () => {
         InventoryItem.find = originalFind;
         InventoryItem.create = originalCreate;
       }
+    });
+
+    test('restockItemViaCrm restrains adding new item if price or unit is missing', async () => {
+      const mockMerchant = { _id: '507f191e810c19729de860ea', language: 'ur' };
+      const originalFindOne = InventoryItem.findOne;
+      const originalFind = InventoryItem.find;
+      const originalCreate = InventoryItem.create;
+
+      InventoryItem.findOne = async () => null;
+      InventoryItem.find = () => ({
+        limit: async () => [],
+      });
+      let createdDoc = null;
+      InventoryItem.create = async (doc) => {
+        createdDoc = doc;
+        return doc;
+      };
+
+      try {
+        // Missing both price and unit
+        const resultBothMissing = await restockItemViaCrm(mockMerchant, {
+          item: { name: 'Ali Moty', quantity: 13, price: null, unit: null },
+          language: 'ur',
+        });
+        assert.equal(resultBothMissing.requiresDetails, true);
+        assert.equal(createdDoc, null, 'Item must NOT be created when price and unit are missing');
+        assert.equal(resultBothMissing.missing.price, true);
+        assert.equal(resultBothMissing.missing.unit, true);
+        assert.ok(resultBothMissing.text.includes('Ali Moty'));
+
+        // Missing price only
+        const resultPriceMissing = await restockItemViaCrm(mockMerchant, {
+          item: { name: 'Ali Moty', quantity: 13, price: null, unit: 'kg' },
+          language: 'ur',
+        });
+        assert.equal(resultPriceMissing.requiresDetails, true);
+        assert.equal(createdDoc, null, 'Item must NOT be created when price is missing');
+        assert.equal(resultPriceMissing.missing.price, true);
+        assert.equal(resultPriceMissing.missing.unit, false);
+
+        // Missing unit only
+        const resultUnitMissing = await restockItemViaCrm(mockMerchant, {
+          item: { name: 'Ali Moty', quantity: 13, price: 150, unit: null },
+          language: 'ur',
+        });
+        assert.equal(resultUnitMissing.requiresDetails, true);
+        assert.equal(createdDoc, null, 'Item must NOT be created when unit is missing');
+        assert.equal(resultUnitMissing.missing.price, false);
+        assert.equal(resultUnitMissing.missing.unit, true);
+      } finally {
+        InventoryItem.findOne = originalFindOne;
+        InventoryItem.find = originalFind;
+        InventoryItem.create = originalCreate;
+      }
+    });
+
+    test('parsePriceAndUnit parses price and unit correctly', () => {
+      // Both price and unit
+      const res1 = parsePriceAndUnit('150 rupay kg');
+      assert.equal(res1.price, 150);
+      assert.equal(res1.unit, 'kg');
+
+      const res2 = parsePriceAndUnit('150 kg');
+      assert.equal(res2.price, 150);
+      assert.equal(res2.unit, 'kg');
+
+      const res3 = parsePriceAndUnit('rate 50 per packet');
+      assert.equal(res3.price, 50);
+      assert.equal(res3.unit, 'packet');
+
+      const res4 = parsePriceAndUnit('۱۵۰ روپے کلو');
+      assert.equal(res4.price, 150);
+      assert.equal(res4.unit, 'کلو');
+
+      const res5 = parsePriceAndUnit('200 per piece');
+      assert.equal(res5.price, 200);
+      assert.equal(res5.unit, 'piece');
+
+      // Price only
+      const res6 = parsePriceAndUnit('150 rupay');
+      assert.equal(res6.price, 150);
+      assert.equal(res6.unit, null);
+
+      // Unit only
+      const res7 = parsePriceAndUnit('kilo');
+      assert.equal(res7.price, null);
+      assert.equal(res7.unit, 'kg');
+
+      const res8 = parsePriceAndUnit('پیکٹ');
+      assert.equal(res8.price, null);
+      assert.equal(res8.unit, 'پیکٹ');
     });
 
     test('checkStockViaCrm returns stock and unit info', async () => {
