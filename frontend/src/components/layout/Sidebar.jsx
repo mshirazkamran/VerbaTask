@@ -13,6 +13,7 @@ import {
   Settings,
   X,
   Wallet,
+  Users,
 } from 'lucide-react';
 import { Logo } from '../landing/Logo';
 
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { to: '/dashboard/orders', label: 'Orders', labelUr: 'آرڈرز', icon: Receipt },
   { to: '/dashboard/inventory', label: 'Inventory', labelUr: 'انوینٹری', icon: Package },
   { to: '/dashboard/ledger', label: 'Ledger', labelUr: 'کھاتہ (ادھار)', icon: Wallet },
+  { to: '/dashboard/team', label: 'Team & Staff', labelUr: 'ٹیم اور عملہ', icon: Users },
   { to: '/dashboard/approvals', label: 'Approvals', labelUr: 'منظوریاں', icon: ClipboardCheck },
   { to: '/dashboard/workflows', label: 'Workflows', labelUr: 'آٹومیشن', icon: GitBranch },
 ];
@@ -70,7 +72,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
   const content = (compact) => (
     <div className="flex h-full flex-col bg-paper-2 select-none">
       <div className={`flex h-16 shrink-0 items-center ${compact ? 'justify-center' : 'justify-between px-5'}`}>
-        <Link to="/" onClick={onMobileClose} className="rounded-sm" title="Back to the BolDukan site">
+        <Link to="/" onClick={onMobileClose} className="rounded-sm" title="Back to the VerbaTask site">
           <Logo showWordmark={!compact} size={30} textSize="text-xl" />
         </Link>
         {mobileOpen && (

@@ -31,6 +31,7 @@ app.use((req, res, next) => {
 
 const allowedOrigins = [
   'https://verba-task.netlify.app',
+  'https://verbatask.netlify.app',
   'https://boldukan.netlify.app',
   'https://boldukan.com',
   'https://www.boldukan.com',
@@ -105,6 +106,6 @@ mongoose
   })
   .catch((err) => console.error('MongoDB connection failed:', err.message));
 
-server.listen(PORT, () => console.log(`BolDukan backend listening on :${PORT}`));
+server.listen(PORT, () => console.log(`VerbaTask backend listening on :${PORT}`));
 
 export default app;

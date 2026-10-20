@@ -57,7 +57,7 @@ export function Nav() {
       }`}
     >
       <div className="shell flex h-16 items-center gap-6">
-        <Link to="/" onClick={() => setOpen(false)} className="shrink-0 rounded-sm" aria-label="BolDukan home">
+        <Link to="/" onClick={() => setOpen(false)} className="shrink-0 rounded-sm" aria-label="VerbaTask home">
           <Logo />
         </Link>
 

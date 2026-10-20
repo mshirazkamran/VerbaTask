@@ -2,7 +2,7 @@ import { Mic, CheckCheck } from 'lucide-react';
 
 /* A chat transcript, not a phone. No fake header, no call buttons — the
    reader's own phone is the chrome. Each bubble: { from: 'merchant' | 'bot', text, voice, sub, time }. */
-export function WhatsAppMock({ bubbles = [], label = 'Thread · BolDukan', className = '' }) {
+export function WhatsAppMock({ bubbles = [], label = 'Thread · VerbaTask', className = '' }) {
   return (
     <figure className={`min-w-0 ${className}`}>
       <figcaption className="label mb-3">{label}</figcaption>

@@ -163,7 +163,7 @@ export function paginateRows(items, pageSize = 9) {
 }
 
 /**
- * Template message — required for anything BolDukan sends *first*, outside
+ * Template message — required for anything VerbaTask sends *first*, outside
  * a 24h reply window (e.g. a scheduled workflow alert). Must match an
  * approved template name/language exactly.
  * bodyParams: ['Ahmed\'s Store', 'Rice stock is running low (3 bags left)']

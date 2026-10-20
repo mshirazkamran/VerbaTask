@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import {
   Store,
@@ -55,11 +56,21 @@ const getBusinessTypes = (isUrdu) => [
   { value: 'services', label: isUrdu ? 'سروسز و دیگر کاروبار' : 'Services & Trade' },
 ];
 
-export function SettingsPage() {
+export function SettingsPage({ initialTab }) {
   const uiLanguage = useUiStore((s) => s.language);
   const isUrdu = uiLanguage === 'ur';
 
-  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'voice' | 'payments'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(initialTab || queryTab || 'profile');
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    } else if (queryTab && ['profile', 'team', 'payments', 'voice'].includes(queryTab)) {
+      setActiveTab(queryTab);
+    }
+  }, [initialTab, queryTab]);
 
   const { data: profile, isLoading: profileLoading } = useMerchantProfile();
   const updateProfileMutation = useUpdateMerchantProfile();
@@ -89,7 +100,7 @@ export function SettingsPage() {
 
   const handleShareInvite = (code) => {
     if (!code) return;
-    const msg = `As-salamu alaykum! Join our shop account on BolDukan by sending: join ${code} [Your Name]`;
+    const msg = `As-salamu alaykum! Join our shop account on VerbaTask by sending: join ${code} [Your Name]`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
   };
@@ -369,7 +380,7 @@ export function SettingsPage() {
         >
           {[
             { id: 'profile', label: isUrdu ? 'دکان کا پروفائل' : 'Shop profile', hint: isUrdu ? 'نام، پتہ، سامان' : 'Name, area, what you sell', icon: Store },
-            { id: 'team', label: isUrdu ? 'ٹیم اور ملازمین' : 'Team & Staff', hint: isUrdu ? `${staffData?.activeCount ?? profile?.staffMembers?.length ?? 0} منسلک` : `${staffData?.activeCount ?? profile?.staffMembers?.length ?? 0} connected (Pro)`, icon: Users },
+            { id: 'team', label: isUrdu ? 'ٹیم اور ملازمین' : 'Team & Staff', hint: isUrdu ? `${staffData?.activeCount ?? profile?.staffMembers?.length ?? 0} منسلک (سب کے لیے دستیاب)` : `${staffData?.activeCount ?? profile?.staffMembers?.length ?? 0} connected (All Access)`, icon: Users },
             { id: 'payments', label: isUrdu ? 'ادائیگی کے ذرائع' : 'Payments', hint: isUrdu ? `${activePaymentIds.length} فعال` : `${activePaymentIds.length} accepted`, icon: CreditCard },
             { id: 'voice', label: isUrdu ? 'آواز اور زبان' : 'Voice & language', hint: isUrdu ? 'بوٹ کس طرح بولے' : 'How the bot talks', icon: Mic },
           ].map((t) => {
@@ -379,7 +390,10 @@ export function SettingsPage() {
               <button
                 key={t.id}
                 type="button"
-                onClick={() => setActiveTab(t.id)}
+                onClick={() => {
+                  setActiveTab(t.id);
+                  setSearchParams({ tab: t.id }, { replace: true });
+                }}
                 aria-current={on ? 'page' : undefined}
                 className={`flex shrink-0 items-center gap-3 rounded-card px-4 py-3 text-left transition-colors duration-150 lg:w-full ${
                   on ? 'bg-ink text-paper' : 'text-ink-2 hover:bg-paper-2 hover:text-ink'
@@ -669,12 +683,14 @@ export function SettingsPage() {
                     <h2 className={`font-display text-lg font-semibold tracking-tight text-ink ${isUrdu ? 'font-urdu text-xl' : ''}`}>
                       {isUrdu ? 'دکان کا ریفرنس کوڈ اور ٹیم' : 'Shop Reference Code & Team'}
                     </h2>
-                    <Badge variant="pro">PRO FEATURE</Badge>
+                    <Badge variant="success">
+                      {isUrdu ? 'سب کے لیے فعال' : 'ALL ACCESS PREVIEW'}
+                    </Badge>
                   </div>
                   <p className="text-xs text-muted mt-0.5">
                     {isUrdu
-                      ? '3 سے 5 ملازمین کے ذاتی واٹس ایپ نمبر جوڑیں تاکہ وہ بھی کھاتہ میں سیلز درج کر سکیں'
-                      : "Connect 3–5 assistants' personal WhatsApp numbers to log sales into your unified shop ledger"}
+                      ? '3 سے 5 ملازمین کے ذاتی واٹس ایپ نمبر جوڑیں تاکہ وہ بھی کھاتہ میں سیلز درج کر سکیں (ٹیسٹنگ کے دوران سب کے لیے مفت)'
+                      : "Connect 3–5 assistants' personal WhatsApp numbers to log sales into your unified shop ledger (Free for all during testing)"}
                   </p>
                 </div>
               </div>
@@ -682,7 +698,7 @@ export function SettingsPage() {
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200">
                   <ShieldCheck className="w-3.5 h-3.5 mr-1" />
-                  {staffData?.subscriptionTier?.toUpperCase() || 'PRO'} PLAN ({staffData?.activeCount ?? 0}/{staffData?.staffLimit ?? 5} {isUrdu ? 'فعال' : 'Active'})
+                  {isUrdu ? 'مفت ٹیسٹنگ رسائی' : 'FREE PREVIEW'} ({staffData?.activeCount ?? 0}/{staffData?.staffLimit ?? 5} {isUrdu ? 'فعال' : 'Active'})
                 </Badge>
               </div>
             </div>
@@ -747,9 +763,9 @@ export function SettingsPage() {
                       <span className="font-bold text-ink">{isUrdu ? '1. ملازم کیسے شامل ہو:' : '1. How staff join:'}</span>
                       <span>
                         {isUrdu ? (
-                          <>ملازم بول دکان بوٹ کو <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {effectiveShopCode} Ali</code> لکھ کر بھیجے۔</>
+                          <>ملازم وربا ٹاسک بوٹ کو <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {effectiveShopCode} Ali</code> لکھ کر بھیجے۔</>
                         ) : (
-                          <>Assistant texts <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {effectiveShopCode} Ali</code> to the BolDukan WhatsApp bot.</>
+                          <>Assistant texts <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {effectiveShopCode} Ali</code> to the VerbaTask WhatsApp bot.</>
                         )}
                       </span>
                     </div>

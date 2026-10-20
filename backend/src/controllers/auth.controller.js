@@ -420,7 +420,7 @@ export const requestPasswordReset = async (req, res) => {
 
         // Send via WhatsApp
         try {
-            const msg = `🔐 *BolDukan Verification Code*\n\nYour password reset code is: *${code}*\n\nThis code will expire in 10 minutes.\nIf you did not request a password reset, please ignore this message.`;
+            const msg = `🔐 *VerbaTask Verification Code*\n\nYour password reset code is: *${code}*\n\nThis code will expire in 10 minutes.\nIf you did not request a password reset, please ignore this message.`;
             await sendTextMessage(merchant.whatsappNumber, msg);
         } catch (err) {
             console.warn('Failed to send WhatsApp reset message:', err.message);

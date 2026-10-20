@@ -4,7 +4,7 @@ import { api } from './api';
 
 export async function generateClientReportPdf(type, merchant = {}) {
   const doc = new jsPDF();
-  const shopName = merchant.businessName || 'BolDukan Store';
+  const shopName = merchant.businessName || 'VerbaTask Store';
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-PK', {
     year: 'numeric',
@@ -19,7 +19,7 @@ export async function generateClientReportPdf(type, merchant = {}) {
 
   doc.setFontSize(10);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Generated on: ${dateStr} · Powered by BolDukan`, 14, 27);
+  doc.text(`Generated on: ${dateStr} · Powered by VerbaTask`, 14, 27);
 
   let title = 'BUSINESS REPORT';
   let head = [];

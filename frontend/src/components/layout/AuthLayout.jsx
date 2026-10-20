@@ -26,7 +26,7 @@ export function AuthLayout({ children, title, subtitle }) {
       dir={isUrdu ? 'rtl' : 'ltr'}
     >
       <aside className="relative hidden flex-col justify-between overflow-clip bg-ink p-10 text-paper lg:col-span-5 lg:flex xl:p-14 dark:border-r dark:border-rule dark:bg-paper-2 dark:text-ink">
-        <Link to="/" className="self-start rounded-sm" title="Back to the BolDukan site">
+        <Link to="/" className="self-start rounded-sm" title="Back to the VerbaTask site">
           <Logo className="!text-paper [--logo-accent:var(--color-pear)] dark:!text-ink dark:[--logo-accent:var(--color-primary)]" />
         </Link>
 
@@ -45,13 +45,13 @@ export function AuthLayout({ children, title, subtitle }) {
         </div>
 
         <p className="font-mono text-[11px] uppercase tracking-[0.1em] opacity-55">
-          © {new Date().getFullYear()} BolDukan
+          © {new Date().getFullYear()} VerbaTask
         </p>
       </aside>
 
       <div className="flex min-w-0 flex-col px-4 py-6 sm:px-10 lg:col-span-7 lg:px-16 xl:px-24">
         <header className="flex items-center justify-between">
-          <Link to="/" className="rounded-sm lg:invisible" title="Back to the BolDukan site">
+          <Link to="/" className="rounded-sm lg:invisible" title="Back to the VerbaTask site">
             <Logo />
           </Link>
           <div className="flex items-center gap-2">

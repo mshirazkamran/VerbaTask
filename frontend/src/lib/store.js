@@ -1,17 +1,17 @@
 import { create } from 'zustand';
 
-const TOKEN_KEY = 'boldukan_token';
-const LEGACY_TOKEN_KEY = 'verbatask_token';
-const MERCHANT_ID_KEY = 'boldukan_merchant_id';
-const LEGACY_MERCHANT_ID_KEY = 'verbatask_merchant_id';
-const THEME_KEY = 'boldukan_theme';
-const LEGACY_THEME_KEY = 'verbatask_theme';
-const COOKIE_TOKEN_KEY = 'boldukan_session';
-const LEGACY_COOKIE_TOKEN_KEY = 'vt_session';
-const COOKIE_MERCHANT_KEY = 'boldukan_merchant_id';
-const LEGACY_COOKIE_MERCHANT_KEY = 'vt_merchant_id';
-const LANG_KEY = 'boldukan_language';
-const LEGACY_LANG_KEY = 'verbatask_language';
+const TOKEN_KEY = 'verbatask_token';
+const LEGACY_TOKEN_KEY = 'boldukan_token';
+const MERCHANT_ID_KEY = 'verbatask_merchant_id';
+const LEGACY_MERCHANT_ID_KEY = 'boldukan_merchant_id';
+const THEME_KEY = 'verbatask_theme';
+const LEGACY_THEME_KEY = 'boldukan_theme';
+const COOKIE_TOKEN_KEY = 'vt_session';
+const LEGACY_COOKIE_TOKEN_KEY = 'boldukan_session';
+const COOKIE_MERCHANT_KEY = 'vt_merchant_id';
+const LEGACY_COOKIE_MERCHANT_KEY = 'boldukan_merchant_id';
+const LANG_KEY = 'verbatask_language';
+const LEGACY_LANG_KEY = 'boldukan_language';
 
 function getCookie(name) {
   if (typeof document === 'undefined') return null;
