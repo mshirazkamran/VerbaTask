@@ -61,16 +61,16 @@ export const spokenPhrases = {
     }
 
     if (isUrdu) {
-      const orderPart = orderNo ? `۔ آرڈر نمبر ${orderNo}۔` : '۔';
+      // The order number stays in the text receipt only — it is not read aloud.
       return {
-        spoken: `جی بالکل محترم! آپ کی سیل درج کر لی گئی ہے: ${itemsSpoken}، ${payFormatted}${customerSpokenUrdu}${orderPart} بہت شکریہ!`,
+        spoken: `جی بالکل محترم! آپ کی سیل درج کر لی گئی ہے: ${itemsSpoken}، ${payFormatted}${customerSpokenUrdu}۔ بہت شکریہ!`,
         text: `✅ سیل درج ہو گئی: ${itemsText} (${formatPaymentMethod(paymentMethod, language)})${customerTextUrdu}${orderNo ? ` — آرڈر #${orderNo}` : ''}.`,
       };
     }
 
     const orderPart = orderNo ? ` — Order #${orderNo}` : '';
     return {
-      spoken: `Certainly! Your sale has been logged: ${itemsSpoken}, ${payFormatted}${customerSpokenEng}${orderNo ? `. Order number ${orderNo}.` : '.'} Thank you!`,
+      spoken: `Certainly! Your sale has been logged: ${itemsSpoken}, ${payFormatted}${customerSpokenEng}. Thank you!`,
       text: `✅ Logged: ${itemsText} (${formatPaymentMethod(paymentMethod, language)})${customerTextEng}${orderPart}.`,
     };
   },
