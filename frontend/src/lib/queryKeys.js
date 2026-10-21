@@ -6,6 +6,7 @@ export const queryKeys = {
   workflows: () => ['workflows'],
   approvals: () => ['approvals'],
   dashboard: () => ['dashboard'],
+  analytics: (range) => (range ? ['analytics', range] : ['analytics']),
   profile: () => ['merchant', 'profile'],
   paymentMethods: () => ['merchant', 'payment-methods'],
   customers: () => ['customers'],

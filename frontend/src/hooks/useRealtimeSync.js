@@ -22,6 +22,7 @@ export function useRealtimeSync() {
       queryClient.invalidateQueries({ queryKey: queryKeys.inventory() });
       queryClient.invalidateQueries({ queryKey: queryKeys.approvals() });
       queryClient.invalidateQueries({ queryKey: queryKeys.workflows() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics() });
       queryClient.invalidateQueries({ queryKey: queryKeys.merchant() });
       queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
       queryClient.invalidateQueries({ queryKey: queryKeys.customers() });

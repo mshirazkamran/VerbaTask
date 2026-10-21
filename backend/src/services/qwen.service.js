@@ -136,18 +136,21 @@ function llmConfigured() {
  * Direct call to Google Gemini API (Free tier from Google AI Studio).
  * Serves as resilient secondary provider when Groq rate limits (429) hit.
  */
-async function chatCompletionWithGemini(systemPrompt, userText) {
+async function chatCompletionWithGemini(systemPrompt, userText, models = null) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
 
-  const modelsToTry = [
+  const modelsToTry = models || [
     process.env.GEMINI_MODEL || 'gemini-3.8-flash',
     'gemini-3.5-flash-lite',
     'gemini-3.5-flash',
+    // Last-resort fallback: a Gemma model served by the same Google AI Studio key.
+    process.env.GEMMA_MODEL || 'gemma-4-31b-it',
   ];
 
   let lastError = null;
-  for (const model of modelsToTry) {
+  for (const rawModel of modelsToTry) {
+    const model = rawModel.replace(/^models\//, ''); // accept ids with or without the "models/" prefix
     try {
       const { data } = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -234,53 +237,56 @@ async function chatCompletion(systemPrompt, userText) {
     }
   }
 
-  // Primary or fallback: Groq
-  if (process.env.GROQ_API_KEY) {
-    const modelsToTry = [
-      process.env.LLM_MODEL || 'qwen/qwen3.8-27b',
-      'openai/gpt-oss-120b',
-      'openai/gpt-oss-20b',
-    ];
-
-    let lastError = null;
-    for (const model of modelsToTry) {
-      try {
-        const { data } = await axios.post(
-          'https://api.groq.com/openai/v1/chat/completions',
-          {
-            model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userText },
-            ],
-            temperature: 0,
-          },
-          {
-            headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-            timeout: 10_000,
-          }
-        );
-        const content = data?.choices?.[0]?.message?.content;
-        if (content) return content;
-      } catch (err) {
-        lastError = err;
-        console.warn(`[qwen.service] Groq model ${model} failed (${err.message}), trying next model...`);
+  // Ordered fallback cascade: Groq Qwen -> Gemma -> Groq gpt-oss -> Gemini flash-lite.
+  // Steps whose API key / model isn't configured are skipped.
+  const groq = (model) => async () => {
+    const { data } = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userText },
+        ],
+        temperature: 0,
+      },
+      {
+        headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+        timeout: 10_000,
       }
-    }
+    );
+    return data?.choices?.[0]?.message?.content;
+  };
+  const gemini = (...models) => () => chatCompletionWithGemini(systemPrompt, userText, models);
 
-    // When Groq models fail or hit HTTP 429 rate limits, immediately fallback to Gemini
-    if (process.env.GEMINI_API_KEY) {
-      console.warn('[qwen.service] All Groq models failed. Falling back to Google Gemini...');
-      try {
-        return await chatCompletionWithGemini(systemPrompt, userText);
-      } catch (geminiErr) {
-        console.warn(`[qwen.service] Gemini fallback also failed (${geminiErr.message}).`);
-      }
-    }
+  const hasGroq = !!process.env.GROQ_API_KEY;
+  const hasGemini = !!process.env.GEMINI_API_KEY;
+  const gemmaModel = process.env.GEMMA_MODEL || 'gemma-4-31b-it';
+  const steps = [
+    ...(hasGroq ? [[`Groq ${process.env.LLM_MODEL || 'qwen/qwen3.8-27b'}`, groq(process.env.LLM_MODEL || 'qwen/qwen3.8-27b')]] : []),
+    ...(hasGemini ? [[`Gemma ${gemmaModel}`, gemini(gemmaModel)]] : []),
+    ...(hasGroq
+      ? [
+          ['Groq openai/gpt-oss-120b', groq('openai/gpt-oss-120b')],
+          ['Groq openai/gpt-oss-20b', groq('openai/gpt-oss-20b')],
+        ]
+      : []),
+    ...(hasGemini ? [['Gemini gemini-3.5-flash-lite', gemini('gemini-3.5-flash-lite')]] : []),
+  ];
 
-    if (provider === 'groq' && !process.env.DASHSCOPE_API_KEY) {
-      throw lastError || new Error('All Groq and Gemini models failed');
+  let lastError = null;
+  for (const [label, run] of steps) {
+    try {
+      const content = await run();
+      if (content) return content;
+    } catch (err) {
+      lastError = err;
+      console.warn(`[qwen.service] ${label} failed (${err.message}), trying next...`);
     }
+  }
+
+  if (!process.env.DASHSCOPE_API_KEY && steps.length) {
+    throw lastError || new Error('All configured LLM models failed');
   }
 
   // Secondary or fallback: Alibaba Cloud DashScope
@@ -311,12 +317,7 @@ async function chatCompletion(systemPrompt, userText) {
     }
   }
 
-  // Final fallback to Gemini if not yet attempted
-  if (process.env.GEMINI_API_KEY) {
-    return await chatCompletionWithGemini(systemPrompt, userText);
-  }
-
-  throw new Error('All configured LLM providers failed');
+  throw lastError || new Error('All configured LLM providers failed');
 }
 
 const URDU_DIGITS_MAP = {

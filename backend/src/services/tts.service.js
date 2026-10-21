@@ -378,7 +378,7 @@ export async function synthesizeSpeech(rawText, options = {}) {
   }
 
   const language = options.language === 'en' ? 'en' : 'ur';
-  const voiceGender = options.voiceGender === 'male' ? 'male' : 'female';
+  const voiceGender = options.voiceGender === 'female' ? 'female' : 'male';
   const explicitProvider = options.provider?.toLowerCase();
 
   const resolveVoice = (provider) => {

@@ -10,6 +10,7 @@ import { SignupPage } from '../pages/SignupPage';
 import { LinkCodePage } from '../pages/LinkCodePage';
 import { ForgotPasswordPage } from '../pages/ForgotPasswordPage';
 import { OverviewPage } from '../pages/OverviewPage';
+import { AnalyticsPage } from '../pages/AnalyticsPage';
 import { InventoryPage } from '../pages/InventoryPage';
 import { OrdersPage } from '../pages/OrdersPage';
 import { CustomersPage } from '../pages/CustomersPage';
@@ -61,6 +62,10 @@ export const router = createBrowserRouter([
  {
  index: true,
  element: <OverviewPage />,
+ },
+ {
+ path: 'analytics',
+ element: <AnalyticsPage />,
  },
  {
  path: 'inventory',
