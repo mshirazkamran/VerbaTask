@@ -14,11 +14,13 @@ import {
   X,
   Wallet,
   Users,
+  BarChart3,
 } from 'lucide-react';
 import { Logo } from '../landing/Logo';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Overview', labelUr: 'ڈیش بورڈ', icon: LayoutDashboard, end: true },
+  { to: '/dashboard/analytics', label: 'Analytics', labelUr: 'تجزیہ', icon: BarChart3 },
   { to: '/dashboard/orders', label: 'Orders', labelUr: 'آرڈرز', icon: Receipt },
   { to: '/dashboard/inventory', label: 'Inventory', labelUr: 'انوینٹری', icon: Package },
   { to: '/dashboard/ledger', label: 'Ledger', labelUr: 'کھاتہ (ادھار)', icon: Wallet },

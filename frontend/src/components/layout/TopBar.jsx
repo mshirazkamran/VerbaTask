@@ -12,6 +12,7 @@ export function TopBar({ onOpenMobileMenu }) {
 
   const routeTitles = {
     '/dashboard': t.overview,
+    '/dashboard/analytics': t.analytics,
     '/dashboard/inventory': t.inventory,
     '/dashboard/orders': t.orders,
     '/dashboard/ledger': t.ledger,

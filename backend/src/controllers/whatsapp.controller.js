@@ -125,7 +125,7 @@ async function replyToMerchant(merchant, phrases, source = 'text', languageOverr
       spokenText,
       textReceipt,
       language,
-      voiceGender: merchant?.voiceGender || 'female',
+      voiceGender: 'male', // male voice for all replies
       alsoSendText: false, // Strict single-reply policy to reduce WhatsApp API billing
     });
   }
