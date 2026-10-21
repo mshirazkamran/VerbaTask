@@ -278,7 +278,10 @@ async function chatCompletion(systemPrompt, userText) {
   for (const [label, run] of steps) {
     try {
       const content = await run();
-      if (content) return content;
+      if (content) {
+        console.log(`[qwen.service] LLM answered via ${label}`);
+        return content;
+      }
     } catch (err) {
       lastError = err;
       console.warn(`[qwen.service] ${label} failed (${err.message}), trying next...`);
