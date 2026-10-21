@@ -27,7 +27,7 @@ export const VOICE_PROFILES = {
   },
   male: {
     edge: { ur: 'ur-PK-AsadNeural', en: 'en-US-GuyNeural' },
-    gemini: { ur: 'Puck', en: 'Puck' },
+    gemini: { ur: 'Algieba', en: 'Puck' }, // Algieba: smoother, calmer Urdu delivery than Puck
     elevenlabs: process.env.ELEVENLABS_VOICE_MALE || 'pNInz6obpgDQGcFmaJgB', // Adam: calm, respectful, natural
     label: 'Male Voice (مرد کی آواز)',
   },
@@ -394,7 +394,9 @@ export async function synthesizeSpeech(rawText, options = {}) {
 
   // Build the prioritized order of neural providers
   const configuredProvider = getActiveProvider();
-  const neuralProviders = ['gemini', 'elevenlabs', 'edge'];
+  // Urdu: Edge's ur-PK neural voices are native Pakistani Urdu, while ElevenLabs
+  // multilingual v2 has no Urdu support — so Edge is tried before ElevenLabs.
+  const neuralProviders = language === 'ur' ? ['gemini', 'edge', 'elevenlabs'] : ['gemini', 'elevenlabs', 'edge'];
 
   // If a specific provider was configured in env (e.g. TTS_PROVIDER=elevenlabs), prioritize it first
   if (configuredProvider && neuralProviders.includes(configuredProvider)) {

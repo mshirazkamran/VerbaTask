@@ -31,10 +31,10 @@ describe('Khata Settlement & Single-Voice Avatar Customization Tests', () => {
       assert.equal(VOICE_PROFILES.male.edge.ur, 'ur-PK-AsadNeural');
       assert.equal(VOICE_PROFILES.male.edge.en, 'en-US-GuyNeural');
 
-      // Gemini: Aoede (Female), Puck (Male)
+      // Gemini: Aoede (Female), Algieba (Male, Urdu) / Puck (Male, English)
       assert.equal(VOICE_PROFILES.female.gemini.ur, 'Aoede');
       assert.equal(VOICE_PROFILES.female.gemini.en, 'Aoede');
-      assert.equal(VOICE_PROFILES.male.gemini.ur, 'Puck');
+      assert.equal(VOICE_PROFILES.male.gemini.ur, 'Algieba');
       assert.equal(VOICE_PROFILES.male.gemini.en, 'Puck');
     });
 
@@ -44,7 +44,7 @@ describe('Khata Settlement & Single-Voice Avatar Customization Tests', () => {
       assert.equal(getVoiceForGender('female', 'en', 'edge'), 'en-US-JennyNeural');
       assert.equal(getVoiceForGender('male', 'en', 'edge'), 'en-US-GuyNeural');
       assert.equal(getVoiceForGender('female', 'ur', 'gemini'), 'Aoede');
-      assert.equal(getVoiceForGender('male', 'ur', 'gemini'), 'Puck');
+      assert.equal(getVoiceForGender('male', 'ur', 'gemini'), 'Algieba');
       // Defaults to female if unrecognized
       assert.equal(getVoiceForGender('other', 'ur', 'edge'), 'ur-PK-UzmaNeural');
     });
