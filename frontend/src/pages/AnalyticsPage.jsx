@@ -185,38 +185,91 @@ export function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Row 1 — Equal 50/50 split: Sales Overview left, Revenue Trend right */}
-      <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2 lg:gap-6">
-        {/* Left Card: Total Sales & Key Metrics */}
-        <Card padding="none" className="flex flex-col justify-between overflow-hidden">
-          <div className="px-5 pt-5 sm:px-7 sm:pt-7">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted">
-              {t.revenue} · {t.rangeLabel[range]}
-            </p>
-            {loading ? (
-              <Skeleton className="mt-3 h-14 w-56" />
-            ) : (
-              <p className="mt-2 font-display text-[clamp(2.5rem,4vw+1rem,3.75rem)] font-bold leading-none tracking-tight text-ink font-tabular">
-                <span className="mr-2 text-[0.45em] font-medium text-muted">{isUrdu ? 'روپے' : 'Rs.'}</span>
-                <CountUp to={summary?.revenue ?? 0} separator="," />
+      {/* Row 1 — Long Revenue Trend Graph on top */}
+      <Card padding="none" className="flex min-w-0 flex-col justify-between overflow-hidden">
+        <SectionHead
+          title={t.revenueTrend}
+          meta={range === '12m' ? t.perMonth : t.perDay}
+          action={
+            <span className="hidden font-mono text-xs font-semibold text-muted sm:inline-block">
+              {hasSales ? `${trend.length} ${range === '12m' ? 'months' : 'days'} recorded` : t.noSales}
+            </span>
+          }
+        />
+        <div className="relative mt-2 h-[280px] w-full px-2 pb-3 sm:h-[320px]">
+          {loading ? (
+            <div className="px-5 pb-4">
+              <Skeleton className="h-[270px] w-full rounded-card" />
+            </div>
+          ) : (
+            <div className="absolute inset-0 pb-3">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trend} margin={{ top: 12, right: 24, left: 10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="analyticsFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.24} />
+                      <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} stroke={GRID_STROKE} />
+                  <XAxis dataKey="label" tick={AXIS_TICK} axisLine={{ stroke: GRID_STROKE }} tickLine={false} minTickGap={24} />
+                  <YAxis width={44} tick={AXIS_TICK} axisLine={false} tickLine={false} tickFormatter={compactPKR} />
+                  <Tooltip
+                    content={<ChartTooltip valueFormatter={formatPKR} unitLabel={t.ordersLabel} />}
+                    cursor={{ stroke: 'var(--color-rule-2)', strokeDasharray: '3 3' }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="var(--color-primary)"
+                    strokeWidth={2.5}
+                    fill="url(#analyticsFill)"
+                    activeDot={{ r: 5, fill: 'var(--color-pear)', stroke: 'var(--color-ink)', strokeWidth: 1.5 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center justify-between border-t border-rule bg-surface px-5 py-3 sm:px-6">
+          <span className="text-xs font-semibold text-muted">{range === '12m' ? t.perMonth : t.perDay}</span>
+          <span className="text-xs font-semibold text-primary">{hasSales ? `${trend.length} days recorded` : t.noSales}</span>
+        </div>
+      </Card>
+
+      {/* Row 2 — 3 in a row at bottom with equal sizes */}
+      <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-3 lg:gap-6">
+        {/* Card 1: Total Sales & Key Metrics */}
+        <Card padding="none" className="flex min-w-0 flex-col justify-between overflow-hidden">
+          <div>
+            <div className="px-5 pt-5 sm:px-6 sm:pt-6">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted">
+                {t.revenue} · {t.rangeLabel[range]}
               </p>
-            )}
-            {!loading && (
-              <div className="mt-3">
-                <GrowthChip value={summary?.growth?.revenue} t={t} />
-              </div>
-            )}
+              {loading ? (
+                <Skeleton className="mt-2.5 h-12 w-48" />
+              ) : (
+                <p className="mt-1.5 font-display text-[clamp(2.15rem,2.5vw+1rem,3rem)] font-bold leading-none tracking-tight text-ink font-tabular">
+                  <span className="mr-1.5 text-[0.45em] font-medium text-muted">{isUrdu ? 'روپے' : 'Rs.'}</span>
+                  <CountUp to={summary?.revenue ?? 0} separator="," />
+                </p>
+              )}
+              {!loading && (
+                <div className="mt-2.5">
+                  <GrowthChip value={summary?.growth?.revenue} t={t} />
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-rule px-5 py-4 sm:px-6">
+              <Kpi label={t.orders} value={summary?.orders ?? 0} growth={summary?.growth?.orders} money={false} t={t} loading={loading} />
+              <Kpi label={t.avgOrder} value={summary?.avgOrderValue ?? 0} growth={summary?.growth?.avgOrderValue} t={t} loading={loading} />
+              <Kpi label={t.avgDaily} value={summary?.avgDailyRevenue ?? 0} t={t} loading={loading} />
+              <Kpi label={t.unitsSold} value={summary?.units ?? 0} money={false} t={t} loading={loading} />
+            </div>
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-rule px-5 py-5 sm:px-7">
-            <Kpi label={t.orders} value={summary?.orders ?? 0} growth={summary?.growth?.orders} money={false} t={t} loading={loading} />
-            <Kpi label={t.avgOrder} value={summary?.avgOrderValue ?? 0} growth={summary?.growth?.avgOrderValue} t={t} loading={loading} />
-            <Kpi label={t.avgDaily} value={summary?.avgDailyRevenue ?? 0} t={t} loading={loading} />
-            <Kpi label={t.unitsSold} value={summary?.units ?? 0} money={false} t={t} loading={loading} />
-          </div>
-
-          {/* Clean footer without any brown background */}
-          <div className="flex items-center justify-between gap-3 border-t border-rule bg-surface px-5 py-3.5 sm:px-7">
+          <div className="flex items-center justify-between border-t border-rule bg-surface px-5 py-3 sm:px-6">
             <span className="text-xs font-semibold text-muted">{t.bestDay}</span>
             <span className="text-right text-xs text-ink-2">
               {bestDay && !loading ? (
@@ -231,64 +284,16 @@ export function AnalyticsPage() {
           </div>
         </Card>
 
-        {/* Right Card: Revenue Trend Chart */}
+        {/* Card 2: Payment Methods Breakdown */}
         <Card padding="none" className="flex min-w-0 flex-col justify-between overflow-hidden">
-          <SectionHead title={t.revenueTrend} meta={range === '12m' ? t.perMonth : t.perDay} />
-          <div className="relative mt-4 h-[260px] px-2 pb-3 sm:h-[300px] lg:h-auto lg:min-h-[280px] lg:flex-1">
-            {loading ? (
-              <div className="px-5 pb-4">
-                <Skeleton className="h-[250px] w-full rounded-card" />
-              </div>
-            ) : (
-              <div className="absolute inset-0 pb-3">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trend} margin={{ top: 10, right: 20, left: 8, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="analyticsFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.24} />
-                        <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid vertical={false} stroke={GRID_STROKE} />
-                    <XAxis dataKey="label" tick={AXIS_TICK} axisLine={{ stroke: GRID_STROKE }} tickLine={false} minTickGap={24} />
-                    <YAxis width={44} tick={AXIS_TICK} axisLine={false} tickLine={false} tickFormatter={compactPKR} />
-                    <Tooltip
-                      content={<ChartTooltip valueFormatter={formatPKR} unitLabel={t.ordersLabel} />}
-                      cursor={{ stroke: 'var(--color-rule-2)', strokeDasharray: '3 3' }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="revenue"
-                      stroke="var(--color-primary)"
-                      strokeWidth={2.5}
-                      fill="url(#analyticsFill)"
-                      activeDot={{ r: 5, fill: 'var(--color-pear)', stroke: 'var(--color-ink)', strokeWidth: 1.5 }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-          {/* Matching clean baseline footer */}
-          <div className="flex items-center justify-between border-t border-rule bg-surface px-5 py-3.5 sm:px-7">
-            <span className="text-xs font-semibold text-muted">{range === '12m' ? t.perMonth : t.perDay}</span>
-            <span className="text-xs font-semibold text-primary">{hasSales ? `${trend.length} days recorded` : t.noSales}</span>
-          </div>
-        </Card>
-      </div>
-
-      {/* Row 2 — Payment Methods Breakdown & Top Selling Products */}
-      <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12 lg:gap-6">
-        {/* Payment Methods Breakdown */}
-        <Card padding="none" className="flex min-w-0 flex-col justify-between lg:col-span-5">
           <div>
             <SectionHead title={t.paymentSplit} meta={t.rangeLabel[range]} />
-            <div className="px-5 pb-5 pt-4 sm:px-6">
+            <div className="px-5 pb-5 pt-3 sm:px-6">
               {loading ? (
-                <Skeleton className="mx-auto size-40 rounded-pill" />
+                <Skeleton className="mx-auto my-4 size-36 rounded-pill" />
               ) : data?.paymentMethods?.length ? (
                 <>
-                  <div className="relative mx-auto h-[190px] w-full max-w-[220px]">
+                  <div className="relative mx-auto h-[170px] w-full max-w-[200px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -309,19 +314,19 @@ export function AnalyticsPage() {
                     </ResponsiveContainer>
                     <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
                       <div>
-                        <p className="text-xs font-medium text-muted">{t.revenue}</p>
-                        <p className="font-display text-lg font-bold tracking-tight text-ink font-tabular">{formatPKR(summary?.revenue ?? 0)}</p>
+                        <p className="text-[11px] font-medium text-muted">{t.revenue}</p>
+                        <p className="font-display text-base font-bold tracking-tight text-ink font-tabular">{formatPKR(summary?.revenue ?? 0)}</p>
                       </div>
                     </div>
                   </div>
-                  <ul className="mt-4 space-y-2.5">
+                  <ul className="mt-3.5 space-y-2">
                     {data.paymentMethods.map((p) => (
-                      <li key={p.method} className="flex items-center justify-between gap-3">
-                        <span className="flex min-w-0 items-center gap-2.5">
+                      <li key={p.method} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="flex min-w-0 items-center gap-2">
                           <span className="size-2.5 shrink-0 rounded-pill" style={{ background: PAYMENT_COLORS[p.method] || 'var(--color-muted)' }} />
-                          <span className={`truncate text-sm font-medium text-ink ${isUrdu ? 'font-urdu' : ''}`}>{methodLabel(p.method)}</span>
+                          <span className={`truncate font-medium text-ink ${isUrdu ? 'font-urdu' : ''}`}>{methodLabel(p.method)}</span>
                         </span>
-                        <span className="whitespace-nowrap font-mono text-xs font-semibold text-ink-2">
+                        <span className="whitespace-nowrap font-mono font-semibold text-ink-2">
                           {formatPKR(p.revenue)} · <span className="text-muted">{Math.round(p.share)}%</span>
                         </span>
                       </li>
@@ -329,14 +334,21 @@ export function AnalyticsPage() {
                   </ul>
                 </>
               ) : (
-                <p className="text-sm text-muted">{t.noSplit}</p>
+                <p className="py-4 text-sm text-muted">{t.noSplit}</p>
               )}
             </div>
           </div>
+
+          <div className="flex items-center justify-between border-t border-rule bg-surface px-5 py-3 sm:px-6">
+            <span className="text-xs font-semibold text-muted">{t.paymentSplit}</span>
+            <span className="font-mono text-xs font-semibold text-ink-2">
+              {data?.paymentMethods?.length || 0} {isUrdu ? 'چینلز' : 'methods'}
+            </span>
+          </div>
         </Card>
 
-        {/* Top Selling Products */}
-        <Card padding="none" className="flex min-w-0 flex-col justify-between lg:col-span-7">
+        {/* Card 3: Top Selling Products */}
+        <Card padding="none" className="flex min-w-0 flex-col justify-between overflow-hidden">
           <div>
             <SectionHead title={t.topSelling} meta={`${t.byRevenue} · ${t.rangeLabel[range]}`} />
             <div className="px-5 pb-5 pt-3 sm:px-6">
@@ -348,35 +360,42 @@ export function AnalyticsPage() {
                 </div>
               ) : data?.topProducts?.length ? (
                 <ol className="divide-y divide-rule">
-                  {data.topProducts.map((p, i) => (
-                    <li key={p.name} className="py-3">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <span className="flex min-w-0 items-baseline gap-3">
-                          <span className="grid size-6 shrink-0 place-items-center rounded-pill bg-paper-2 font-mono text-xs font-bold text-ink">
+                  {data.topProducts.slice(0, 5).map((p, i) => (
+                    <li key={p.name} className="py-2.5 first:pt-1 last:pb-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="flex min-w-0 items-baseline gap-2">
+                          <span className="grid size-5 shrink-0 place-items-center rounded-pill bg-paper-2 font-mono text-[11px] font-bold text-ink">
                             {i + 1}
                           </span>
-                          <span className="truncate text-sm font-semibold text-ink">{p.name}</span>
+                          <span className="truncate text-xs font-semibold text-ink" title={p.name}>{p.name}</span>
                         </span>
-                        <span className="whitespace-nowrap font-mono text-sm font-bold text-ink">{formatPKR(p.revenue)}</span>
+                        <span className="whitespace-nowrap font-mono text-xs font-bold text-ink">{formatPKR(p.revenue)}</span>
                       </div>
-                      <div className="mt-2 flex items-center gap-3 pl-9">
-                        <div className="h-2 flex-1 overflow-hidden rounded-pill bg-paper-3">
+                      <div className="mt-1.5 flex items-center gap-2.5 pl-7">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-pill bg-paper-3">
                           <div
-                            className="h-full rounded-pill"
-                            style={{ width: `${Math.max(3, (p.revenue / topMax) * 100)}%`, background: i === 0 ? 'var(--color-primary)' : 'var(--color-chart-1)' }}
+                            className="h-full rounded-pill transition-all"
+                            style={{ width: `${Math.max(4, (p.revenue / topMax) * 100)}%`, background: i === 0 ? 'var(--color-primary)' : 'var(--color-chart-1)' }}
                           />
                         </div>
-                        <span className="w-40 shrink-0 text-right font-mono text-[11px] text-muted">
-                          {p.quantity} {t.sold} · {Math.round(p.share)}% {t.ofRevenue}
+                        <span className="shrink-0 text-right font-mono text-[10.5px] text-muted">
+                          {p.quantity} {t.sold} · {Math.round(p.share)}%
                         </span>
                       </div>
                     </li>
                   ))}
                 </ol>
               ) : (
-                <p className="pt-2 text-sm text-muted">{t.noSales}</p>
+                <p className="py-4 text-sm text-muted">{t.noSales}</p>
               )}
             </div>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-rule bg-surface px-5 py-3 sm:px-6">
+            <span className="text-xs font-semibold text-muted">{t.topSelling}</span>
+            <span className="font-mono text-xs font-semibold text-ink-2">
+              {data?.topProducts?.length || 0} {isUrdu ? 'پروڈکٹس' : 'products'}
+            </span>
           </div>
         </Card>
       </div>

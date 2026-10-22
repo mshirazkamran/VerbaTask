@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router';
+import { useSearchParams, useNavigate, useLocation } from 'react-router';
 import { toast } from 'sonner';
 import {
   Store,
@@ -65,17 +65,22 @@ export function SettingsPage({ initialTab }) {
   const uiLanguage = useUiStore((s) => s.language);
   const isUrdu = uiLanguage === 'ur';
 
-  const [searchParams, setSearchParams] = useSearchParams();
-  const queryTab = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(initialTab || queryTab || 'profile');
+  const routerLocation = useLocation();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    if (initialTab) {
-      setActiveTab(initialTab);
-    } else if (queryTab && ['profile', 'team', 'payments', 'voice'].includes(queryTab)) {
-      setActiveTab(queryTab);
+  const queryTab = searchParams.get('tab');
+  const activeTab = routerLocation.pathname.includes('/team')
+    ? 'team'
+    : (['profile', 'team', 'payments', 'voice'].includes(queryTab) ? queryTab : (initialTab || 'profile'));
+
+  const handleTabClick = (tabId) => {
+    if (tabId === 'team') {
+      navigate('/dashboard/team');
+    } else {
+      navigate(`/dashboard/settings?tab=${tabId}`);
     }
-  }, [initialTab, queryTab]);
+  };
 
   const { data: profile, isLoading: profileLoading } = useMerchantProfile();
   const updateProfileMutation = useUpdateMerchantProfile();
@@ -402,25 +407,26 @@ export function SettingsPage({ initialTab }) {
   const cashMethods = allMethods.filter((m) => m.category === 'cash');
 
   return (
-    <div className="space-y-5 pb-12 sm:space-y-6">
-      <div>
+    <div className="space-y-6 pb-12">
+      {/* Page Header */}
+      <div className="mx-auto max-w-4xl">
         <p className="label">{isUrdu ? 'آپ کی دکان' : 'Your shop'}</p>
         <h1 className={`display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)] ${isUrdu ? 'font-urdu text-3xl sm:text-4xl' : ''}`}>
           {formatBusinessName(profile?.businessName, profile?.location) || profile?.businessName || (isUrdu ? 'دکان کی سیٹنگز' : 'Shop settings')}
         </h1>
       </div>
 
-      {/* 3/9 — a vertical section rail beside the form */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-8">
+      {/* Top Navigation Menu Bar */}
+      <div className="mx-auto max-w-4xl">
         <nav
           aria-label="Settings sections"
-          className="custom-scrollbar flex gap-1 overflow-x-auto lg:sticky lg:top-24 lg:col-span-3 lg:flex-col lg:self-start lg:overflow-visible"
+          className="custom-scrollbar flex items-center gap-1.5 overflow-x-auto rounded-card border border-rule bg-surface p-1.5 shadow-xs"
         >
           {[
-            { id: 'profile', label: isUrdu ? 'دکان کا پروفائل' : 'Shop profile', hint: isUrdu ? 'نام، پتہ، سامان' : 'Name, area, what you sell', icon: Store },
-            { id: 'team', label: isUrdu ? 'ٹیم اور ملازمین' : 'Team & Staff', hint: isUrdu ? `${staffData?.activeCount ?? profile?.staffMembers?.length ?? 0} منسلک (سب کے لیے دستیاب)` : `${staffData?.activeCount ?? profile?.staffMembers?.length ?? 0} connected (All Access)`, icon: Users },
-            { id: 'payments', label: isUrdu ? 'ادائیگی کے ذرائع' : 'Payments', hint: isUrdu ? `${activePaymentIds.length} فعال` : `${activePaymentIds.length} accepted`, icon: CreditCard },
-            { id: 'voice', label: isUrdu ? 'آواز اور زبان' : 'Voice & language', hint: isUrdu ? 'بوٹ کس طرح بولے' : 'How the bot talks', icon: Mic },
+            { id: 'profile', label: isUrdu ? 'دکان کا پروفائل' : 'Shop profile', icon: Store },
+            { id: 'team', label: isUrdu ? 'ٹیم اور ملازمین' : 'Team & Staff', icon: Users, badge: staffData?.activeCount ?? profile?.staffMembers?.length ?? 0 },
+            { id: 'payments', label: isUrdu ? 'ادائیگی کے ذرائع' : 'Payments', icon: CreditCard, badge: activePaymentIds.length },
+            { id: 'voice', label: isUrdu ? 'آواز اور زبان' : 'Voice & language', icon: Mic },
           ].map((t) => {
             const on = activeTab === t.id;
             const Icon = t.icon;
@@ -428,26 +434,31 @@ export function SettingsPage({ initialTab }) {
               <button
                 key={t.id}
                 type="button"
-                onClick={() => {
-                  setActiveTab(t.id);
-                  setSearchParams({ tab: t.id }, { replace: true });
-                }}
+                onClick={() => handleTabClick(t.id)}
                 aria-current={on ? 'page' : undefined}
-                className={`flex shrink-0 items-center gap-3 rounded-card px-4 py-3 text-left transition-colors duration-150 lg:w-full ${
-                  on ? 'bg-ink text-paper' : 'text-ink-2 hover:bg-paper-2 hover:text-ink'
+                className={`flex shrink-0 items-center gap-2 rounded-[9px] px-4 py-2.5 text-xs font-semibold transition-all duration-150 ${
+                  on ? 'bg-ink text-paper shadow-xs' : 'text-ink-2 hover:bg-paper-2 hover:text-ink'
                 }`}
               >
                 <Icon className="size-4 shrink-0" />
-                <span className="min-w-0">
-                  <span className={`block whitespace-nowrap text-sm font-semibold ${isUrdu ? 'font-urdu text-base' : ''}`}>{t.label}</span>
-                  <span className={`hidden truncate text-xs lg:block ${on ? 'opacity-70' : 'text-muted'}`}>{t.hint}</span>
-                </span>
+                <span className={isUrdu ? 'font-urdu text-sm' : ''}>{t.label}</span>
+                {t.badge != null && (
+                  <span
+                    className={`rounded-pill px-1.5 py-0.2 font-mono text-[10.5px] font-bold ${
+                      on ? 'bg-paper text-ink' : 'bg-paper-3 text-muted'
+                    }`}
+                  >
+                    {t.badge}
+                  </span>
+                )}
               </button>
             );
           })}
         </nav>
+      </div>
 
-        <div className="min-w-0 lg:col-span-9">
+      {/* Respected UI Block Perfectly Centered */}
+      <div className="mx-auto max-w-4xl w-full">
       {/* Tab 1: Store Profile */}
       {activeTab === 'profile' && (
         <form onSubmit={handleSaveProfile} className="space-y-6">
@@ -791,12 +802,12 @@ export function SettingsPage({ initialTab }) {
 
                 return (
                   <div className="rounded-xl border border-hairline bg-paper-2/50 p-5 sm:p-6 mb-6">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="space-y-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="space-y-1.5">
                         <span className="text-xs font-semibold uppercase tracking-wider text-muted">
                           {isUrdu ? 'آپ کی دکان کا ریفرنس کوڈ' : 'Your Shop Reference Code'}
                         </span>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
                           <span className="font-mono text-3xl font-bold tracking-wider text-primary-deep dark:text-primary">
                             {effectiveShopCode}
                           </span>
@@ -823,21 +834,26 @@ export function SettingsPage({ initialTab }) {
                         </div>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                      <div className="flex shrink-0 items-center">
                         <Button
                           type="button"
                           variant="outline"
                           onClick={() => handleCopyInviteMessage(effectiveShopCode)}
                           leftIcon={<Copy className="w-4 h-4" />}
+                          className="whitespace-nowrap"
                         >
                           {isUrdu ? 'دعوتی پیغام کاپی کریں' : 'Copy Invite Message'}
                         </Button>
-                        <span className="text-xs text-muted">
-                          {isUrdu
-                            ? '💡 یا نیچے ملازم کا نمبر براہ راست درج کریں — وربا ٹاسک بوٹ خودکار طور پر انہیں واٹس ایپ پر دعوتی پیغام بھیج دے گا۔'
-                            : '💡 Or enter their phone number below — VerbaTask bot automatically sends them the invite on WhatsApp.'}
-                        </span>
                       </div>
+                    </div>
+
+                    <div className="mt-4 flex items-center gap-2 rounded-lg bg-surface/80 border border-hairline/80 px-3.5 py-2.5 text-xs text-muted">
+                      <span className="shrink-0 text-base">💡</span>
+                      <span>
+                        {isUrdu
+                          ? 'یا نیچے ملازم کا نمبر براہ راست درج کریں — وربا ٹاسک بوٹ خودکار طور پر انہیں واٹس ایپ پر دعوتی پیغام بھیج دے گا۔'
+                          : 'Or enter their phone number below — VerbaTask bot automatically sends them the invite on WhatsApp.'}
+                      </span>
                     </div>
 
                     {/* Instructions banner */}
@@ -1641,7 +1657,6 @@ export function SettingsPage({ initialTab }) {
           </div>
         </div>
       </Modal>
-        </div>
       </div>
     </div>
   );

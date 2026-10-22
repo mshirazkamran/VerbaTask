@@ -15,30 +15,16 @@ import { useAuthStore, useUiStore } from '../lib/store';
 import { getTranslations } from '../lib/translations';
 import { formatPKR, formatDate, formatBusinessName } from '../lib/format';
 
-import cashLogo from '../assets/cash-logo.jpeg';
-import epLogo from '../assets/ep-logo.png';
-import jcLogo from '../assets/jc-logo.png';
-import bankLogo from '../assets/bank-logo.png';
-
-const PAYMENT_LOGOS = {
-  cash: cashLogo,
-  easypaisa: epLogo,
-  jazzcash: jcLogo,
-  bank: bankLogo,
-};
-
 function capitalise(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function PaymentMethod({ method, isUrdu, t }) {
   const key = (method || 'cash').toLowerCase();
-  const logo = PAYMENT_LOGOS[key];
   const label = t?.[key] || capitalise(key);
   return (
-    <span className="inline-flex items-center gap-2">
-      {logo && <img src={logo} alt="" className="size-5 shrink-0 rounded-[5px] object-cover" />}
-      <span className={`whitespace-nowrap text-xs font-medium text-ink-2 ${isUrdu ? 'font-urdu' : ''}`}>{label}</span>
+    <span className={`whitespace-nowrap text-xs font-medium capitalize text-ink-2 ${isUrdu ? 'font-urdu' : ''}`}>
+      {label}
     </span>
   );
 }
@@ -161,6 +147,11 @@ export function OverviewPage() {
 
   const recentOrdersColumns = useMemo(
     () => [
+      {
+        id: 'srNo',
+        header: isUrdu ? 'نمبر شمار' : 'Sr No.',
+        cell: ({ row }) => <span className="font-mono text-xs font-semibold text-muted">{row.index + 1}</span>,
+      },
       {
         accessorKey: 'createdAt',
         header: t.time,
