@@ -17,7 +17,6 @@ import {
   Copy,
   UserPlus,
   Trash2,
-  Share2,
   ShieldCheck,
   UserCheck,
   Volume2,
@@ -48,7 +47,7 @@ import {
   useRegenerateShopCode,
 } from '../hooks/useMerchantSettings';
 import { useUiStore } from '../lib/store';
-import { formatPhone, normalizePhone } from '../lib/format';
+import { formatPhone, normalizePhone, formatBusinessName } from '../lib/format';
 
 const getBusinessTypes = (isUrdu) => [
   { value: 'kiryana', label: isUrdu ? 'کریانہ / جنرل اسٹور' : 'Kiryana / Grocery Store' },
@@ -407,7 +406,7 @@ export function SettingsPage({ initialTab }) {
       <div>
         <p className="label">{isUrdu ? 'آپ کی دکان' : 'Your shop'}</p>
         <h1 className={`display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)] ${isUrdu ? 'font-urdu text-3xl sm:text-4xl' : ''}`}>
-          {profile?.businessName || (isUrdu ? 'دکان کی سیٹنگز' : 'Shop settings')}
+          {formatBusinessName(profile?.businessName, profile?.location) || profile?.businessName || (isUrdu ? 'دکان کی سیٹنگز' : 'Shop settings')}
         </h1>
       </div>
 

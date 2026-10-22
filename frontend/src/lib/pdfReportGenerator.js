@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { api } from './api';
+import { formatBusinessName } from './format';
 
 export async function generateClientReportPdf(type, merchant = {}) {
   const doc = new jsPDF({
@@ -9,7 +10,7 @@ export async function generateClientReportPdf(type, merchant = {}) {
     format: 'a4',
   });
 
-  const shopName = merchant.businessName || 'VerbaTask Store';
+  const shopName = formatBusinessName(merchant.businessName, merchant.location) || merchant.businessName || 'VerbaTask Store';
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB', {
     day: '2-digit',

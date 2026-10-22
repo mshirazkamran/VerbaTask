@@ -11,6 +11,21 @@ function createPdfBuffer(doc) {
   });
 }
 
+function formatBusinessName(name, location) {
+  if (!name || typeof name !== 'string') return '';
+  let clean = name.trim();
+  if (clean.includes(',')) clean = clean.split(',')[0].trim();
+  if (clean.includes(' - ')) clean = clean.split(' - ')[0].trim();
+  else if (clean.includes(' | ')) clean = clean.split(' | ')[0].trim();
+  clean = clean.replace(/[.,:;\-\s]+$/, '');
+  if (location && typeof location === 'string' && location.trim()) {
+    const loc = location.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const locRegex = new RegExp(`\\s*[-–,|]?\\s*${loc}\\b.*$`, 'i');
+    clean = clean.replace(locRegex, '').trim();
+  }
+  return clean.replace(/[.,:;\-\s]+$/, '') || name.trim();
+}
+
 /**
  * Builds modern, stylish, branded header and metadata block:
  * 1. "VerbaTask" on top: Big Bold
@@ -19,7 +34,7 @@ function createPdfBuffer(doc) {
  * Store Name and ERP system tags on the top right.
  */
 function drawHeader(doc, merchant, title, themeColor = '#2563EB') {
-  const storeName = merchant.businessName || 'My Business Store';
+  const storeName = formatBusinessName(merchant.businessName, merchant.location) || merchant.businessName || 'My Business Store';
   const now = new Date();
 
   const dateStr = now.toLocaleDateString('en-GB', {

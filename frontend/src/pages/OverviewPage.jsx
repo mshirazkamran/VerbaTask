@@ -13,7 +13,7 @@ import { useDashboard } from '../hooks/useDashboard';
 import { ReportDropdown } from '../components/ReportDropdown';
 import { useAuthStore, useUiStore } from '../lib/store';
 import { getTranslations } from '../lib/translations';
-import { formatPKR, formatDate } from '../lib/format';
+import { formatPKR, formatDate, formatBusinessName } from '../lib/format';
 
 import cashLogo from '../assets/cash-logo.jpeg';
 import epLogo from '../assets/ep-logo.png';
@@ -210,7 +210,7 @@ export function OverviewPage() {
     initialState: { sorting: [{ id: 'createdAt', desc: true }] },
   });
 
-  const greetingName = merchant?.businessName;
+  const greetingName = formatBusinessName(merchant?.businessName, merchant?.location);
   const todayLabel = new Date().toLocaleDateString(isUrdu ? 'ur-PK' : 'en-PK', {
     weekday: 'long',
     day: 'numeric',

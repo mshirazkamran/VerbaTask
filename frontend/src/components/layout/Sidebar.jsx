@@ -1,6 +1,7 @@
 import { NavLink, Link } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore, useUiStore } from '../../lib/store';
+import { formatBusinessName } from '../../lib/format';
 import {
   LayoutDashboard,
   Package,
@@ -68,7 +69,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose = () => {} }) {
   const { sidebarCollapsed, toggleSidebar, language } = useUiStore();
   const { merchant, logout } = useAuthStore();
 
-  const businessName = merchant?.businessName || 'My shop';
+  const businessName = formatBusinessName(merchant?.businessName, merchant?.location) || merchant?.businessName || 'My shop';
   const merchantEmail = merchant?.email || '';
 
   const content = (compact) => (
