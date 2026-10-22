@@ -41,12 +41,17 @@ jobs:
           printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
+          
           ssh \
             -i ~/.ssh/deploy_key \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes \
             "$VPS_USER@$VPS_HOST" \
-            "cd '$VPS_APP_PATH' &&
+            "export NVM_DIR=\"/home/shiraz/.nvm\" &&
+             . \"\$NVM_DIR/nvm.sh\" &&
+             nvm use 24.22.1 &&
+             cd '$VPS_APP_PATH' &&
              git pull --ff-only origin main &&
-             /home/shiraz/.nvm/versions/node/v24.21.0/bin/pm2 restart verbatask --update-env"
+             pm2 restart verbatask --update-env"
+
 
