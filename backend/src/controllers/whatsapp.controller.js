@@ -48,6 +48,15 @@ import {
 const SIGNUP_BASE_URL = process.env.SIGNUP_BASE_URL || 'https://verba-task.netlify.app/signup';
 
 /**
+ * Resolves the phone number of the person who actually sent the message.
+ * For assistants/staff, returns the assistant's phone number.
+ * For store owners, returns the owner's phone number.
+ */
+function getSenderRecipient(merchant) {
+  return merchant?._replyToNumber || merchant?.whatsappNumber;
+}
+
+/**
  * Safe WhatsApp reply helper — never lets a failed outbound send crash the
  * webhook handler. Logs the failure so we still know something went wrong.
  */
@@ -194,20 +203,25 @@ export async function handleIncomingMessage(req, res) {
     const transferHandled = await handlePendingStaffTransferFlow(from, message);
     if (transferHandled) return;
 
+    const normFrom = normalizePhone(from) || from;
+    const possibleFroms = Array.from(new Set([from, normFrom, normFrom.replace(/^92/, '0')]));
+
     // 2. Prioritize active staff membership in an active store
     const staffOwner = await Merchant.findOne({
-      'staffMembers.whatsappNumber': from,
+      'staffMembers.whatsappNumber': { $in: possibleFroms },
       'staffMembers.active': true,
       status: { $ne: 'disabled' },
     });
 
     if (staffOwner) {
       merchant = staffOwner;
-      staffMember = staffOwner.staffMembers.find((s) => s.whatsappNumber === from && s.active);
+      staffMember = staffOwner.staffMembers.find(
+        (s) => (possibleFroms.includes(s.whatsappNumber) || normalizePhone(s.whatsappNumber) === normFrom) && s.active
+      );
     } else {
       // 3. Otherwise check if this number is an active store owner
       merchant = await Merchant.findOne({
-        whatsappNumber: from,
+        whatsappNumber: { $in: possibleFroms },
         status: { $ne: 'disabled' },
       });
     }
@@ -221,10 +235,10 @@ export async function handleIncomingMessage(req, res) {
       return await handleUnregisteredNumber(from);
     }
 
-    // Attach staff context if message is from a linked assistant
+    // Always attach sender phone as _replyToNumber so every response returns to the sender
+    merchant._replyToNumber = from;
     if (staffMember) {
       merchant._staffMember = staffMember;
-      merchant._replyToNumber = from;
     }
 
     // `return await` throughout — a bare `return promise()` would let a
@@ -678,10 +692,11 @@ async function handleUnregisteredNumber(whatsappNumber) {
 }
 
 async function sendLinkCodeToMerchant(merchant) {
-  const linkCode = await generateLinkCode(merchant.whatsappNumber);
+  const targetPhone = getSenderRecipient(merchant);
+  const linkCode = await generateLinkCode(targetPhone);
 
   await sendTextMessage(
-    merchant.whatsappNumber,
+    targetPhone,
     `Your VerbaTask linking code: *${linkCode.code}*\n(valid for 15 minutes)\n\nEnter it on the Link Code page to connect this number to your dashboard account.`
   );
 }
@@ -692,15 +707,15 @@ async function sendLinkCodeToMerchant(merchant) {
  * once onboardingComplete is set on the merchant.
  */
 async function handleOnboarding(merchant, message) {
-  let state = await ConversationState.findOne({ whatsappNumber: merchant.whatsappNumber });
+  let state = await ConversationState.findOne({ whatsappNumber: getSenderRecipient(merchant) });
   if (!state) {
     state = await ConversationState.create({
-      whatsappNumber: merchant.whatsappNumber,
+      whatsappNumber: getSenderRecipient(merchant),
       merchantId: merchant._id,
       flow: 'onboarding',
       step: 'awaiting_language',
     });
-    return sendInteractiveButtons(merchant.whatsappNumber, 'Please choose your language:', [
+    return sendInteractiveButtons(getSenderRecipient(merchant), 'Please choose your language:', [
       { id: 'lang_ur', title: 'اردو' },
       { id: 'lang_en', title: 'English' },
     ]);
@@ -905,7 +920,7 @@ async function handleOnboardedMerchant(merchant, message) {
         await merchant.save();
         emitDashboardUpdate(merchant._id, { type: 'profile' });
         return sendTextMessage(
-          merchant.whatsappNumber,
+          getSenderRecipient(merchant),
           merchant.language === 'ur' ? '🔇 وائس جوابات بند کر دیے گئے ہیں۔ اب تمام جوابات ٹیکسٹ میں ملیں گے۔' : '🔇 Voice replies disabled. All replies will be in text.'
         );
       }
@@ -956,7 +971,7 @@ async function handleOnboardedMerchant(merchant, message) {
       // Fast-path: If user taps ANY payment button (e.g. pay_cash, pay_easypaisa, pay_jazzcash)
       if (buttonId?.startsWith('pay_')) {
         const existingState = await ConversationState.findOne({
-          whatsappNumber: merchant.whatsappNumber,
+          whatsappNumber: getSenderRecipient(merchant),
           flow: 'guided_order',
         });
         if (existingState) {
@@ -972,7 +987,7 @@ async function handleOnboardedMerchant(merchant, message) {
     }
 
     const existingState = await ConversationState.findOne({
-      whatsappNumber: merchant.whatsappNumber,
+      whatsappNumber: getSenderRecipient(merchant),
       flow: 'guided_order',
     });
     if (existingState) {
@@ -999,7 +1014,7 @@ async function handleOnboardedMerchant(merchant, message) {
       
       if (listId?.startsWith('pay_')) {
         const existingState = await ConversationState.findOne({
-          whatsappNumber: merchant.whatsappNumber,
+          whatsappNumber: getSenderRecipient(merchant),
           flow: 'guided_order',
         });
         if (existingState) {
@@ -1014,7 +1029,7 @@ async function handleOnboardedMerchant(merchant, message) {
       }
       
       if (listId === 'start_guided_order') return await startGuidedOrder(merchant);
-      return sendTextMessage(merchant.whatsappNumber, "Sorry, I didn't expect that reply — try again?");
+      return sendTextMessage(getSenderRecipient(merchant), "Sorry, I didn't expect that reply — try again?");
     }
 
     if (message.type === 'audio') {
@@ -1024,15 +1039,15 @@ async function handleOnboardedMerchant(merchant, message) {
     if (message.type === 'image') {
       // Optional OCR path — not the primary flow. Ack for now.
       return sendTextMessage(
-        merchant.whatsappNumber,
+        getSenderRecipient(merchant),
         "Got your image — screenshot reconciliation isn't wired up yet, log this sale manually for now."
       );
     }
 
-    return sendTextMessage(merchant.whatsappNumber, "I can't handle that message type yet.");
+    return sendTextMessage(getSenderRecipient(merchant), "I can't handle that message type yet.");
   } catch (err) {
     console.error('handleOnboardedMerchant error:', err);
-    return sendTextMessage(merchant.whatsappNumber, friendlyFallback(err));
+    return sendTextMessage(getSenderRecipient(merchant), friendlyFallback(err));
   }
 }
 
@@ -1132,7 +1147,7 @@ async function handleTextMessage(merchant, text, rawMessage = null) {
 
   // 0. Active Pending New Item flow check
   const pendingNewItem = await ConversationState.findOne({
-    whatsappNumber: merchant.whatsappNumber,
+    whatsappNumber: getSenderRecipient(merchant),
     flow: 'pending_new_item',
   });
   if (pendingNewItem) {
@@ -1281,7 +1296,7 @@ async function handleTextMessage(merchant, text, rawMessage = null) {
   }
 
   if (/^(language|زبان)$/i.test(normalized)) {
-    return sendInteractiveButtons(merchant.whatsappNumber, 'Please choose your language / اپنی زبان منتخب کریں:', [
+    return sendInteractiveButtons(getSenderRecipient(merchant), 'Please choose your language / اپنی زبان منتخب کریں:', [
       { id: 'set_lang_ur', title: 'اردو' },
       { id: 'set_lang_en', title: 'English' },
     ]);
@@ -1343,7 +1358,7 @@ async function handleTextMessage(merchant, text, rawMessage = null) {
     const msg = merchant.language === 'ur'
       ? `🏪 *آپ کی دکان کا ریفرنس کوڈ:*\n\n🔑 *${merchant.shopCode}*\n\nاپنے دکان کے اسسٹنٹس/لڑکوں کو یہ کوڈ دیں تاکہ وہ ایک ہی کھاتے میں سیلز درج کر سکیں۔\nوہ واٹس ایپ پر صرف یہ میسج بھیجیں:\n👉 *join ${merchant.shopCode} [ان کا نام]*`
       : `🏪 *Your Shop Reference Code:*\n\n🔑 *${merchant.shopCode}*\n\nShare this code with your shop assistants so all sales sync to your store account.\nThey simply text:\n👉 *join ${merchant.shopCode} [Their Name]*`;
-    return sendTextMessage(merchant._replyToNumber || merchant.whatsappNumber, msg);
+    return sendTextMessage(getSenderRecipient(merchant), msg);
   }
 
   // 15. Staff / Team List (e.g. "staff", "staff list", "team", "ہماری ٹیم", "ہمارا سٹاف")
@@ -1354,27 +1369,27 @@ async function handleTextMessage(merchant, text, rawMessage = null) {
       const msg = merchant.language === 'ur'
         ? `👥 *دکان سٹاف:*\nابھی تک کوئی اسسٹنٹ شامل نہیں ہوا۔\n\nاسسٹنٹ شامل کرنے کے لیے انہیں اپنا دکان کوڈ دیں: *${merchant.shopCode || 'VT-XXXX'}*\nوہ لکھ کر بھیجیں: *join ${merchant.shopCode || 'VT-XXXX'} [نام]*`
         : `👥 *Store Team:*\nNo assistants connected yet.\n\nTo link staff, share your shop code: *${merchant.shopCode || 'VT-XXXX'}*\nThey text: *join ${merchant.shopCode || 'VT-XXXX'} [Name]*`;
-      return sendTextMessage(merchant._replyToNumber || merchant.whatsappNumber, msg);
+      return sendTextMessage(getSenderRecipient(merchant), msg);
     }
 
     const lines = activeStaff.map((s, idx) => `${idx + 1}. *${s.name}* (${s.whatsappNumber})`).join('\n');
     const msg = merchant.language === 'ur'
       ? `👥 *دکان کی ٹیم (${activeStaff.length}/${limit}):*\n\n${lines}\n\nنئے ملازم شامل کرنے کے لیے کوڈ: *${merchant.shopCode}*`
       : `👥 *Store Team (${activeStaff.length}/${limit}):*\n\n${lines}\n\nTo add more staff: *join ${merchant.shopCode} [Name]*`;
-    return sendTextMessage(merchant._replyToNumber || merchant.whatsappNumber, msg);
+    return sendTextMessage(getSenderRecipient(merchant), msg);
   }
 
   // 15b. Shop Code echo or join attempt from already connected staff/merchant
   const shopCodeEcho = normalized.match(/^(?:(?:join|shamil|connect|شامل|جوائن)\s+)?((?:vt|bd)[-]?\d{4,})(?:\s+(.+))?$/i);
   if (shopCodeEcho) {
     const isAssistant = Boolean(merchant._staffMember);
-    const recipient = merchant._replyToNumber || merchant.whatsappNumber;
+    const recipient = getSenderRecipient(merchant);
     const cleanStoreName = (merchant.businessName || 'Dukaan').split(',')[0].trim();
     if (isAssistant) {
       const msg = `Assalam o Alikum *${merchant._staffMember.name}*! 👋\n\nAap pehle se *${cleanStoreName}* ke sath connected hain.\n\nAap ko koi code bhejne ki zaroorat nahi — aap direct voice note ya message bhej kar sale darj kar sakte hain:\n🎙️ *"2 doodh 400"*\n🎙️ *"Ali ko 500 udhaar"*`;
       return sendTextMessage(recipient, msg);
     } else {
-      const msg = `Assalam o Alikum! 👋\n\nAap is dukaan (*${cleanStoreName}*) ke malik hain.\nYeh aap ki dukaan ka reference code hai: *${merchant.shopCode || shopCodeEcho[1].toUpperCase()}*.\n\nStaff ko add karne ke liye web dashboard se unka number enter karein ya unse kahein ke is number par voice note bhej kar sales darj karein.`;
+      const msg = `Assalam o Alikum! 👋\n\nAap is dukaan (*${cleanStoreName}*) ke malik hain.\nYeh aap ki dukaan ka reference code hai: *${merchant.shopCode || shopCodeEcho[1].toUpperCase()}*.\n\nStaff ko add karne ke لیے web dashboard se unka number enter karein ya unse kahein ke is number par voice note bhej kar sales darj karein.`;
       return sendTextMessage(recipient, msg);
     }
   }
@@ -1401,7 +1416,7 @@ async function handleTextMessage(merchant, text, rawMessage = null) {
     console.error('parseIntent failed:', err);
     const lang = merchant.language || 'ur';
     return sendTextMessage(
-      merchant._replyToNumber || merchant.whatsappNumber,
+      getSenderRecipient(merchant),
       lang === 'en'
         ? "I didn't quite catch that — try 'help' to see all commands or 'order' to log a sale."
         : "معذرت، بات سمجھ نہیں آئی — تمام کمانڈز دیکھنے کے لیے 'help' لکھیں یا آرڈر کے لیے 'order' بولیں یا لکھیں۔"
@@ -1426,12 +1441,12 @@ async function handleVoiceNote(merchant, mediaId, rawMessage = null) {
       const msg = isUrdu
         ? 'Assalam o Alikum! ⚠️ سیکیورٹی اور درستگی کے لیے اسٹاف شامل کرنے کی کمانڈ وائس نوٹ کے بجائے ٹیکسٹ میسج میں نام اور فون نمبر لکھ کر بھیجیں (جیسے: "add staff Hamza 03001234567")۔'
         : 'Assalam o Alikum! ⚠️ For security and accuracy, please add staff using a text message with name and phone number (e.g. "add staff Hamza 03001234567") instead of a voice note.';
-      return sendTextMessage(merchant._replyToNumber || merchant.whatsappNumber, msg);
+      return sendTextMessage(getSenderRecipient(merchant), msg);
     }
 
     // 0. Active Pending New Item reply from VN
     const pendingNewItem = await ConversationState.findOne({
-      whatsappNumber: merchant.whatsappNumber,
+      whatsappNumber: getSenderRecipient(merchant),
       flow: 'pending_new_item',
     });
     if (pendingNewItem) {
@@ -1482,7 +1497,7 @@ async function routeParsedCommand(merchant, intent, source) {
 
   // Check if we are resuming a cut-off voice note
   const cutState = await ConversationState.findOne({
-    whatsappNumber: merchant.whatsappNumber,
+    whatsappNumber: getSenderRecipient(merchant),
     flow: 'cut_voice_note'
   });
 
@@ -1518,7 +1533,7 @@ async function routeParsedCommand(merchant, intent, source) {
   if (intent.type === 'log_sale') {
     if (intent.isIncomplete && intent.items?.length > 0) {
       await ConversationState.findOneAndUpdate(
-        { whatsappNumber: merchant.whatsappNumber },
+        { whatsappNumber: getSenderRecipient(merchant) },
         { 
           merchantId: merchant._id, 
           flow: 'cut_voice_note', 
@@ -1585,7 +1600,7 @@ async function routeParsedCommand(merchant, intent, source) {
 
     if (phrases?.requiresDetails) {
       await ConversationState.findOneAndUpdate(
-        { whatsappNumber: merchant.whatsappNumber },
+        { whatsappNumber: getSenderRecipient(merchant) },
         {
           merchantId: merchant._id,
           flow: 'pending_new_item',
@@ -1616,7 +1631,7 @@ async function routeParsedCommand(merchant, intent, source) {
   }
 
   if (intent.type === 'unsupported_workflow') {
-    return sendTextMessage(merchant.whatsappNumber, workflowRejectionText({ code: 'UNSUPPORTED_REQUEST' }, effectiveLanguage));
+    return sendTextMessage(getSenderRecipient(merchant), workflowRejectionText({ code: 'UNSUPPORTED_REQUEST' }, effectiveLanguage));
   }
 
   if (intent.type === 'create_workflow') {
@@ -1663,13 +1678,13 @@ async function startGuidedOrder(merchant) {
   const itemCount = await InventoryItem.countDocuments({ merchantId: merchant._id });
   if (!itemCount) {
     return sendTextMessage(
-      merchant.whatsappNumber,
+      getSenderRecipient(merchant),
       'Your stock list is empty — add items from the dashboard first, or just tell me the sale directly (e.g. "2 items, cash, 1500").'
     );
   }
 
   await ConversationState.findOneAndUpdate(
-    { whatsappNumber: merchant.whatsappNumber },
+    { whatsappNumber: getSenderRecipient(merchant) },
     { merchantId: merchant._id, flow: 'guided_order', step: 'awaiting_item', data: { page: 0 } },
     { upsert: true }
   );
@@ -1697,7 +1712,7 @@ async function sendItemPickerPage(merchant, page) {
   const safePage = Math.max(0, Math.min(page, pages.length - 1));
   const hasMore = safePage < pages.length - 1;
 
-  return sendInteractiveList(merchant.whatsappNumber, 'What did you sell?', 'Pick item', [
+  return sendInteractiveList(getSenderRecipient(merchant), 'What did you sell?', 'Pick item', [
     {
       title: 'Your stock',
       rows: hasMore ? [...pages[safePage], { id: 'show_more', title: 'Show more' }] : pages[safePage],
@@ -1727,7 +1742,7 @@ async function continueGuidedOrder(merchant, message, state) {
     const cancelMsg = merchant.language === 'ur'
       ? 'کوئی مسئلہ نہیں — آرڈر منسوخ کر دیا گیا ہے۔ نیا آرڈر درج کرنے کے لیے "order" لکھیں۔'
       : 'No problem — order cancelled. Send "order" whenever you want to log another sale.';
-    return sendTextMessage(merchant.whatsappNumber, cancelMsg);
+    return sendTextMessage(getSenderRecipient(merchant), cancelMsg);
   }
 
   switch (state.step) {
@@ -1743,7 +1758,7 @@ async function continueGuidedOrder(merchant, message, state) {
         // match free text against stock ("daal maash" or "2 daal maash").
         const raw = message.text?.body?.trim();
         if (!raw) {
-          return sendTextMessage(merchant.whatsappNumber, 'Please pick an item from the list — or just type its name.');
+          return sendTextMessage(getSenderRecipient(merchant), 'Please pick an item from the list — or just type its name.');
         }
         const qtyMatch = raw.match(/^(\d+)\s+(.+)$/);
         const saidName = qtyMatch ? qtyMatch[2] : raw;
@@ -1756,7 +1771,7 @@ async function continueGuidedOrder(merchant, message, state) {
             const msg = merchant.language === 'ur'
               ? `⚠️ معذرت، "${best.item.name}" کا اسٹاک ختم ہے (دستیاب: 0)۔ برائے مہربانی کوئی اور چیز منتخب کریں یا "cancel" لکھیں۔`
               : `⚠️ Sorry, "${best.item.name}" is out of stock (Available: 0). Please pick something else or send "cancel".`;
-            return sendTextMessage(merchant.whatsappNumber, msg);
+            return sendTextMessage(getSenderRecipient(merchant), msg);
           }
           
           const typedQty = qtyMatch ? parseInt(qtyMatch[1], 10) : null;
@@ -1779,29 +1794,29 @@ async function continueGuidedOrder(merchant, message, state) {
           const qtyPrompt = merchant.language === 'ur'
             ? `آپ نے کتنے ${best.item.name} فروخت کیے؟`
             : `How many ${best.item.name} did you sell?`;
-          return sendTextMessage(merchant.whatsappNumber, qtyPrompt);
+          return sendTextMessage(getSenderRecipient(merchant), qtyPrompt);
         }
 
         if (ranked.length > 1) {
           const names = ranked.map((r) => `"${r.item.name}"`).join(' or ');
-          await sendTextMessage(merchant.whatsappNumber, `Did you mean ${names}? Type the full name — or pick from the list below.`);
+          await sendTextMessage(getSenderRecipient(merchant), `Did you mean ${names}? Type the full name — or pick from the list below.`);
           return sendItemPickerPage(merchant, state.data?.page ?? 0);
         }
 
         return sendTextMessage(
-          merchant.whatsappNumber,
+          getSenderRecipient(merchant),
           `I couldn't match "${saidName}" — tap an item from the list, or type its exact name. Send "cancel" to exit.`
         );
       }
       
       const item = await InventoryItem.findById(listId.replace('item_', ''));
-      if (!item) return sendTextMessage(merchant.whatsappNumber, "Couldn't find that item — try again.");
+      if (!item) return sendTextMessage(getSenderRecipient(merchant), "Couldn't find that item — try again.");
 
       if (item.quantity <= 0) {
         const msg = merchant.language === 'ur'
           ? `⚠️ معذرت، "${item.name}" کا اسٹاک ختم ہے (دستیاب: 0)۔ برائے مہربانی کوئی اور چیز منتخب کریں یا "cancel" لکھیں۔`
           : `⚠️ Sorry, "${item.name}" is out of stock (Available: 0). Please pick something else or send "cancel".`;
-        return sendTextMessage(merchant.whatsappNumber, msg);
+        return sendTextMessage(getSenderRecipient(merchant), msg);
       }
 
       const updatedData = {
@@ -1816,7 +1831,7 @@ async function continueGuidedOrder(merchant, message, state) {
       const qtyPrompt = merchant.language === 'ur'
         ? `آپ نے کتنے ${item.name} فروخت کیے؟`
         : `How many ${item.name} did you sell?`;
-      return sendTextMessage(merchant.whatsappNumber, qtyPrompt);
+      return sendTextMessage(getSenderRecipient(merchant), qtyPrompt);
     }
 
     case 'awaiting_quantity': {
@@ -1865,7 +1880,7 @@ async function continueGuidedOrder(merchant, message, state) {
       const errorMsg = merchant.language === 'ur'
         ? 'برائے مہربانی درست تعداد درج کریں (مثلاً 5 یا 45) یا ختم کرنے کے لیے "cancel" لکھیں۔'
         : 'Please send a valid number (e.g. 5 or 45). Send "cancel" to restart.';
-      return sendTextMessage(merchant.whatsappNumber, errorMsg);
+      return sendTextMessage(getSenderRecipient(merchant), errorMsg);
     }
 
     case 'awaiting_payment_method': {
@@ -1911,7 +1926,7 @@ async function continueGuidedOrder(merchant, message, state) {
         const prompt = merchant.language === 'ur'
           ? `برائے مہربانی ادائیگی کا طریقہ منتخب کریں: ${optionsList}`
           : `Please choose an accepted payment method: ${optionsList}`;
-        return sendTextMessage(merchant.whatsappNumber, prompt);
+        return sendTextMessage(getSenderRecipient(merchant), prompt);
       }
 
       state.data = { ...(state.data || {}), paymentMethod };
@@ -1920,7 +1935,7 @@ async function continueGuidedOrder(merchant, message, state) {
 
     default: {
       await ConversationState.deleteOne({ _id: state._id });
-      return sendTextMessage(merchant.whatsappNumber, 'Something went wrong — let\'s start over. Type "order" to try again.');
+      return sendTextMessage(getSenderRecipient(merchant), 'Something went wrong — let\'s start over. Type "order" to try again.');
     }
   }
 }
@@ -1942,7 +1957,7 @@ async function sendPaymentMethodPicker(merchant) {
 
   if (allowed.length <= 3) {
     const prompt = merchant.language === 'ur' ? 'ادائیگی کس طریقے سے ہوئی؟' : 'How was it paid?';
-    return sendInteractiveButtons(merchant.whatsappNumber, prompt, buttons);
+    return sendInteractiveButtons(getSenderRecipient(merchant), prompt, buttons);
   }
 
   const listRows = allowed.map((id) => {
@@ -1955,7 +1970,7 @@ async function sendPaymentMethodPicker(merchant) {
   });
 
   const prompt = merchant.language === 'ur' ? 'ادائیگی کس طریقے سے ہوئی؟' : 'How was it paid?';
-  return sendInteractiveList(merchant.whatsappNumber, prompt, 'Select payment method', [{ title: 'Payment Methods', rows: listRows }]);
+  return sendInteractiveList(getSenderRecipient(merchant), prompt, 'Select payment method', [{ title: 'Payment Methods', rows: listRows }]);
 }
 
 /** Logs the completed guided order via crm/ and clears the flow state. */
@@ -2111,16 +2126,16 @@ async function offerItemDisambiguation(merchant, command, missingItemName = '') 
     .map(({ item }) => ({ id: `pick_${item._id}`, title: item.name.slice(0, 20) }));
   buttons.push({ id: 'pick_none', title: 'None of these' });
 
+  const targetPhone = getSenderRecipient(merchant);
+
   await ConversationState.findOneAndUpdate(
-    { whatsappNumber: merchant.whatsappNumber },
+    { whatsappNumber: targetPhone },
     { merchantId: merchant._id, flow: 'item_disambiguation', step: 'awaiting_choice', data: { command, missingItemName: saidName } },
     { upsert: true }
   );
 
   const candidateNames = ranked.slice(0, 2).map((r) => r.item.name);
   const phrases = spokenPhrases.itemDisambiguation(language, { saidName, candidates: candidateNames });
-
-  const targetPhone = merchant._replyToNumber || merchant.whatsappNumber;
 
   // If source was voice, send the spoken question first
   if (shouldReplyWithVoice(merchant, source)) {
@@ -2140,25 +2155,26 @@ async function offerItemDisambiguation(merchant, command, missingItemName = '') 
 
 /** Finishes (or declines) a sale after the merchant taps a "did you mean?" button. */
 async function handleDisambiguationReply(merchant, buttonId) {
+  const targetPhone = getSenderRecipient(merchant);
   const state = await ConversationState.findOne({
-    whatsappNumber: merchant.whatsappNumber,
+    whatsappNumber: targetPhone,
     flow: 'item_disambiguation',
   });
   if (!state) {
-    return sendTextMessage(merchant.whatsappNumber, "Sorry, that choice expired — please send the sale again.");
+    return sendTextMessage(targetPhone, "Sorry, that choice expired — please send the sale again.");
   }
   await ConversationState.deleteOne({ _id: state._id });
 
   if (buttonId === 'pick_none') {
     return sendTextMessage(
-      merchant.whatsappNumber,
+      targetPhone,
       'No problem — sale not logged. Send "order" to pick from your stock list, or add the item from the dashboard.'
     );
   }
 
   const item = await InventoryItem.findById(buttonId.replace('pick_', ''));
   if (!item) {
-    return sendTextMessage(merchant.whatsappNumber, "Couldn't find that item anymore — please send the sale again.");
+    return sendTextMessage(targetPhone, "Couldn't find that item anymore — please send the sale again.");
   }
 
   const command = state.data?.command ?? {};
@@ -2190,9 +2206,10 @@ async function handleDisambiguationReply(merchant, buttonId) {
 async function offerCustomerDisambiguation(merchant, command, candidate) {
   const source = command.source || 'text';
   const language = command.language || merchant.language || 'ur';
+  const targetPhone = getSenderRecipient(merchant);
 
   await ConversationState.findOneAndUpdate(
-    { whatsappNumber: merchant.whatsappNumber },
+    { whatsappNumber: targetPhone },
     {
       merchantId: merchant._id,
       flow: 'customer_disambiguation',
@@ -2213,26 +2230,27 @@ async function offerCustomerDisambiguation(merchant, command, candidate) {
   ];
 
   if (shouldReplyWithVoice(merchant, source)) {
-    await sendVoiceReply(merchant._replyToNumber || merchant.whatsappNumber, {
+    await sendVoiceReply(targetPhone, {
       spokenText: phrases.spoken,
       language,
       alsoSendText: false,
     });
   }
 
-  return sendInteractiveButtons(merchant._replyToNumber || merchant.whatsappNumber, phrases.text, buttons);
+  return sendInteractiveButtons(targetPhone, phrases.text, buttons);
 }
 
 /**
  * Handles button tap response for customer disambiguation.
  */
 async function handleCustomerDisambiguationReply(merchant, buttonId) {
+  const targetPhone = getSenderRecipient(merchant);
   const state = await ConversationState.findOne({
-    whatsappNumber: merchant.whatsappNumber,
+    whatsappNumber: targetPhone,
     flow: 'customer_disambiguation',
   });
   if (!state) {
-    return sendTextMessage(merchant.whatsappNumber, "Sorry, that choice expired — please send the sale again.");
+    return sendTextMessage(targetPhone, "Sorry, that choice expired — please send the sale again.");
   }
   await ConversationState.deleteOne({ _id: state._id });
 
@@ -2394,11 +2412,12 @@ const WORKFLOW_CONFIRM_TTL_MS = 30 * 60 * 1000;
  */
 async function proposeWorkflow(merchant, command) {
   const language = command.language || merchant.language || 'ur';
+  const targetPhone = getSenderRecipient(merchant);
 
   try {
     const prepared = await prepareWorkflow(merchant._id, command);
     if (!prepared.ok) {
-      return sendTextMessage(merchant.whatsappNumber, workflowRejectionText(prepared.error, language));
+      return sendTextMessage(targetPhone, workflowRejectionText(prepared.error, language));
     }
 
     // Voice transcripts get misheard, so a spoken automation is always read
@@ -2408,7 +2427,7 @@ async function proposeWorkflow(merchant, command) {
     }
 
     await ConversationState.findOneAndUpdate(
-      { whatsappNumber: merchant.whatsappNumber },
+      { whatsappNumber: targetPhone },
       { merchantId: merchant._id, flow: 'workflow_confirm', step: 'awaiting_confirmation', data: { workflow: prepared.value, language } },
       { upsert: true }
     );
@@ -2417,7 +2436,7 @@ async function proposeWorkflow(merchant, command) {
     const body = language === 'ur'
       ? `کیا یہ آٹومیشن محفوظ کروں؟\n\n⚡ ${description}`
       : `Save this automation?\n\n⚡ ${description}`;
-    return sendInteractiveButtons(merchant.whatsappNumber, body, [
+    return sendInteractiveButtons(targetPhone, body, [
       { id: 'wf_save', title: language === 'ur' ? '✅ محفوظ کریں' : '✅ Save' },
       { id: 'wf_cancel', title: language === 'ur' ? '❌ منسوخ' : '❌ Cancel' },
     ]);
@@ -2429,7 +2448,8 @@ async function proposeWorkflow(merchant, command) {
 
 /** Handles the Save / Cancel tap on an automation read-back. */
 async function handleWorkflowConfirmReply(merchant, buttonId) {
-  const state = await ConversationState.findOne({ whatsappNumber: merchant.whatsappNumber, flow: 'workflow_confirm' });
+  const targetPhone = getSenderRecipient(merchant);
+  const state = await ConversationState.findOne({ whatsappNumber: targetPhone, flow: 'workflow_confirm' });
   const language = state?.data?.language || merchant.language || 'ur';
   const ur = language === 'ur';
 
@@ -2437,13 +2457,13 @@ async function handleWorkflowConfirmReply(merchant, buttonId) {
   if (state) await ConversationState.deleteOne({ _id: state._id });
   if (expired) {
     return sendTextMessage(
-      merchant.whatsappNumber,
+      targetPhone,
       ur ? 'یہ درخواست پرانی ہو گئی ہے، براہ کرم آٹومیشن دوبارہ بھیجیں۔' : 'That request has expired — please send the automation again.'
     );
   }
 
   if (buttonId === 'wf_cancel') {
-    return sendTextMessage(merchant.whatsappNumber, ur ? 'ٹھیک ہے، آٹومیشن محفوظ نہیں کی گئی۔' : 'Okay, the automation was not saved.');
+    return sendTextMessage(targetPhone, ur ? 'ٹھیک ہے، آٹومیشن محفوظ نہیں کی گئی۔' : 'Okay, the automation was not saved.');
   }
 
   return saveWorkflowAndReply(merchant, state.data.workflow, language);
@@ -2451,6 +2471,7 @@ async function handleWorkflowConfirmReply(merchant, buttonId) {
 
 /** Stores a validated automation and tells the merchant exactly what was saved. */
 async function saveWorkflowAndReply(merchant, workflowInput, language) {
+  const targetPhone = getSenderRecipient(merchant);
   try {
     const workflow = await createWorkflow({ ...workflowInput, merchantId: merchant._id });
     emitDashboardUpdate(merchant._id, { type: 'workflow', action: 'create' });
@@ -2458,7 +2479,7 @@ async function saveWorkflowAndReply(merchant, workflowInput, language) {
     return replyToMerchant(merchant, phrases, 'text', language);
   } catch (err) {
     if (err instanceof WorkflowValidationError) {
-      return sendTextMessage(merchant.whatsappNumber, workflowRejectionText(err.details, language));
+      return sendTextMessage(targetPhone, workflowRejectionText(err.details, language));
     }
     console.error('createWorkflow failed:', err.message);
     return replyToMerchant(merchant, spokenPhrases.genericError(language), 'text', language);
@@ -2472,6 +2493,7 @@ async function saveWorkflowAndReply(merchant, workflowInput, language) {
  * update — nothing else needed here.
  */
 async function handleApprovalReply(merchant, buttonId) {
+  const targetPhone = getSenderRecipient(merchant);
   const isApprove = buttonId.startsWith('approve_');
   const orderId = buttonId.replace(/^(approve|reject)_/, '');
   const decision = isApprove ? 'approved' : 'rejected';
@@ -2480,24 +2502,25 @@ async function handleApprovalReply(merchant, buttonId) {
     const approval = await findPendingByOrderId(orderId);
 
     if (!approval) {
-      return sendTextMessage(merchant.whatsappNumber, "That order has already been handled.");
+      return sendTextMessage(targetPhone, "That order has already been handled.");
     }
 
     await respondToApproval(approval._id, decision);
 
     const phrases = spokenPhrases.approvalReply(merchant.language, isApprove);
-    return sendTextMessage(merchant.whatsappNumber, phrases.text);
+    return sendTextMessage(targetPhone, phrases.text);
   } catch (err) {
     if (err.message?.startsWith('APPROVAL_NOT_FOUND')) {
-      return sendTextMessage(merchant.whatsappNumber, "That order has already been handled.");
+      return sendTextMessage(targetPhone, "That order has already been handled.");
     }
     console.error('handleApprovalReply error:', err.message);
-    return sendTextMessage(merchant.whatsappNumber, "Couldn't process that — please try from the dashboard.");
+    return sendTextMessage(targetPhone, "Couldn't process that — please try from the dashboard.");
   }
 }
 
 /** Handles taps on 'Clear Alert' buttons from expiry notifications */
 async function handleClearExpiryReply(merchant, buttonId) {
+  const targetPhone = getSenderRecipient(merchant);
   try {
     // Format: clearexpiry_{itemId}_{dateToClear}
     const parts = buttonId.split('_');
@@ -2507,11 +2530,11 @@ async function handleClearExpiryReply(merchant, buttonId) {
 
     const item = await InventoryItem.findOne({ _id: itemId, merchantId: merchant._id });
     if (!item) {
-      return sendTextMessage(merchant.whatsappNumber, "Couldn't find that item — it might have been deleted.");
+      return sendTextMessage(targetPhone, "Couldn't find that item — it might have been deleted.");
     }
 
     if (!item.expiryDates.includes(dateToClear)) {
-      return sendTextMessage(merchant.whatsappNumber, "That expiry alert was already cleared.");
+      return sendTextMessage(targetPhone, "That expiry alert was already cleared.");
     }
 
     item.expiryDates = item.expiryDates.filter(d => d !== dateToClear);
@@ -2519,10 +2542,10 @@ async function handleClearExpiryReply(merchant, buttonId) {
 
     emitDashboardUpdate(merchant._id);
 
-    return sendTextMessage(merchant.whatsappNumber, `✅ Alert cleared for *${item.name}* (${dateToClear}).`);
+    return sendTextMessage(targetPhone, `✅ Alert cleared for *${item.name}* (${dateToClear}).`);
   } catch (err) {
     console.error('handleClearExpiryReply error:', err.message);
-    return sendTextMessage(merchant.whatsappNumber, "Couldn't clear the alert — please try from the dashboard.");
+    return sendTextMessage(targetPhone, "Couldn't clear the alert — please try from the dashboard.");
   }
 }
 
@@ -2531,9 +2554,10 @@ async function handleClearExpiryReply(merchant, buttonId) {
  * Sends the comprehensive categorized guide, followed by quick action buttons.
  */
 async function sendHelpCommandsMenu(merchant) {
+  const targetPhone = getSenderRecipient(merchant);
   const language = merchant.language || 'ur';
   const phrases = spokenPhrases.helpCommands(language);
-  await sendTextMessage(merchant.whatsappNumber, phrases.text);
+  await sendTextMessage(targetPhone, phrases.text);
 
   const buttonPrompt = language === 'ur'
     ? 'فوری بٹن منتخب کریں یا مزید معلومات دیکھیں:'
@@ -2551,13 +2575,14 @@ async function sendHelpCommandsMenu(merchant) {
         { id: 'menu_settings', title: '⚙️ Settings' },
       ];
 
-  return await sendInteractiveButtons(merchant.whatsappNumber, buttonPrompt, buttons);
+  return await sendInteractiveButtons(targetPhone, buttonPrompt, buttons);
 }
 
 /**
  * Summarizes the merchant's current inventory with low-stock warnings.
  */
 async function sendStockListSummary(merchant) {
+  const targetPhone = getSenderRecipient(merchant);
   const summary = await getStockListSummary(merchant);
   const language = merchant.language || 'ur';
   const buttons = language === 'ur'
@@ -2573,12 +2598,12 @@ async function sendStockListSummary(merchant) {
       ];
 
   if (summary.text.length <= 1000) {
-    const res = await sendInteractiveButtons(merchant.whatsappNumber, summary.text, buttons);
-    if (!res) await sendTextMessage(merchant.whatsappNumber, summary.text);
+    const res = await sendInteractiveButtons(targetPhone, summary.text, buttons);
+    if (!res) await sendTextMessage(targetPhone, summary.text);
   } else {
-    await sendTextMessage(merchant.whatsappNumber, summary.text);
+    await sendTextMessage(targetPhone, summary.text);
     await sendInteractiveButtons(
-      merchant.whatsappNumber,
+      targetPhone,
       language === 'ur' ? 'مزید آپشنز منتخب کریں:' : 'Select an option:',
       buttons
     );
@@ -2589,6 +2614,7 @@ async function sendStockListSummary(merchant) {
  * PDF Reports Picker: lets merchant tap to generate Sales, Inventory, or Low Stock reports.
  */
 async function sendReportPicker(merchant) {
+  const targetPhone = getSenderRecipient(merchant);
   const language = merchant.language || 'ur';
   const bodyText = language === 'ur'
     ? `📄 *پی ڈی ایف رپورٹس مینیو*\n\nجس رپورٹ کی پی ڈی ایف چاہیے نیچے بٹن دبائیں یا نام لکھ کر بھیجیں:\n• سیلز رپورٹ (*"sales report"*)\n• اسٹاک رپورٹ (*"inventory report"*)\n• کم اسٹاک رپورٹ (*"low stock report"*)\n• ایکسپائری رپورٹ (*"expiring report"*)\n• ٹاپ سیلنگ رپورٹ (*"top selling report"*)`
@@ -2606,9 +2632,9 @@ async function sendReportPicker(merchant) {
         { id: 'report_low_stock', title: '⚠️ Low Stock' },
       ];
 
-  const res = await sendInteractiveButtons(merchant.whatsappNumber, bodyText, buttons);
+  const res = await sendInteractiveButtons(targetPhone, bodyText, buttons);
   if (!res) {
-    await sendTextMessage(merchant.whatsappNumber, bodyText);
+    await sendTextMessage(targetPhone, bodyText);
   }
 }
 
@@ -2616,6 +2642,7 @@ async function sendReportPicker(merchant) {
  * Profile and Store Settings summary with quick toggle action buttons.
  */
 async function sendProfileSettings(merchant) {
+  const targetPhone = getSenderRecipient(merchant);
   const language = merchant.language || 'ur';
   const accepted = (merchant.acceptedPaymentMethods || []).map((m) => formatPaymentMethod(m, language)).join(', ') || 'Cash';
   const isVoice = merchant.voiceReplies !== false;
@@ -2677,9 +2704,9 @@ async function sendProfileSettings(merchant) {
     },
   ];
 
-  const res = await sendInteractiveButtons(merchant.whatsappNumber, text, buttons);
+  const res = await sendInteractiveButtons(targetPhone, text, buttons);
   if (!res) {
-    await sendTextMessage(merchant.whatsappNumber, text);
+    await sendTextMessage(targetPhone, text);
   }
 }
 
@@ -2687,6 +2714,7 @@ async function sendProfileSettings(merchant) {
  * Payment Channels & Pakistani Banks list with quick status and toggles.
  */
 async function sendPaymentSettings(merchant) {
+  const targetPhone = getSenderRecipient(merchant);
   const language = merchant.language || 'ur';
   const all = getAllPaymentMethods();
   const activeSet = new Set(merchant.acceptedPaymentMethods || ['cash']);
@@ -2733,9 +2761,9 @@ async function sendPaymentSettings(merchant) {
     },
   ];
 
-  const res = await sendInteractiveButtons(merchant.whatsappNumber, text, buttons);
+  const res = await sendInteractiveButtons(targetPhone, text, buttons);
   if (!res) {
-    await sendTextMessage(merchant.whatsappNumber, text);
+    await sendTextMessage(targetPhone, text);
   }
 }
 
@@ -2743,6 +2771,7 @@ async function sendPaymentSettings(merchant) {
  * Toggles or explicitly sets payment methods (e.g. enable easypaisa, disable jazzcash).
  */
 async function handleTogglePaymentMethod(merchant, rawMethod, forceState = null) {
+  const targetPhone = getSenderRecipient(merchant);
   const language = merchant.language || 'ur';
   const methodId = normalizePaymentMethod(rawMethod);
 
@@ -2750,7 +2779,7 @@ async function handleTogglePaymentMethod(merchant, rawMethod, forceState = null)
     const errorMsg = language === 'ur'
       ? `معذرت، ادائیگی کا طریقہ "${rawMethod}" سمجھ نہیں آیا۔ آپ cash, easypaisa, jazzcash, sadapay, nayapay, raast, meezan, hbl وغیرہ استعمال کر سکتے ہیں۔`
       : `Payment method "${rawMethod}" was not recognized. Available channels include: cash, easypaisa, jazzcash, sadapay, nayapay, raast, meezan, hbl, etc.`;
-    return sendTextMessage(merchant.whatsappNumber, errorMsg);
+    return sendTextMessage(targetPhone, errorMsg);
   }
 
   let list = Array.isArray(merchant.acceptedPaymentMethods) ? [...merchant.acceptedPaymentMethods] : ['cash'];
@@ -2762,7 +2791,7 @@ async function handleTogglePaymentMethod(merchant, rawMethod, forceState = null)
       const alreadyMsg = language === 'ur'
         ? `ℹ️ *${formatPaymentMethod(methodId, language)}* پہلے سے فعال ہے۔`
         : `ℹ️ *${formatPaymentMethod(methodId, language)}* is already enabled.`;
-      return sendTextMessage(merchant.whatsappNumber, alreadyMsg);
+      return sendTextMessage(targetPhone, alreadyMsg);
     }
     list.push(methodId);
     nowEnabled = true;
@@ -2771,13 +2800,13 @@ async function handleTogglePaymentMethod(merchant, rawMethod, forceState = null)
       const alreadyMsg = language === 'ur'
         ? `ℹ️ *${formatPaymentMethod(methodId, language)}* پہلے سے غیر فعال ہے۔`
         : `ℹ️ *${formatPaymentMethod(methodId, language)}* is already disabled.`;
-      return sendTextMessage(merchant.whatsappNumber, alreadyMsg);
+      return sendTextMessage(targetPhone, alreadyMsg);
     }
     if (methodId === 'cash' && list.length === 1) {
       const msg = language === 'ur'
         ? 'کیش کو بند نہیں کیا جا سکتا کیونکہ یہ واحد طریقہ ہے جو ابھی فعال ہے۔'
         : 'Cash cannot be disabled when it is your only active payment channel.';
-      return sendTextMessage(merchant.whatsappNumber, msg);
+      return sendTextMessage(targetPhone, msg);
     }
     list.splice(existsIndex, 1);
     nowEnabled = false;
@@ -2788,7 +2817,7 @@ async function handleTogglePaymentMethod(merchant, rawMethod, forceState = null)
         const msg = language === 'ur'
           ? 'کیش کو بند نہیں کیا جا سکتا کیونکہ یہ واحد طریقہ ہے جو ابھی فعال ہے۔'
           : 'Cash cannot be disabled when it is your only active payment channel.';
-        return sendTextMessage(merchant.whatsappNumber, msg);
+        return sendTextMessage(targetPhone, msg);
       }
       list.splice(existsIndex, 1);
       nowEnabled = false;
@@ -2807,13 +2836,14 @@ async function handleTogglePaymentMethod(merchant, rawMethod, forceState = null)
     ? (nowEnabled ? `✅ *${methodName}* کو کامیابی سے چالو کر دیا گیا ہے۔` : `❌ *${methodName}* کو غیر فعال کر دیا گیا ہے۔`)
     : (nowEnabled ? `✅ *${methodName}* has been enabled successfully.` : `❌ *${methodName}* has been disabled.`);
 
-  return sendTextMessage(merchant.whatsappNumber, msg);
+  return sendTextMessage(targetPhone, msg);
 }
 
 /**
  * Lists all active workflows and alerts configured for this merchant.
  */
 async function sendWorkflowsList(merchant) {
+  const targetPhone = getSenderRecipient(merchant);
   const language = merchant.language || 'ur';
   const workflows = await Workflow.find({ merchantId: merchant._id }).sort({ createdAt: -1 });
 
@@ -2821,7 +2851,7 @@ async function sendWorkflowsList(merchant) {
     const text = language === 'ur'
       ? `⚡ *کوئی آٹومیشن الرٹ موجود نہیں ہے!*\n\nآپ کسی بھی وقت بول کر یا لکھ کر خودکار الرٹ بنا سکتے ہیں:\n• وائس نوٹ: "جب بھی چینی 5 کلو سے کم ہو مجھے الرٹ کرو"\n• ٹیکسٹ: "alert me when rice is below 10"`
       : `⚡ *No active automations or alerts!*\n\nYou can create alerts anytime by voice or text:\n• "alert me when sugar is below 5"\n• "notify me when milk reaches 0"`;
-    return sendTextMessage(merchant.whatsappNumber, text);
+    return sendTextMessage(targetPhone, text);
   }
 
   const lines = workflows.map((w, idx) => {
@@ -2834,7 +2864,7 @@ async function sendWorkflowsList(merchant) {
     ? `⚡ *فعال آٹومیشن الرٹس (${workflows.length}):*\n\n${lines.join('\n')}\n\n💡 نیا الرٹ بنانے کے لیے میسج بھیجیں: "جب چینی 5 سے کم ہو الرٹ کرو"`
     : `⚡ *Your Active Automations (${workflows.length}):*\n\n${lines.join('\n')}\n\n💡 To add a new alert, say or type: "alert me when oil is below 5"`;
 
-  return sendTextMessage(merchant.whatsappNumber, text);
+  return sendTextMessage(targetPhone, text);
 }
 
 /**
@@ -3050,7 +3080,16 @@ export async function handleVoiceGenderChange(merchant, genderChoice, source = '
  * Handles merchant requesting a password reset directly in WhatsApp chat.
  */
 async function handleForgotPassword(merchant) {
+  const targetPhone = getSenderRecipient(merchant);
   const isUrdu = merchant.language === 'ur';
+
+  if (merchant._staffMember) {
+    const msg = isUrdu
+      ? 'صرف دکان کا مالک ڈیش بورڈ پاسورڈ ری سیٹ کر سکتا ہے۔'
+      : 'Only the store owner can reset the dashboard password.';
+    return sendTextMessage(targetPhone, msg);
+  }
+
   const now = new Date();
   const code = crypto.randomInt(100000, 999999).toString();
   const expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
@@ -3059,7 +3098,7 @@ async function handleForgotPassword(merchant) {
   if (!resetRecord) {
     resetRecord = await PasswordResetCode.create({
       merchantId: merchant._id,
-      whatsappNumber: merchant.whatsappNumber,
+      whatsappNumber: targetPhone,
       code,
       expiresAt,
       usedAt: null,
@@ -3069,7 +3108,7 @@ async function handleForgotPassword(merchant) {
     resetRecord.code = code;
     resetRecord.expiresAt = expiresAt;
     resetRecord.usedAt = null;
-    resetRecord.whatsappNumber = merchant.whatsappNumber;
+    resetRecord.whatsappNumber = targetPhone;
     resetRecord.requestHistory.push(now);
     await resetRecord.save();
   }
@@ -3077,14 +3116,14 @@ async function handleForgotPassword(merchant) {
   const baseUrl = (process.env.SIGNUP_BASE_URL || 'https://verba-task.netlify.app/signup')
     .replace(/\/signup\/?$/, '')
     .trim();
-  const identifier = encodeURIComponent(merchant.email || merchant.whatsappNumber);
+  const identifier = encodeURIComponent(merchant.email || targetPhone);
   const resetLink = `${baseUrl}/forgot-password?code=${code}&identifier=${identifier}`;
 
   const text = isUrdu
     ? `🔐 *پاسورڈ ری سیٹ کوڈ*\n\nآپ کا تصدیقی کوڈ ہے: *${code}*\n(یہ کوڈ اگلے 10 منٹ تک کارآمد ہے)\n\nیا ڈائریکٹ نیا پاسورڈ رکھنے کے لیے اس لنک پر کلک کریں:\n${resetLink}`
     : `🔐 *Password Reset Code*\n\nYour verification code is: *${code}*\n(Expires in 10 minutes)\n\nOr click here to reset your password directly:\n${resetLink}`;
 
-  return sendTextMessage(merchant.whatsappNumber, text);
+  return sendTextMessage(targetPhone, text);
 }
 
 /**
