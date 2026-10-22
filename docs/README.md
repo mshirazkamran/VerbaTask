@@ -20,12 +20,6 @@ Technical handoff specifications:
 ---
 
 ### 📁 [`project-docs/`](./project-docs/)
-Architecture, engineering guides, and project collateral:
-- **`BACKEND_GUIDE.md`** — End-to-end backend guide, service workflows, and API behaviors.
-- **`architecture.md`** — System architecture, database models, and service boundary definitions.
-- **`api-spec.md`** — HTTP contracts between frontend and backend.
-- **`VerbaTask_Project_Proposal_and_System_Design.pdf`** — Original project proposal and system design document.
-- **`VerbaTask_Cost_Benefit_Analysis_and_Plan.docx`** — Business and cost-benefit analysis.
-- **`VerbaTask_Automated_and_Manual_Test_Report.docx`** — Verification test report.
-- **`VerbaTask Pitch Deck.pdf`** & **`VerbaTask Presentation.pdf / .pptx`** — Project presentation slides.
-- **`VerbaTask Tutorial.mp4`** — Video walkthrough and product demonstration.
+Architecture, engineering guides, and API specifications:
+- **`BACKEND_GUIDE.md`** — End-to-end backend architecture, service workflows, and API behaviors.
+- **`api-spec.md`** — HTTP contracts and endpoint specifications between frontend and backend.
