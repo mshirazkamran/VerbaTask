@@ -28,6 +28,7 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
 
+        
         run: |
           set -eu
 
@@ -47,4 +48,5 @@ jobs:
             "$VPS_USER@$VPS_HOST" \
             "cd '$VPS_APP_PATH' &&
              git pull --ff-only origin main &&
-             pm2 restart verbatask --update-env"
+             /home/shiraz/.nvm/versions/node/v24.21.0/bin/pm2 restart verbatask --update-env"
+
