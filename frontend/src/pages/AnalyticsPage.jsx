@@ -315,14 +315,15 @@ export function AnalyticsPage() {
           )}
         </Card>
 
-        <Card padding="none" className="min-w-0 overflow-hidden lg:col-span-7">
+        <Card padding="none" className="flex min-w-0 flex-col overflow-hidden lg:col-span-7">
           <SectionHead title={t.revenueTrend} meta={range === '12m' ? t.perMonth : t.perDay} />
-          <div className="mt-4 h-[260px] px-1 pb-3 sm:h-[320px] lg:h-[calc(100%-4.5rem)] lg:min-h-[300px]">
+          <div className="relative mt-4 h-[260px] px-1 pb-3 sm:h-[320px] lg:h-auto lg:min-h-[300px] lg:flex-1">
             {loading ? (
               <div className="px-5 pb-4">
                 <Skeleton className="h-[250px] w-full rounded-card" />
               </div>
             ) : (
+              <div className="absolute inset-0 pb-3">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trend} margin={{ top: 10, right: 20, left: 8, bottom: 0 }}>
                   <defs>
@@ -348,6 +349,7 @@ export function AnalyticsPage() {
                   />
                 </AreaChart>
               </ResponsiveContainer>
+              </div>
             )}
           </div>
         </Card>
