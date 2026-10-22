@@ -239,6 +239,7 @@ export function CustomersPage() {
             <Button
               size="sm"
               variant="outline"
+              leftIcon={<Receipt className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
               disabled={!row.original.balance || row.original.balance <= 0}
               onClick={(e) => {
                 e.stopPropagation();
@@ -246,8 +247,7 @@ export function CustomersPage() {
               }}
               title={isUrdu ? 'رقم وصول کریں' : 'Settle payment'}
             >
-              <Receipt className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-              <span>{isUrdu ? 'وصولی' : 'Settle'}</span>
+              {isUrdu ? 'وصولی' : 'Settle'}
             </Button>
             <button
               type="button"
@@ -448,7 +448,7 @@ export function CustomersPage() {
             }
           />
 
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex items-center justify-end gap-3 pt-5 pb-1">
             <Button type="button" variant="ghost" onClick={() => setIsAddOpen(false)}>
               {isUrdu ? 'منسوخ' : 'Cancel'}
             </Button>
@@ -497,7 +497,7 @@ export function CustomersPage() {
               required
             />
 
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex items-center justify-end gap-3 pt-5 pb-1">
               <Button type="button" variant="ghost" onClick={() => setEditingCustomer(null)}>
                 {isUrdu ? 'منسوخ' : 'Cancel'}
               </Button>
@@ -538,7 +538,7 @@ export function CustomersPage() {
               </div>
             )}
 
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex items-center justify-end gap-3 pt-5 pb-1">
               <Button type="button" variant="ghost" onClick={() => setDeletingCustomer(null)}>
                 {isUrdu ? 'منسوخ' : 'Cancel'}
               </Button>
@@ -599,7 +599,7 @@ export function CustomersPage() {
               </button>
             </div>
 
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex items-center justify-end gap-3 pt-5 pb-1">
               <Button type="button" variant="ghost" onClick={() => setSettlingCustomer(null)}>
                 {isUrdu ? 'منسوخ' : 'Cancel'}
               </Button>

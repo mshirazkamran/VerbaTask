@@ -244,7 +244,7 @@ function NewOrderModal({ isOpen, onClose }) {
  </div>
  </div>
 
- <div className="flex justify-end gap-2 pt-2">
+ <div className="flex items-center justify-end gap-3 pt-5 pb-1">
  <Button type="button" variant="ghost" onClick={onClose} disabled={createOrder.isPending}>
  {t.cancel}
  </Button>
@@ -327,6 +327,20 @@ function ReturnExchangeModal({ isOpen, onClose, initialOrder = null }) {
     if (!currentItem) {
       toast.error(isUrdu ? 'واپسی کے لیے چیز منتخب کریں' : 'Please select an item to return');
       return;
+    }
+
+    const numReturn = Number(returnQty);
+    if (!numReturn || isNaN(numReturn) || numReturn <= 0) {
+      toast.error(isUrdu ? 'واپسی کی درست تعداد درج کریں' : 'Please enter a valid return quantity greater than 0');
+      return;
+    }
+
+    if (mode === 'exchange') {
+      const numExchange = Number(exchangeQty);
+      if (!numExchange || isNaN(numExchange) || numExchange <= 0) {
+        toast.error(isUrdu ? 'تبادلے کی درست تعداد درج کریں' : 'Please enter a valid replacement quantity greater than 0');
+        return;
+      }
     }
 
     try {
@@ -507,11 +521,14 @@ function ReturnExchangeModal({ isOpen, onClose, initialOrder = null }) {
                 </label>
                 <Input
                   type="number"
-                  min="0.01"
+                  min="0"
                   max={maxReturnQty}
                   step="any"
                   value={returnQty}
-                  onChange={(e) => setReturnQty(Math.min(maxReturnQty, Math.max(0, Number(e.target.value))))}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? '' : Number(e.target.value);
+                    setReturnQty(val === '' ? '' : Math.min(maxReturnQty, Math.max(0, val)));
+                  }}
                   className="h-10 text-xs"
                   required
                 />
@@ -549,10 +566,13 @@ function ReturnExchangeModal({ isOpen, onClose, initialOrder = null }) {
                     </label>
                     <Input
                       type="number"
-                      min="0.01"
+                      min="0"
                       step="any"
                       value={exchangeQty}
-                      onChange={(e) => setExchangeQty(Number(e.target.value))}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? '' : Number(e.target.value);
+                        setExchangeQty(val === '' ? '' : Math.max(0, val));
+                      }}
                       className="h-10 text-xs"
                       required
                     />
@@ -608,7 +628,7 @@ function ReturnExchangeModal({ isOpen, onClose, initialOrder = null }) {
           </>
         )}
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-hairline">
+        <div className="flex items-center justify-end gap-3 pt-5 pb-1 border-t border-hairline mt-3">
           <Button type="button" variant="ghost" onClick={onClose} disabled={isPending}>
             {t.cancel}
           </Button>
@@ -1040,7 +1060,7 @@ export function OrdersPage() {
  </div>
  )}
 
- <div className="flex items-center justify-between pt-2">
+ <div className="flex items-center justify-between pt-5 pb-1">
  {selectedOrder.status !== 'returned' && selectedOrder.status !== 'rejected' ? (
  <Button
  variant="outline"

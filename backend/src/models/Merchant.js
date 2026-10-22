@@ -42,12 +42,23 @@ const merchantSchema = new mongoose.Schema({
     enum: ['free', 'starter', 'pro', 'enterprise'],
     default: 'pro',
   },
+  status: {
+    type: String,
+    enum: ['active', 'disabled'],
+    default: 'active',
+    index: true,
+  },
+  unlinkedAt: { type: Date },
+  unlinkedWhatsappNumber: { type: String },
+  unlinkedEmail: { type: String },
   staffMembers: [{
     name: { type: String, required: true, trim: true },
     whatsappNumber: { type: String, required: true, trim: true },
     active: { type: Boolean, default: true },
     addedAt: { type: Date, default: Date.now },
     addedBy: { type: String, enum: ['owner', 'whatsapp_code'], default: 'owner' },
+    status: { type: String, enum: ['active', 'pending_switch', 'rejected'], default: 'active' },
+    pendingFromShopId: { type: mongoose.Schema.Types.ObjectId, ref: 'Merchant' },
   }],
 }, { 
   timestamps: true 

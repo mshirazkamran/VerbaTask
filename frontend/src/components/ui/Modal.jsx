@@ -56,7 +56,7 @@ export function Modal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 8, transition: { duration: 0.16 } }}
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-            className={`relative z-10 flex max-h-[92dvh] w-full ${maxWidth} flex-col overflow-hidden rounded-t-slab border border-rule bg-surface p-5 text-ink shadow-[var(--shadow-pop)] sm:rounded-slab sm:p-7`}
+            className={`relative z-10 flex max-h-[92dvh] w-full ${maxWidth} flex-col overflow-hidden rounded-t-slab border border-rule bg-surface p-6 pb-6 text-ink shadow-[var(--shadow-pop)] sm:rounded-slab sm:p-8 sm:pb-8`}
           >
             {(title || showCloseButton) && (
               <div className="flex items-start justify-between gap-4 mb-4 shrink-0">
@@ -83,7 +83,7 @@ export function Modal({
               </div>
             )}
 
-            <div className="mt-2 overflow-y-auto pr-1">{children}</div>
+            <div className="mt-2 overflow-y-auto pr-2 pb-6 pt-1">{children}</div>
           </motion.div>
         </div>
       )}

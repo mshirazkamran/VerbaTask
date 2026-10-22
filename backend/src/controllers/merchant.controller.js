@@ -8,8 +8,10 @@
 
 import Merchant from '../models/Merchant.js';
 import PhoneChangeVerification from '../models/PhoneChangeVerification.js';
+import ConversationState from '../models/ConversationState.js';
 import { sendTextMessage } from '../services/whatsapp.service.js';
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 import {
   getAllPaymentMethods,
   isValidPaymentMethod,
@@ -273,7 +275,7 @@ export async function updatePaymentMethods(req, res) {
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const RATE_LIMIT_MAX = 3;
 
-function normalizePhone(str) {
+export function normalizePhone(str) {
   if (!str) return '';
   const digits = String(str).replace(/\D/g, '');
   if (digits.startsWith('92') && digits.length === 12) return digits;
@@ -594,15 +596,121 @@ export async function addStaffMember(req, res) {
       });
     }
 
+    // Check if phone number is already linked to another active store (as owner or active assistant)
+    let otherOwnerShop = null;
+    let otherStaffShop = null;
+    if (mongoose.connection?.readyState !== 0) {
+      try {
+        otherOwnerShop = await Merchant.findOne({
+          whatsappNumber: normalized,
+          status: { $ne: 'disabled' },
+          _id: { $ne: merchant._id },
+        });
+
+        otherStaffShop = await Merchant.findOne({
+          'staffMembers.whatsappNumber': normalized,
+          'staffMembers.active': true,
+          status: { $ne: 'disabled' },
+          _id: { $ne: merchant._id },
+        });
+      } catch (err) {
+        console.warn('Checking other shops for staff transfer skipped:', err.message);
+      }
+    }
+
+    const existingOtherShop = otherOwnerShop || otherStaffShop;
+
+    if (existingOtherShop) {
+      // Staff member is currently associated with another shop.
+      // They must approve leaving the previous shop and joining the new one.
+      const cleanNewStoreName = (merchant.businessName || 'Dukaan').split(',')[0].trim();
+      const cleanOldStoreName = (existingOtherShop.businessName || 'Dukaan').split(',')[0].trim();
+
+      // Upsert pending staff record in the new store
+      let staffEntry = (merchant.staffMembers || []).find(
+        (s) => normalizePhone(s.whatsappNumber) === normalized
+      );
+
+      if (staffEntry) {
+        staffEntry.name = name.trim();
+        staffEntry.active = false;
+        staffEntry.status = 'pending_switch';
+        staffEntry.pendingFromShopId = existingOtherShop._id;
+      } else {
+        merchant.staffMembers.push({
+          name: name.trim(),
+          whatsappNumber: normalized,
+          active: false,
+          status: 'pending_switch',
+          pendingFromShopId: existingOtherShop._id,
+          addedAt: new Date(),
+          addedBy: 'owner',
+        });
+      }
+
+      await merchant.save();
+
+      // Set conversation state for the assistant's phone to await transfer decision
+      await ConversationState.findOneAndUpdate(
+        { whatsappNumber: normalized },
+        {
+          whatsappNumber: normalized,
+          merchantId: merchant._id,
+          flow: 'pending_staff_transfer',
+          step: 'awaiting_confirmation',
+          data: {
+            newShopId: String(merchant._id),
+            oldShopId: String(existingOtherShop._id),
+            oldRole: otherOwnerShop ? 'owner' : 'staff',
+            staffName: name.trim(),
+            newShopName: cleanNewStoreName,
+            oldShopName: cleanOldStoreName,
+          },
+        },
+        { upsert: true, new: true }
+      );
+
+      // Send WhatsApp prompt to assistant
+      try {
+        await sendTextMessage(
+          normalized,
+          `Assalam o Alikum *${name.trim()}*! 👋\n\n` +
+          `Aap ko *${cleanNewStoreName}* mein bator store assistant shamil karne ki request mosool hui hai.\n` +
+          `Aap pehle se *${cleanOldStoreName}* ke sath munsalik hain.\n\n` +
+          `Kya aap *${cleanOldStoreName}* chhor kar *${cleanNewStoreName}* ko join karna chahte hain?\n\n` +
+          `1️⃣ *Qubool karein* (Leave ${cleanOldStoreName} & Join ${cleanNewStoreName})\n` +
+          `2️⃣ *Mustarad karein* (Stay at ${cleanOldStoreName})\n\n` +
+          `_Jawab dene ke liye 1 ya 2 likh kar bhejein._`
+        );
+      } catch (e) {
+        console.warn('Failed to send staff transfer prompt via WhatsApp:', e.message);
+      }
+
+      emitDashboardUpdate(merchant._id, { type: 'staff', action: 'pending_transfer', staff: merchant.staffMembers });
+
+      return res.status(200).json({
+        success: true,
+        pendingApproval: true,
+        message: `Transfer invitation sent to ${name.trim()} on WhatsApp. They must approve leaving ${cleanOldStoreName}.`,
+        data: {
+          staffMembers: merchant.staffMembers,
+        },
+      });
+    }
+
     // Check if phone number is already registered in this store
-    const existing = (merchant.staffMembers || []).find((s) => s.whatsappNumber === normalized);
+    const existing = (merchant.staffMembers || []).find(
+      (s) => normalizePhone(s.whatsappNumber) === normalized
+    );
     if (existing) {
       if (existing.active) {
         return res.status(400).json({ success: false, error: { message: 'This phone number is already an active staff member.' } });
       } else {
         // Reactivate
         existing.active = true;
+        existing.status = 'active';
         existing.name = name.trim();
+        existing.whatsappNumber = normalized;
         await merchant.save();
         emitDashboardUpdate(merchant._id, { type: 'staff', action: 'updated', staff: merchant.staffMembers });
         return res.status(200).json({ success: true, data: { staffMembers: merchant.staffMembers } });
@@ -613,6 +721,7 @@ export async function addStaffMember(req, res) {
       name: name.trim(),
       whatsappNumber: normalized,
       active: true,
+      status: 'active',
       addedAt: new Date(),
       addedBy: 'owner',
     });
@@ -621,9 +730,10 @@ export async function addStaffMember(req, res) {
 
     // Send welcome message to new staff member via WhatsApp (safe try-catch)
     try {
+      const cleanStoreName = (merchant.businessName || 'Dukaan').split(',')[0].trim();
       await sendTextMessage(
         normalized,
-        `Welcome to *${merchant.businessName || 'VerbaTask'}*! 🎉\n\nYou have been added as a store assistant. You can now send voice notes or text messages here to log sales, restock inventory, or check stock directly into the shop ledger.`
+        `Assalam o Alikum *${name.trim()}*! 👋\n\nAap ko *${cleanStoreName}* ke VerbaTask hisab mein shamil kar liya gaya hai.\n\nAb aap direct is WhatsApp chat par bol kar (voice note) ya likh kar sales aur stock darj kar sakte hain:\n🎙️ *"2 doodh 400"*\n🎙️ *"Ali ko 500 udhaar"*\n\nShuru karne ke liye abhi koi bhi sale bhej kar check karein!`
       );
     } catch (e) {
       console.warn('Failed to send welcome SMS to staff member:', e.message);
@@ -655,7 +765,15 @@ export async function removeStaffMember(req, res) {
       return res.status(404).json({ success: false, error: { message: 'Merchant not found.' } });
     }
 
-    const staff = merchant.staffMembers.id(staffId) || merchant.staffMembers.find((s) => s._id.toString() === staffId || s.whatsappNumber === staffId);
+    const normTarget = normalizePhone(staffId);
+    const staff =
+      merchant.staffMembers.id(staffId) ||
+      merchant.staffMembers.find(
+        (s) =>
+          s._id.toString() === staffId ||
+          s.whatsappNumber === staffId ||
+          (normTarget && normalizePhone(s.whatsappNumber) === normTarget)
+      );
     if (!staff) {
       return res.status(404).json({ success: false, error: { message: 'Staff member not found.' } });
     }
@@ -703,5 +821,58 @@ export async function regenerateShopCode(req, res) {
   } catch (error) {
     console.error('regenerateShopCode error:', error);
     return res.status(500).json({ success: false, error: { message: 'Server error regenerating shop code.' } });
+  }
+}
+
+/**
+ * POST /api/merchant/disable-shop
+ * Soft-disables a store without deleting database history/records,
+ * unlinks WhatsApp number and email, deactivates staff, and clears session cookies.
+ */
+export async function disableShop(req, res) {
+  try {
+    const merchant = await Merchant.findById(req.merchantId);
+    if (!merchant) {
+      return res.status(404).json({ success: false, error: { message: 'Merchant not found.' } });
+    }
+
+    if (merchant.status === 'disabled') {
+      return res.status(400).json({ success: false, error: { message: 'Store is already disabled.' } });
+    }
+
+    const originalPhone = merchant.whatsappNumber;
+    const originalEmail = merchant.email;
+
+    merchant.status = 'disabled';
+    merchant.unlinkedAt = new Date();
+    merchant.unlinkedWhatsappNumber = originalPhone;
+    merchant.unlinkedEmail = originalEmail;
+
+    const unlinkedSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    merchant.whatsappNumber = `unlinked_${unlinkedSuffix}`;
+    merchant.email = `unlinked_${unlinkedSuffix}@archived.verbatask.internal`;
+
+    if (Array.isArray(merchant.staffMembers)) {
+      merchant.staffMembers.forEach((s) => {
+        s.active = false;
+      });
+    }
+
+    await merchant.save();
+
+    // Clear auth session cookies
+    const cookieOptions = { path: '/' };
+    res.clearCookie('boldukan_session', cookieOptions);
+    res.clearCookie('boldukan_merchant_id', cookieOptions);
+
+    emitDashboardUpdate(merchant._id, { type: 'merchant', action: 'disabled' });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Shop disabled and credentials unlinked successfully.',
+    });
+  } catch (error) {
+    console.error('disableShop error:', error);
+    return res.status(500).json({ success: false, error: { message: 'Failed to disable shop.' } });
   }
 }

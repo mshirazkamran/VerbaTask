@@ -12,7 +12,7 @@ const escapeRegex = (str) => (str ? str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') :
 /**
  * Resolves an order by MongoDB _id, orderNumber (e.g. VT-123456 or 123456), or WhatsApp message context ID.
  */
-export async function findOrderByReference(merchantId, { orderId, orderNumber, contextId }) {
+export async function findOrderByReference(merchantId, { orderId, orderNumber, contextId, itemName, targetAmount }) {
   if (orderId) {
     const byId = await Order.findOne({ _id: orderId, merchantId });
     if (byId) return byId;
@@ -46,6 +46,39 @@ export async function findOrderByReference(merchantId, { orderId, orderNumber, c
       orderNumber: new RegExp(`${escapeRegex(withoutHash)}`, 'i'),
     });
     if (order) return order;
+  }
+
+  // Contextual fallback: match by item name or amount in recent orders (e.g. "20 ki chini wapis", "20 wapis", "chini wapis")
+  if (itemName || targetAmount) {
+    const query = {
+      merchantId,
+      status: { $in: ['completed', 'partially_returned'] },
+    };
+
+    const andConditions = [];
+
+    if (itemName) {
+      const cleanItem = String(itemName).trim();
+      andConditions.push({
+        'items.name': new RegExp(escapeRegex(cleanItem), 'i'),
+      });
+    }
+
+    if (targetAmount && targetAmount > 0) {
+      andConditions.push({
+        $or: [
+          { total: targetAmount },
+          { 'items.price': targetAmount },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      query.$and = andConditions;
+    }
+
+    const recentOrder = await Order.findOne(query).sort({ createdAt: -1 });
+    if (recentOrder) return recentOrder;
   }
 
   return null;
