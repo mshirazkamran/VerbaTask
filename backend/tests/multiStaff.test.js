@@ -8,8 +8,10 @@ import {
   addStaffMember,
   removeStaffMember,
   regenerateShopCode,
+  disableShop,
 } from '../src/controllers/merchant.controller.js';
 import { handleIncomingMessage } from '../src/controllers/whatsapp.controller.js';
+import { extractPackagedVariant } from '../src/services/qwen.service.js';
 
 describe('Multi-Staff Shop Reference Code System Tests', () => {
   test('Merchant schema defaults include subscriptionTier pro, staffMembers, and shopCode path', () => {
@@ -249,5 +251,80 @@ describe('Multi-Staff Shop Reference Code System Tests', () => {
     } finally {
       Merchant.findOne = origFindOne;
     }
+  });
+
+  test('disableShop soft-disables store and unlinks phone number and email', async () => {
+    const origFindById = Merchant.findById;
+    let saved = false;
+    const clearedCookies = [];
+
+    const mockMerchant = {
+      _id: 'merchant_disable_123',
+      businessName: 'Ideal Bakery',
+      whatsappNumber: '923053331098',
+      email: 'ideal@bakery.pk',
+      status: 'active',
+      staffMembers: [
+        { _id: 's1', name: 'Zeeshan', whatsappNumber: '923001234567', active: true },
+      ],
+      save: async () => { saved = true; },
+    };
+
+    Merchant.findById = () => Promise.resolve(mockMerchant);
+
+    try {
+      let statusCode = 0;
+      let jsonBody = null;
+      const res = {
+        status(code) {
+          statusCode = code;
+          return this;
+        },
+        json(data) {
+          jsonBody = data;
+          return this;
+        },
+        clearCookie(cookieName) {
+          clearedCookies.push(cookieName);
+        },
+      };
+
+      await disableShop({ merchantId: 'merchant_disable_123' }, res);
+
+      assert.equal(statusCode, 200);
+      assert.equal(jsonBody.success, true);
+      assert.equal(saved, true);
+      assert.equal(mockMerchant.status, 'disabled');
+      assert.equal(mockMerchant.unlinkedWhatsappNumber, '923053331098');
+      assert.equal(mockMerchant.unlinkedEmail, 'ideal@bakery.pk');
+      assert.ok(mockMerchant.whatsappNumber.startsWith('unlinked_'));
+      assert.ok(mockMerchant.email.startsWith('unlinked_'));
+      assert.equal(mockMerchant.staffMembers[0].active, false);
+      assert.ok(clearedCookies.includes('boldukan_session'));
+      assert.ok(clearedCookies.includes('boldukan_merchant_id'));
+    } finally {
+      Merchant.findById = origFindById;
+    }
+  });
+
+  test('extractPackagedVariant preserves packaged size in name instead of loose stock quantity', () => {
+    // Packaged item with variant size
+    const p1 = extractPackagedVariant('lipton yellow lable 300gm waali');
+    assert.equal(p1.pkgVariant, '300gm');
+    assert.ok(p1.processed.includes('__PKG_SIZE__'));
+
+    const p2 = extractPackagedVariant('everyday doodh 1kg pack');
+    assert.equal(p2.pkgVariant, '1kg');
+
+    const p3 = extractPackagedVariant('shan biryani masala 50g dabba');
+    assert.equal(p3.pkgVariant, '50g');
+
+    // Loose commodity should NOT be treated as a packaged size variant
+    const loose = extractPackagedVariant('5 kg chini');
+    assert.equal(loose.pkgVariant, null);
+    assert.equal(loose.processed, '5 kg chini');
+
+    const looseRice = extractPackagedVariant('2 kg chawal');
+    assert.equal(looseRice.pkgVariant, null);
   });
 });

@@ -12,6 +12,7 @@ import {
   addStaffMember,
   removeStaffMember,
   regenerateShopCode,
+  disableShop,
 } from '../controllers/merchant.controller.js';
 
 const router = Router();
@@ -24,6 +25,9 @@ router.patch('/profile', updateProfile);
 
 router.get('/payment-methods', getPaymentMethods);
 router.put('/payment-methods', updatePaymentMethods);
+
+// Danger zone: Disable / Unlink shop
+router.post('/disable-shop', disableShop);
 
 // Team & staff routes
 router.get('/staff', getStaffMembers);

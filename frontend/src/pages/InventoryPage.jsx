@@ -208,7 +208,7 @@ function InventoryForm({ initial = emptyItem, onSubmit, onCancel, submitLabel, l
  )}
  </div>
 
- <div className="flex justify-end gap-2 pt-2">
+ <div className="flex items-center justify-end gap-3 pt-5 pb-1">
  <Button type="button" variant="ghost" onClick={onCancel} disabled={loading}>
  {t.cancel}
  </Button>
@@ -599,7 +599,7 @@ export function InventoryPage() {
  description={isUrdu ? `“${deletingItem?.name}” ${t.deleteModalDesc}` : `“${deletingItem?.name}” ${t.deleteModalDesc}`}
  maxWidth="max-w-sm"
  >
- <div className="flex justify-end gap-2 pt-2">
+ <div className="flex items-center justify-end gap-3 pt-5 pb-1">
  <Button variant="ghost" onClick={() => setDeletingItem(null)} disabled={deleteItem.isPending}>
  {t.cancel}
  </Button>

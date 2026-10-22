@@ -11,6 +11,7 @@ const VARIANTS = {
   danger: 'bg-coral-tint text-danger-ink',
   info: 'bg-sky-tint text-sky-ink',
   ink: 'bg-ink text-paper',
+  outline: 'border border-hairline bg-transparent text-ink',
 };
 
 const ALIASES = {
@@ -75,7 +76,9 @@ export function Badge({
       {...props}
     >
       {dot && <span className={`size-1.5 shrink-0 rounded-pill ${DOTS[key]}`} />}
-      <span>{typeof children === 'string' ? children.replace(/_/g, ' ') : children}</span>
+      <span className="inline-flex items-center gap-1.5 leading-none">
+        {typeof children === 'string' ? children.replace(/_/g, ' ') : children}
+      </span>
     </span>
   );
 }

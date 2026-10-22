@@ -106,15 +106,15 @@ const TYPO_CORRECTIONS = {
 /** Auto-corrects misspelled or Roman Urdu item names to standardized product names. */
 export function cleanAndStandardizeItemName(rawName) {
   if (!rawName || typeof rawName !== 'string') return rawName;
-  const trimmed = rawName.trim();
-  const lower = trimmed.toLowerCase();
+  const stripped = rawName.trim().replace(/\s+(?:waali|wali|wala|walay|waalay|والی|والا|والے)\s*$/i, '');
+  const lower = stripped.toLowerCase();
 
   if (CANONICAL_STANDARDS[lower]) {
     return CANONICAL_STANDARDS[lower];
   }
 
   // Capitalize each word nicely, correcting any explicit typos
-  return trimmed
+  return stripped
     .split(/\s+/)
     .map((w) => {
       const wLower = w.toLowerCase();

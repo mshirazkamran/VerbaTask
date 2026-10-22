@@ -52,7 +52,7 @@ export const Button = forwardRef(function Button(
       ) : leftIcon ? (
         <span className="inline-flex shrink-0">{leftIcon}</span>
       ) : null}
-      <span>{children}</span>
+      <span className="inline-flex items-center gap-1.5 leading-none">{children}</span>
       {!loading && rightIcon && <span className="inline-flex shrink-0">{rightIcon}</span>}
     </button>
   );

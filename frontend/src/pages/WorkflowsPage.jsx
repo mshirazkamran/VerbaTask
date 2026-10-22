@@ -250,7 +250,7 @@ function WorkflowForm({ initial = emptyWorkflow, onSubmit, onCancel, submitLabel
         </span>
       </div>
 
-      <div className="flex justify-end gap-2 pt-2">
+      <div className="flex items-center justify-end gap-3 pt-5 pb-1">
         <Button type="button" variant="ghost" onClick={onCancel} disabled={loading}>
           {t.cancel}
         </Button>
@@ -338,9 +338,17 @@ export function WorkflowsPage() {
       {
         accessorKey: 'condition',
         header: t.condition,
-        cell: ({ row }) => (
-          <span className="font-mono text-xs text-ink-2">{row.original.triggerText || '-'}</span>
-        ),
+        cell: ({ row }) => {
+          const text = row.original.triggerText || '-';
+          return (
+            <span
+              className="font-mono text-xs text-ink-2 max-w-[180px] sm:max-w-[220px] truncate block"
+              title={text}
+            >
+              {text}
+            </span>
+          );
+        },
       },
       {
         accessorKey: 'action',
@@ -356,7 +364,7 @@ export function WorkflowsPage() {
           }
           const label = row.original.actionText || '-';
           return (
-            <div className="flex items-center gap-2 max-w-[260px]">
+            <div className="flex items-center gap-1.5 max-w-[150px] sm:max-w-[180px]">
               <Bell className="size-4 shrink-0 text-sky-ink" />
               <span className="truncate text-sm font-medium text-ink" title={label}>
                 {label}
@@ -387,28 +395,29 @@ export function WorkflowsPage() {
         id: 'actions',
         header: '',
         cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+          <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
             <Button
               variant="ghost"
               size="sm"
-              className={row.original.active ? '' : '!text-success-ink'}
+              className={`h-7 px-2.5 text-xs ${
+                row.original.active ? 'text-ink-2 hover:text-ink' : '!text-success-ink font-semibold'
+              }`}
               onClick={() => handleToggle(row.original)}
               disabled={updateWorkflow.isPending}
             >
               {row.original.active ? t.pause : t.activate}
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="!text-danger-ink hover:!bg-coral-tint"
-              leftIcon={<Trash2 className="size-4" />}
+            <button
+              type="button"
+              className="p-1.5 rounded-md text-muted hover:text-coral hover:bg-coral-tint transition-colors shrink-0"
+              title={t.delete}
               onClick={(e) => {
                 e.stopPropagation();
                 setDeletingId(row.original._id);
               }}
             >
-              {t.delete}
-            </Button>
+              <Trash2 className="size-4" />
+            </button>
           </div>
         ),
       },
@@ -530,7 +539,7 @@ export function WorkflowsPage() {
         description={t.deleteModalDesc}
         maxWidth="max-w-sm"
       >
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex items-center justify-end gap-3 pt-5 pb-1">
           <Button variant="ghost" onClick={() => setDeletingId(null)} disabled={deleteWorkflow.isPending}>
             {t.cancel}
           </Button>
