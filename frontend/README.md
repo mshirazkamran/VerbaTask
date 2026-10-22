@@ -81,4 +81,4 @@ For errors:
 { "success": false, "error": { "message": "Human-readable error" } }
 ```
 
-The source of truth for endpoint shapes is `frontend/api-spec.md`.
+The source of truth for endpoint shapes is [`docs/project-docs/api-spec.md`](../docs/project-docs/api-spec.md).

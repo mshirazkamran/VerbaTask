@@ -1,10 +1,4 @@
-/* Hallmark · genre: playful×atmospheric · design-system: DESIGN.md · designed-as-app
- * marketing: Narrative Workflow · H2 split knobs: ratio=7/5, right=apparatus, divider=negative space
- * app: Workbench console · asymmetric spans (7/5 · 8/4) · nav: N1b (marketing) / N3 rail (app) · footer: Ft5 Statement
- * theme: custom "Counter" · paper: oklch(97.2% 0.013 92) / oklch(16% 0.016 205) · accent: pear oklch(89% 0.165 102) + teal oklch(50% 0.085 185)
- * display: Space Grotesk · body: Geist · mono: JetBrains Mono · axes: light+dark / grotesk-sans / multi
- * studied: no · context: user-named (Hum + Lumen, Space Grotesk, light + dark) · hallmark v1.1.0
- */
+/* VerbaTask (BolDukan) - Global Stylesheet & Design Tokens */
 @import "tailwindcss";
 @import "./styles/tokens.css";
 
