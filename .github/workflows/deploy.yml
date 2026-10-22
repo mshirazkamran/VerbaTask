@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: ${{ github.repository == 'soban-iftikhar/VerbaTask' }}
     name: Deploy to Azure VPS
     runs-on: ubuntu-latest
 
