@@ -408,6 +408,31 @@ export function parsePriceAndUnit(text) {
   return { price, unit };
 }
 
+const PKG_VARIANT_PATTERN = /(\d+(?:\.\d+)?\s*(?:gm|g|gram|grams|ml|ltr|litre|liter|kg|kilo)\s*(?:waali|wali|wala|walay|waalay|pack|packet|dabba|box|sachet|والی|والا|والے|پیکٹ|ڈبہ|ساشے)?)/i;
+
+export function extractPackagedVariant(str) {
+  if (!str || typeof str !== 'string') return { processed: str, pkgVariant: null };
+  const isLooseCommodityOnly = /^(?:\d+\s*(?:kg|kilo|gram|gm|پاؤ|کلو|لیٹر)\s+(?:chini|cheeni|chawal|aata|atta|daal|oil|ghee|doodh|sugar|rice|flour|چینی|چاول|آٹا|گھی|تیل|دودھ))$/i.test(str.trim());
+  if (isLooseCommodityOnly) return { processed: str, pkgVariant: null };
+
+  const match = str.match(PKG_VARIANT_PATTERN);
+  if (match) {
+    const rawVariant = match[1];
+    const isExplicit = /(?:waali|wali|wala|walay|waalay|pack|packet|dabba|box|sachet|والی|والا|والے|پیکٹ|ڈبہ|ساشے)/i.test(rawVariant) ||
+      /(?:waali|wali|wala|walay|waalay|pack|packet|dabba|box|sachet|والی|والا|والے|پیکٹ|ڈبہ|ساشے)/i.test(str);
+    if (isExplicit) {
+      const cleanSize = rawVariant
+        .replace(/\s*(?:waali|wali|wala|walay|waalay|والی|والا|والے|pack|packet|dabba|box|sachet|پیکٹ|ڈبہ|ساشے)\s*$/i, '')
+        .trim();
+      return {
+        processed: str.replace(match[0], ' __PKG_SIZE__ '),
+        pkgVariant: cleanSize,
+      };
+    }
+  }
+  return { processed: str, pkgVariant: null };
+}
+
 /**
  * Fast-path heuristic parser for stock restocks and stock inquiries.
  * Ensures zero-latency handling and serves as a reliable safety net.
@@ -461,22 +486,25 @@ export function parseStockHeuristic(text) {
                     /^(شامل|اضافہ|نیا\s*مال)\b/.test(lower);
 
   function parseSingleRestockChunk(textChunk) {
+    const { processed, pkgVariant } = extractPackagedVariant(textChunk);
+    let workingText = processed;
+
     let quantity = 1;
     let price = null;
-    let unit = null;
+    let unit = pkgVariant ? 'packet' : null;
 
-    const unitMatch = textChunk.match(UNIT_REGEX);
+    const unitMatch = workingText.match(UNIT_REGEX);
     if (unitMatch) {
       unit = unitMatch[1].trim();
     }
 
-    const explicitPriceMatch = textChunk.match(/(?:price|rate|rs|rupay|rupees|قیمت|روپے)\s*[:=]?\s*(\d+)/i) ||
-                               textChunk.match(/(\d+)\s*(?:rs|rupay|rupees|روپے)/i);
+    const explicitPriceMatch = workingText.match(/(?:price|rate|rs|rupay|rupees|قیمت|روپے)\s*[:=]?\s*(\d+)/i) ||
+                               workingText.match(/(\d+)\s*(?:rs|rupay|rupees|روپے)/i);
     if (explicitPriceMatch) {
       price = parseInt(explicitPriceMatch[1], 10);
     }
 
-    const nums = textChunk.match(/\d+/g);
+    const nums = workingText.match(/\d+/g);
     if (nums && nums.length > 0) {
       if (price !== null) {
         const otherNums = nums.map((n) => parseInt(n, 10)).filter((n) => n !== price);
@@ -491,7 +519,7 @@ export function parseStockHeuristic(text) {
       }
     } else {
       // Look for word-based numbers e.g. "bees", "بیس", "panch", "پانچ"
-      const words = textChunk.split(/\s+/);
+      const words = workingText.split(/\s+/);
       for (const w of words) {
         if (NUMBER_WORDS_MAP[w]) {
           quantity = NUMBER_WORDS_MAP[w];
@@ -500,7 +528,7 @@ export function parseStockHeuristic(text) {
       }
     }
 
-    const stripped = textChunk
+    let stripped = workingText
       .replace(/(?:maal|mal)\s*(?:a+y*a+\s*hai|a+y*a+|a+\s*g+a+y*a+|aagaya|pohnch|received)|(?:a+y*a+|a+y*i+|aaye)\s*(?:hai|hain)/gi, ' ')
       .replace(/(?:add|new|update|incoming)\s*(?:to\s+)?(?:stock|inventory)/gi, ' ')
       .replace(/(?:to|in|into)\s+(?:stock|inventory)/gi, ' ')
@@ -508,12 +536,18 @@ export function parseStockHeuristic(text) {
       .replace(/\b(?:restock|stock|inventory|add|new|naya|item|please|plz|for|of|ki|ka|ke|ko|mein|me|main|bhai|janab|karo|kar\s*do|kar\s*dein)\b/gi, ' ')
       .replace(/(?:مال\s*(?:آیا|پہنچ|آئے\s*ہیں|آیا\s*ہے)?|آئے\s*ہیں|اسٹاک\s*میں\s*(?:شامل|ڈال)?|نیا\s*مال|شامل\s*(?:کرو|کریں|کر\s*دو|کر\s*دیں)?|شامل|اضافہ|ایڈ\s*اسٹاک|ایڈ\s*انوینٹری|ایڈ|اسٹاک|انوینٹری|ڈال\s*(?:دیں|دو)?|کرو|کریں|آیا|آئے)/gi, ' ')
       .replace(/\b(?:aa\s*gaya|aagya|gaya|gaye|aya|aaya)\b/gi, ' ')
-      .replace(/(?:روپے|روپیہ|روپئے|rs|rupay|rupees|roopay|pkr|price|rate)\s*[:=]?\s*\d*/gi, ' ')
+      .replace(/(?:روپے|روپیہ|روپئے|rs|rupay|rupees|roopay|pkr|price|rate)\s*[:=]?\s*\d*(?:\s*(?:\/|per|فی)\s*[a-zA-Z\u0600-\u06FF]+)?/gi, ' ')
+      .replace(/(?:(?:\/|per|فی)\s*[a-zA-Z\u0600-\u06FF]+)/gi, ' ')
+      .replace(/[/\\]/g, ' ')
       .replace(/\d+/g, ' ')
       .replace(UNIT_REGEX, ' ')
       .replace(NUMBER_WORDS_REGEX, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+
+    if (pkgVariant) {
+      stripped = stripped.replace('__PKG_SIZE__', pkgVariant).replace(/\s+/g, ' ').trim();
+    }
 
     if (!stripped) return null;
     return { name: stripped, quantity, price, unit };
@@ -587,16 +621,42 @@ export function parseReturnOrExchangeHeuristic(text) {
   // 2. Return: "ye wapis aa gaya", "wapis kar lo", "order wapis", "return kar do", "returned", "مال واپس"
   const isReturn = /(?:wapis|wapas|\breturn\b|\breturned\b|واپس|واپسی)/i.test(lower);
   if (isReturn) {
-    const itemPart = lower
-      .replace(/(?:ye\s*wapis\s*(?:aa\s*gaya|aagya|aya|aaya)?|ye\s*wapas\s*(?:aa\s*gaya|aagya|aya|aaya)?|wapis\s*(?:aa\s*gaya|aagya|aya|aaya|kar\s*lo|kar\s*do)?|wapas\s*(?:aa\s*gaya|aagya|aya|aaya|kar\s*lo|kar\s*do)?|\breturn\s*kar\s*do\b|\breturned\b|\breturn\b|واپس\s*آیا|واپس\s*کر\s*لو|واپس|واپسی|\baa\s*gaya\b|\baagya\b|\bgaya\b|\bgayi\b|\baye\b|\baaya\b|\baya\b|\bye\b|\byeh\b)/gi, '')
+    let clean = lower
+      .replace(/(?:ye\s*wapis\s*(?:aa\s*gaya|aa\s*gayi|aagya|aagyi|aagai|aya|aaya)?|ye\s*wapas\s*(?:aa\s*gaya|aa\s*gayi|aagya|aagyi|aagai|aya|aaya)?|wapis\s*(?:aa\s*gaya|aa\s*gayi|aagya|aagyi|aagai|aya|aaya|kar\s*lo|kar\s*do)?|wapas\s*(?:aa\s*gaya|aa\s*gayi|aagya|aagyi|aagai|aya|aaya|kar\s*lo|kar\s*do)?|\breturn\s*kar\s*do\b|\breturned\b|\breturn\b|واپس\s*آیا|واپس\s*آئی|واپس\s*کر\s*لو|واپس|واپسی|\baa\s*gaya\b|\baa\s*gayi\b|\baagya\b|\baagyi\b|\baagai\b|\bgaya\b|\bgayi\b|\baye\b|\baaya\b|\baya\b|\bye\b|\byeh\b)/gi, '')
       .replace(/(?:order\s*#?|#)?\s*(?:VT-?[a-zA-Z0-9-]+|\b\d{3,8}\b)/gi, '')
       .trim();
+
+    let targetAmount = null;
+    let extractedItemName = clean;
+    let quantity = null;
+
+    const moneyMatch = clean.match(/^(\d+)\s*(?:rupay|rs|روپے)?\s*(?:ki|ka|ke|کی|کا|کے)\s+(.+)$/i);
+    if (moneyMatch) {
+      targetAmount = parseInt(moneyMatch[1], 10);
+      extractedItemName = moneyMatch[2].trim();
+    } else {
+      const numOnlyMatch = clean.match(/^(\d+)\s*(?:rupay|rs|روپے)?$/i);
+      if (numOnlyMatch) {
+        targetAmount = parseInt(numOnlyMatch[1], 10);
+        extractedItemName = null;
+      } else {
+        const qtyMatch = clean.match(/^(\d+(?:\.\d+)?)\s+(.+)$/);
+        if (qtyMatch) {
+          quantity = parseFloat(qtyMatch[1]);
+          extractedItemName = qtyMatch[2].trim();
+        }
+      }
+    }
+
     return {
       type: 'return_order',
       intent: 'return_order',
       orderNumber,
       rawText: text,
-      itemName: itemPart || null,
+      targetAmount,
+      quantity,
+      itemName: extractedItemName || null,
+      items: extractedItemName ? [{ name: extractedItemName, quantity: quantity || 1, targetAmount }] : null,
     };
   }
 
@@ -869,8 +929,12 @@ export function parseStandardSaleHeuristic(text) {
       }
     }
 
+    // Check if chunk has a packaged size variant (e.g. "lipton 300gm waali")
+    const { processed, pkgVariant } = extractPackagedVariant(piece);
+    piece = processed;
+
     // Check unit
-    let unit = null;
+    let unit = pkgVariant ? 'packet' : null;
     const uMatch = piece.match(UNIT_REGEX);
     if (uMatch) {
       unit = uMatch[1].trim();
@@ -878,7 +942,7 @@ export function parseStandardSaleHeuristic(text) {
     }
 
     // Check quantity and amount
-    let quantity = null;
+    let quantity = pkgVariant ? 1 : null;
     let priceOrAmount = null;
     const nums = piece.match(/\d+(?:\.\d+)?/g);
     if (nums && nums.length > 0) {
@@ -899,10 +963,14 @@ export function parseStandardSaleHeuristic(text) {
       }
     }
 
-    const cleanedName = piece
+    let cleanedName = piece
       .replace(/\b(?:becha|bechi|beche|sold|furokht|diye|diya|de|do|dy|le|lo|ko|ka|ki|ke|rupay|rs|rupees|roopay|pkr|روپے|روپیہ|بیچا|بیچی|دیے|دیا)\b/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+
+    if (pkgVariant) {
+      cleanedName = cleanedName.replace('__PKG_SIZE__', pkgVariant).replace(/\s+/g, ' ').trim();
+    }
 
     if (cleanedName && quantity && quantity > 0) {
       items.push({

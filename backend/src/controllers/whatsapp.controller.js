@@ -6,6 +6,7 @@ import Customer from '../models/Customer.js';
 import Order from '../models/Order.js';
 import PasswordResetCode from '../models/PasswordResetCode.js';
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 
 import { createOrder } from '../crm/order.service.js';
 import { processOrderReturn, processOrderExchange, findOrderByReference } from '../crm/return.service.js';
@@ -14,7 +15,7 @@ import { evaluateMessageWorkflows, prepareWorkflow, createWorkflow, WorkflowVali
 import { describeWorkflow, explainWorkflowError, capabilitiesText } from '../workflows/workflow.rules.js';
 import { respond as respondToApproval, findPendingByOrderId } from '../approvals/approval.service.js';
 import { generateLinkCode } from './auth.controller.js';
-import { getStaffLimit } from './merchant.controller.js';
+import { getStaffLimit, normalizePhone } from './merchant.controller.js';
 import { emitDashboardUpdate } from '../socket.js';
 import { parseIntent, extractBusinessDetails, extractInventoryItems, resolveItemName, parseKhataSettleHeuristic, parseKhataInquiryHeuristic, parsePriceAndUnit } from '../services/qwen.service.js';
 import { findSimilarInventoryItems, cleanAndStandardizeItemName } from '../crm/item-matching.js';
@@ -186,20 +187,29 @@ export async function handleIncomingMessage(req, res) {
     if (alreadyProcessed(message.id)) return;
 
     const from = message.from; // WhatsApp number, no '+' prefix
-    let merchant = await Merchant.findOne({ whatsappNumber: from });
+    let merchant = null;
     let staffMember = null;
 
-    if (!merchant) {
-      // Check if this number is an active staff member for any store
-      const staffOwner = await Merchant.findOne({
-        'staffMembers.whatsappNumber': from,
-        'staffMembers.active': true,
-      });
+    // 1. Check if this message is responding to a pending staff transfer invitation
+    const transferHandled = await handlePendingStaffTransferFlow(from, message);
+    if (transferHandled) return;
 
-      if (staffOwner) {
-        merchant = staffOwner;
-        staffMember = staffOwner.staffMembers.find((s) => s.whatsappNumber === from && s.active);
-      }
+    // 2. Prioritize active staff membership in an active store
+    const staffOwner = await Merchant.findOne({
+      'staffMembers.whatsappNumber': from,
+      'staffMembers.active': true,
+      status: { $ne: 'disabled' },
+    });
+
+    if (staffOwner) {
+      merchant = staffOwner;
+      staffMember = staffOwner.staffMembers.find((s) => s.whatsappNumber === from && s.active);
+    } else {
+      // 3. Otherwise check if this number is an active store owner
+      merchant = await Merchant.findOne({
+        whatsappNumber: from,
+        status: { $ne: 'disabled' },
+      });
     }
 
     if (!merchant) {
@@ -228,13 +238,150 @@ export async function handleIncomingMessage(req, res) {
 }
 
 /**
+ * Handles an assistant's response to an inter-store transfer request.
+ */
+async function handlePendingStaffTransferFlow(from, message) {
+  if (mongoose.connection?.readyState === 0) return false;
+  try {
+    const pendingState = await ConversationState.findOne({
+      whatsappNumber: from,
+      flow: 'pending_staff_transfer',
+    });
+
+    if (!pendingState) return false;
+
+  const rawText = (message.text?.body || message.interactive?.button_reply?.id || message.interactive?.list_reply?.id || '').trim().toLowerCase();
+  if (!rawText) return false;
+
+  const data = pendingState.data || {};
+  const { newShopId, oldShopId, oldRole, staffName, newShopName, oldShopName } = data;
+
+  // Accept: "1", "1️⃣", "accept", "qubool", "yes", "shamil", "قبول", "ہاں"
+  const isAccept = /^(?:1|1️⃣|accept|qubool|yes|shamil|agree|join|قبول|ہاں|شامل)$/i.test(rawText);
+  // Reject: "2", "2️⃣", "reject", "mustarad", "no", "rehne do", "مسترد", "نہیں"
+  const isReject = /^(?:2|2️⃣|reject|mustarad|no|cancel|rehne\s*do|مسترد|نہیں|رہنے\s*دو)$/i.test(rawText);
+
+  if (!isAccept && !isReject) {
+    await sendTextMessage(
+      from,
+      `Assalam o Alikum! Barah-e-karam pehle store transfer ka jawab dein:\n\n` +
+      `1️⃣ *Qubool karein* (Leave ${oldShopName || 'Purani Dukaan'} & Join ${newShopName || 'Nayi Dukaan'})\n` +
+      `2️⃣ *Mustarad karein* (Stay at ${oldShopName || 'Purani Dukaan'})\n\n` +
+      `_1 ya 2 likh kar bhejein._`
+    );
+    return true;
+  }
+
+  const newShop = await Merchant.findById(newShopId);
+  const oldShop = await Merchant.findById(oldShopId);
+
+  if (isAccept) {
+    // 1. Leave old shop
+    if (oldShop) {
+      if (oldRole === 'owner') {
+        const unlinkedSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        oldShop.unlinkedWhatsappNumber = oldShop.whatsappNumber;
+        oldShop.whatsappNumber = `unlinked_${unlinkedSuffix}`;
+        await oldShop.save();
+      } else if (Array.isArray(oldShop.staffMembers)) {
+        const oldStaff = oldShop.staffMembers.find((s) => s.whatsappNumber === from);
+        if (oldStaff) {
+          oldStaff.active = false;
+          await oldShop.save();
+          emitDashboardUpdate(oldShop._id, { type: 'staff', action: 'transferred_out', staff: oldShop.staffMembers });
+          try {
+            await sendTextMessage(
+              oldShop.whatsappNumber,
+              `Assalam o Alikum! اطلاع: *${staffName || 'Assistant'}* (${from}) ne aapki dukaan chhor kar *${newShopName || 'Nayi Dukaan'}* join kar li hai.`
+            );
+          } catch (e) {}
+        }
+      }
+    }
+
+    // 2. Activate in new shop
+    if (newShop && Array.isArray(newShop.staffMembers)) {
+      let targetStaff = newShop.staffMembers.find((s) => s.whatsappNumber === from);
+      if (targetStaff) {
+        targetStaff.active = true;
+        targetStaff.status = 'active';
+      } else {
+        newShop.staffMembers.push({
+          name: staffName || 'Assistant',
+          whatsappNumber: from,
+          active: true,
+          status: 'active',
+          addedAt: new Date(),
+          addedBy: 'owner',
+        });
+      }
+      await newShop.save();
+      emitDashboardUpdate(newShop._id, { type: 'staff', action: 'joined', staff: newShop.staffMembers });
+
+      try {
+        await sendTextMessage(
+          newShop.whatsappNumber,
+          `Assalam o Alikum! 🎉 *${staffName || 'Assistant'}* (${from}) ne request qubool kar li hai aur ab aapki dukaan (*${newShopName}*) se munsalik hain.`
+        );
+      } catch (e) {}
+    }
+
+    await ConversationState.deleteOne({ whatsappNumber: from });
+
+    await sendTextMessage(
+      from,
+      `Assalam o Alikum *${staffName || 'Assistant'}*! 🎉\n\n` +
+      `Mubarak ho! Aap ab kamiyabi se *${newShopName || 'Dukaan'}* ke sath shamil ho chuke hain.\n\n` +
+      `Ab aap is WhatsApp chat par voice note ya text bhej kar sales aur inventory ka hisab darj kar sakte hain:\n` +
+      `🎙️ *"2 doodh 400"*\n` +
+      `🎙️ *"Ali ko 500 udhaar"*\n\n` +
+      `Shuru karne ke liye koi bhi sale ya "inventory" likh kar check karein!`
+    );
+    return true;
+  }
+
+  if (isReject) {
+    if (newShop && Array.isArray(newShop.staffMembers)) {
+      const pendingStaff = newShop.staffMembers.find((s) => s.whatsappNumber === from);
+      if (pendingStaff) {
+        pendingStaff.active = false;
+        pendingStaff.status = 'rejected';
+        await newShop.save();
+        emitDashboardUpdate(newShop._id, { type: 'staff', action: 'rejected', staff: newShop.staffMembers });
+      }
+
+      try {
+        await sendTextMessage(
+          newShop.whatsappNumber,
+          `Assalam o Alikum! اطلاع: *${staffName || 'Assistant'}* (${from}) ne *${newShopName || 'Aapki dukaan'}* mein shamil hone ki darkhwast mustarad kar di hai aur apni pehli dukaan ke sath rahenge.`
+        );
+      } catch (e) {}
+    }
+
+    await ConversationState.deleteOne({ whatsappNumber: from });
+
+    await sendTextMessage(
+      from,
+      `Assalam o Alikum! Aap ne darkhwast mustarad kar di hai.\n\nAap badastoor *${oldShopName || 'apni dukaan'}* ke sath munsalik hain.`
+    );
+    return true;
+  }
+
+    return false;
+  } catch (err) {
+    console.error('handlePendingStaffTransferFlow error:', err);
+    return false;
+  }
+}
+
+/**
  * Handles an unregistered WhatsApp number attempting to join a shop via Shop Code.
  * (e.g. "join VT-1234 Ali", "shamil VT-1234 Ali", "join VT1234")
  */
 async function handleStaffJoinFlow(from, text) {
-  if (!text) return false;
-
-  const joinMatch = text.match(/^(?:join|shamil|connect|شامل|جوائن)\s+([a-zA-Z0-9-]+)(?:\s+(.+))?$/i);
+  const joinMatch =
+    text.match(/^(?:join|shamil|connect|شامل|جوائن)\s+([a-zA-Z0-9-]+)(?:\s+(.+))?$/i) ||
+    text.match(/^((?:VT|BD)[-]?\d{4,})(?:\s+(.+))?$/i);
   if (!joinMatch) return false;
 
   const rawCode = joinMatch[1].trim().toUpperCase();
@@ -278,9 +425,10 @@ async function handleStaffJoinFlow(from, text) {
   if (existingIndex >= 0) {
     const existing = merchant.staffMembers[existingIndex];
     if (existing.active) {
+      const cleanStoreName = (merchant.businessName || 'Dukaan').split(',')[0].trim();
       await sendTextMessage(
         from,
-        `✅ Aap pehle se *${merchant.businessName || 'Dukaan'}* ke staff member (*${existing.name}*) hain.\n\nAap kisi bhi waqt sales, stock, ya hisab voice note ya text k zariye darj kar sakte hain.`
+        `Assalam-o-Alaikum *${existing.name}*! 👋\n\nAap pehle se *${cleanStoreName}* ke sath connected hain.\n\nAap kisi bhi waqt sales, stock, ya hisab voice note ya text k zariye darj kar sakte hain:\n🎙️ *"2 doodh 400"*\n🎙️ *"Ali ko 500 udhaar"*`
       );
       return true;
     } else {
@@ -317,9 +465,10 @@ async function handleStaffJoinFlow(from, text) {
   await merchant.save();
 
   // Notify assistant
+  const cleanStoreName = (merchant.businessName || 'Dukaan').split(',')[0].trim();
   await sendTextMessage(
     from,
-    `🎉 *Mubarak! Aap VerbaTask Team mein shamil ho gaye hain!*\n\n🏪 Dukaan: *${merchant.businessName || 'Store'}*\n👤 Naam: *${finalName}*\n\nAb aap yahan se direct sales, inventory check, aur udhaar darj kar sakte hain. Shuru karne ke liye koi bhi sale bolain یا likhein (maslan: *2 doodh 400* ya *ali ne 500 udhaar liye*).`
+    `Assalam-o-Alaikum *${finalName}*! 👋\n\nAap *${cleanStoreName}* ke VerbaTask hisab mein shamil ho gaye hain.\n\nAb aap direct yahan voice note ya text bhej kar sales aur hisab darj kar sakte hain:\n🎙️ *"2 doodh 400"*\n🎙️ *"Ali ko 500 udhaar"*\n\nShuru karne ke liye abhi koi bhi sale bhej kar check karein!`
   );
 
   // Notify store owner
@@ -339,6 +488,179 @@ async function handleStaffJoinFlow(from, text) {
   });
 
   return true;
+}
+
+/**
+ * Handles an owner adding a staff member via WhatsApp text command.
+ */
+async function handleOwnerAddStaffViaText(merchant, rawName, rawPhone) {
+  const recipient = merchant._replyToNumber || merchant.whatsappNumber;
+  const isUrdu = merchant.language === 'ur';
+
+  // Assistant cannot add other staff
+  if (merchant._staffMember) {
+    const msg = isUrdu
+      ? 'Assalam o Alikum! صرف دکان کا مالک نیا اسٹاف شامل کر سکتا ہے۔'
+      : 'Assalam o Alikum! Only the store owner can add staff members.';
+    return sendTextMessage(recipient, msg);
+  }
+
+  const normalized = normalizePhone(rawPhone);
+  if (!normalized) {
+    const msg = isUrdu
+      ? 'Assalam o Alikum! برائے مہربانی درست پاکستانی فون نمبر درج کریں (مثلاً: 03001234567 یا 923001234567)۔'
+      : 'Assalam o Alikum! Please provide a valid Pakistani phone number (e.g. 03001234567 or 923001234567).';
+    return sendTextMessage(recipient, msg);
+  }
+
+  if (merchant.whatsappNumber === normalized) {
+    const msg = isUrdu
+      ? 'Assalam o Alikum! آپ اپنی ہی دکان کے مالک ہیں، اپنا نمبر اسٹاف میں شامل نہیں کر سکتے۔'
+      : 'Assalam o Alikum! This is your store owner number and cannot be added as staff.';
+    return sendTextMessage(recipient, msg);
+  }
+
+  const tier = merchant.subscriptionTier || 'pro';
+  const limit = getStaffLimit(tier);
+  const activeStaff = (merchant.staffMembers || []).filter((s) => s.active);
+  if (activeStaff.length >= limit) {
+    const msg = isUrdu
+      ? `Assalam o Alikum! ⚠️ اسسٹنٹس کی حد (${limit}) مکمل ہو چکی ہے۔ مزید ممبرز کے لیے ویب ڈیش بورڈ پر پرو پلان اپ گریڈ کریں۔`
+      : `Assalam o Alikum! ⚠️ Staff limit reached (${limit}). Please upgrade to the Pro plan to add more team members.`;
+    return sendTextMessage(recipient, msg);
+  }
+
+  const cleanNewStoreName = (merchant.businessName || 'Dukaan').split(',')[0].trim();
+
+  // Check if this number is already linked to another active store
+  const otherOwnerShop = await Merchant.findOne({
+    whatsappNumber: normalized,
+    status: { $ne: 'disabled' },
+    _id: { $ne: merchant._id },
+  });
+
+  const otherStaffShop = await Merchant.findOne({
+    'staffMembers.whatsappNumber': normalized,
+    'staffMembers.active': true,
+    status: { $ne: 'disabled' },
+    _id: { $ne: merchant._id },
+  });
+
+  const existingOtherShop = otherOwnerShop || otherStaffShop;
+
+  if (existingOtherShop) {
+    const cleanOldStoreName = (existingOtherShop.businessName || 'Dukaan').split(',')[0].trim();
+
+    let staffEntry = (merchant.staffMembers || []).find(
+      (s) => normalizePhone(s.whatsappNumber) === normalized
+    );
+
+    if (staffEntry) {
+      staffEntry.name = rawName.trim();
+      staffEntry.active = false;
+      staffEntry.status = 'pending_switch';
+      staffEntry.pendingFromShopId = existingOtherShop._id;
+    } else {
+      merchant.staffMembers.push({
+        name: rawName.trim(),
+        whatsappNumber: normalized,
+        active: false,
+        status: 'pending_switch',
+        pendingFromShopId: existingOtherShop._id,
+        addedAt: new Date(),
+        addedBy: 'owner',
+      });
+    }
+
+    await merchant.save();
+
+    await ConversationState.findOneAndUpdate(
+      { whatsappNumber: normalized },
+      {
+        whatsappNumber: normalized,
+        merchantId: merchant._id,
+        flow: 'pending_staff_transfer',
+        step: 'awaiting_confirmation',
+        data: {
+          newShopId: String(merchant._id),
+          oldShopId: String(existingOtherShop._id),
+          oldRole: otherOwnerShop ? 'owner' : 'staff',
+          staffName: rawName.trim(),
+          newShopName: cleanNewStoreName,
+          oldShopName: cleanOldStoreName,
+        },
+      },
+      { upsert: true, new: true }
+    );
+
+    try {
+      await sendTextMessage(
+        normalized,
+        `Assalam o Alikum *${rawName.trim()}*! 👋\n\n` +
+        `Aap ko *${cleanNewStoreName}* mein bator store assistant shamil karne ki request mosool hui hai.\n` +
+        `Aap pehle se *${cleanOldStoreName}* ke sath munsalik hain.\n\n` +
+        `Kya aap *${cleanOldStoreName}* chhor kar *${cleanNewStoreName}* ko join karna chahte hain?\n\n` +
+        `1️⃣ *Qubool karein* (Leave ${cleanOldStoreName} & Join ${cleanNewStoreName})\n` +
+        `2️⃣ *Mustarad karein* (Stay at ${cleanOldStoreName})\n\n` +
+        `_Jawab dene ke liye 1 ya 2 likh kar bhejein._`
+      );
+    } catch (e) {}
+
+    emitDashboardUpdate(merchant._id, { type: 'staff', action: 'pending_transfer', staff: merchant.staffMembers });
+
+    const ownerMsg = isUrdu
+      ? `Assalam o Alikum! 📩 *${rawName.trim()}* (${normalized}) پہلے سے *${cleanOldStoreName}* کے ساتھ منسلک ہیں۔\nان کو واٹس ایپ پر منتقلی کی درخواست بھیج دی گئی ہے۔ ان کے قبول کرتے ہی وہ آپ کی دکان سے جڑ جائیں گے۔`
+      : `Assalam o Alikum! 📩 *${rawName.trim()}* (${normalized}) is already linked with *${cleanOldStoreName}*.\nA transfer request has been sent to them on WhatsApp. Once they accept, they will be active in your store.`;
+    return sendTextMessage(recipient, ownerMsg);
+  }
+
+  let existing = (merchant.staffMembers || []).find(
+    (s) => normalizePhone(s.whatsappNumber) === normalized
+  );
+
+  if (existing) {
+    if (existing.active) {
+      const msg = isUrdu
+        ? `Assalam o Alikum! *${existing.name}* پہلے ہی آپ کی دکان کے فعال ممبر ہیں۔`
+        : `Assalam o Alikum! *${existing.name}* is already an active member of your store.`;
+      return sendTextMessage(recipient, msg);
+    } else {
+      existing.active = true;
+      existing.status = 'active';
+      existing.name = rawName.trim();
+      existing.whatsappNumber = normalized;
+      await merchant.save();
+    }
+  } else {
+    merchant.staffMembers.push({
+      name: rawName.trim(),
+      whatsappNumber: normalized,
+      active: true,
+      status: 'active',
+      addedAt: new Date(),
+      addedBy: 'owner',
+    });
+    await merchant.save();
+  }
+
+  try {
+    await sendTextMessage(
+      normalized,
+      `Assalam o Alikum *${rawName.trim()}*! 👋\n\n` +
+      `Aap ko *${cleanNewStoreName}* ke VerbaTask hisab mein shamil kar liya gaya hai.\n\n` +
+      `Ab aap direct is WhatsApp chat par bol kar (voice note) ya likh kar sales aur stock darj kar sakte hain:\n` +
+      `🎙️ *"2 doodh 400"*\n` +
+      `🎙️ *"Ali ko 500 udhaar"*\n\n` +
+      `Shuru karne ke liye abhi koi bhi sale bhej kar check karein!`
+    );
+  } catch (e) {}
+
+  emitDashboardUpdate(merchant._id, { type: 'staff', action: 'updated', staff: merchant.staffMembers });
+
+  const successMsg = isUrdu
+    ? `Assalam o Alikum! 🎉 *${rawName.trim()}* (${normalized}) کو کامیابی سے آپ کی دکان کے کھاتے میں شامل کر لیا گیا ہے۔`
+    : `Assalam o Alikum! 🎉 *${rawName.trim()}* (${normalized}) has been successfully added to your store team.`;
+  return sendTextMessage(recipient, successMsg);
 }
 
 /**
@@ -1026,6 +1348,7 @@ async function handleTextMessage(merchant, text, rawMessage = null) {
 
   // 15. Staff / Team List (e.g. "staff", "staff list", "team", "ہماری ٹیم", "ہمارا سٹاف")
   if (/^(?:staff|staff\s*list|team|hamara\s*staff|ہماری\s*ٹیم|ہمارا\s*سٹاف|عملہ)$/i.test(normalized)) {
+    const activeStaff = (merchant.staffMembers || []).filter((s) => s.active);
     const limit = getStaffLimit(merchant.subscriptionTier || 'pro');
     if (activeStaff.length === 0) {
       const msg = merchant.language === 'ur'
@@ -1041,6 +1364,28 @@ async function handleTextMessage(merchant, text, rawMessage = null) {
     return sendTextMessage(merchant._replyToNumber || merchant.whatsappNumber, msg);
   }
 
+  // 15b. Shop Code echo or join attempt from already connected staff/merchant
+  const shopCodeEcho = normalized.match(/^(?:(?:join|shamil|connect|شامل|جوائن)\s+)?((?:vt|bd)[-]?\d{4,})(?:\s+(.+))?$/i);
+  if (shopCodeEcho) {
+    const isAssistant = Boolean(merchant._staffMember);
+    const recipient = merchant._replyToNumber || merchant.whatsappNumber;
+    const cleanStoreName = (merchant.businessName || 'Dukaan').split(',')[0].trim();
+    if (isAssistant) {
+      const msg = `Assalam o Alikum *${merchant._staffMember.name}*! 👋\n\nAap pehle se *${cleanStoreName}* ke sath connected hain.\n\nAap ko koi code bhejne ki zaroorat nahi — aap direct voice note ya message bhej kar sale darj kar sakte hain:\n🎙️ *"2 doodh 400"*\n🎙️ *"Ali ko 500 udhaar"*`;
+      return sendTextMessage(recipient, msg);
+    } else {
+      const msg = `Assalam o Alikum! 👋\n\nAap is dukaan (*${cleanStoreName}*) ke malik hain.\nYeh aap ki dukaan ka reference code hai: *${merchant.shopCode || shopCodeEcho[1].toUpperCase()}*.\n\nStaff ko add karne ke liye web dashboard se unka number enter karein ya unse kahein ke is number par voice note bhej kar sales darj karein.`;
+      return sendTextMessage(recipient, msg);
+    }
+  }
+
+  // 15c. Add staff command via text message:
+  // e.g. "add staff Hamza 03001234567", "add assistant Tariq 03451234567", "اسٹاف شامل کریں حمزہ 03001234567", "اسٹاف حمزہ 03001234567"
+  const addStaffMatch = normalized.match(/^(?:add\s+staff|add\s+assistant|اسٹاف\s*شامل\s*(?:کریں)?|نیا\s*اسٹاف|اسٹاف)\s+([a-zA-Z\u0600-\u06FF\s]+?)\s+(\+?\d[\d\s-]{9,15})$/i);
+  if (addStaffMatch) {
+    return await handleOwnerAddStaffViaText(merchant, addStaffMatch[1].trim(), addStaffMatch[2].trim());
+  }
+
   // Check stored message workflows first — if any fire, skip NLP entirely
   try {
     const triggered = await evaluateMessageWorkflows(merchant._id, text);
@@ -1049,20 +1394,22 @@ async function handleTextMessage(merchant, text, rawMessage = null) {
     console.error('evaluateMessageWorkflows error:', err.message);
   }
 
+  let intent;
   try {
-    const intent = await parseIntent(text, merchant);
-    const detectedLanguage = /[\u0600-\u06FF]/.test(text) ? 'ur' : (merchant.language || 'ur');
-    return await routeParsedCommand(merchant, { ...intent, language: detectedLanguage, incomingMessageId: rawMessage?.id, rawMessage }, 'text');
+    intent = await parseIntent(text, merchant);
   } catch (err) {
-    console.error('parseIntent failed:', err.message);
+    console.error('parseIntent failed:', err);
     const lang = merchant.language || 'ur';
     return sendTextMessage(
-      merchant.whatsappNumber,
+      merchant._replyToNumber || merchant.whatsappNumber,
       lang === 'en'
         ? "I didn't quite catch that — try 'help' to see all commands or 'order' to log a sale."
         : "معذرت، بات سمجھ نہیں آئی — تمام کمانڈز دیکھنے کے لیے 'help' لکھیں یا آرڈر کے لیے 'order' بولیں یا لکھیں۔"
     );
   }
+
+  const detectedLanguage = /[\u0600-\u06FF]/.test(text) ? 'ur' : (merchant.language || 'ur');
+  return await routeParsedCommand(merchant, { ...intent, language: detectedLanguage, incomingMessageId: rawMessage?.id, rawMessage }, 'text');
 }
 
 /** Voice note: download audio, transcribe + parse via agent/, then run the command. */
@@ -1072,6 +1419,15 @@ async function handleVoiceNote(merchant, mediaId, rawMessage = null) {
     const intent = await transcribeAndParse(buffer, mimeType, merchant.language, merchant);
     const effectiveLanguage = intent.detectedLanguage || merchant.language || 'ur';
     const transcript = intent.transcript || intent.rawText || '';
+
+    // Reject voice notes attempting to add staff — must be text
+    if (/(?:add\s+staff|add\s+assistant|اسٹاف\s*شامل|نیا\s*اسٹاف|ملازم\s*شامل|اسٹاف\s*ایڈ)/i.test(transcript)) {
+      const isUrdu = effectiveLanguage === 'ur';
+      const msg = isUrdu
+        ? 'Assalam o Alikum! ⚠️ سیکیورٹی اور درستگی کے لیے اسٹاف شامل کرنے کی کمانڈ وائس نوٹ کے بجائے ٹیکسٹ میسج میں نام اور فون نمبر لکھ کر بھیجیں (جیسے: "add staff Hamza 03001234567")۔'
+        : 'Assalam o Alikum! ⚠️ For security and accuracy, please add staff using a text message with name and phone number (e.g. "add staff Hamza 03001234567") instead of a voice note.';
+      return sendTextMessage(merchant._replyToNumber || merchant.whatsappNumber, msg);
+    }
 
     // 0. Active Pending New Item reply from VN
     const pendingNewItem = await ConversationState.findOne({
@@ -1764,9 +2120,11 @@ async function offerItemDisambiguation(merchant, command, missingItemName = '') 
   const candidateNames = ranked.slice(0, 2).map((r) => r.item.name);
   const phrases = spokenPhrases.itemDisambiguation(language, { saidName, candidates: candidateNames });
 
+  const targetPhone = merchant._replyToNumber || merchant.whatsappNumber;
+
   // If source was voice, send the spoken question first
   if (shouldReplyWithVoice(merchant, source)) {
-    await sendVoiceReply(merchant.whatsappNumber, {
+    await sendVoiceReply(targetPhone, {
       spokenText: phrases.spoken,
       language,
       alsoSendText: false,
@@ -1774,7 +2132,7 @@ async function offerItemDisambiguation(merchant, command, missingItemName = '') 
   }
 
   return sendInteractiveButtons(
-    merchant.whatsappNumber,
+    targetPhone,
     phrases.text,
     buttons
   );
@@ -1895,17 +2253,41 @@ async function handleReturnOrderViaWhatsApp(merchant, intent, source = 'text', r
   const language = merchant.language || 'ur';
   const contextId = rawMessage?.context?.id || null;
   const orderNumber = intent.orderNumber || null;
+  const itemName = intent.itemName || null;
+  const targetAmount = intent.targetAmount || null;
 
-  const order = await findOrderByReference(merchant._id, { orderNumber, contextId });
+  const order = await findOrderByReference(merchant._id, {
+    orderNumber,
+    contextId,
+    itemName,
+    targetAmount,
+  });
+
   if (!order) {
-    // If no order number and no quote-reply: DO NOT guess recent order!
     return replyToMerchant(merchant, spokenPhrases.askReturnOrderNumber(language), source);
   }
 
   try {
+    let returnItems = intent.items;
+    if (!returnItems && itemName && order.items?.length > 0) {
+      const matched = order.items.find(
+        (i) => i.name.toLowerCase().includes(itemName.toLowerCase()) ||
+               itemName.toLowerCase().includes(i.name.toLowerCase())
+      );
+      if (matched) {
+        const qty = intent.quantity || (targetAmount && matched.price ? Math.round((targetAmount / matched.price) * 1000) / 1000 : matched.quantity);
+        returnItems = [{
+          inventoryItemId: matched.inventoryItemId,
+          name: matched.name,
+          quantity: Math.min(matched.quantity, qty || matched.quantity),
+          price: matched.price,
+        }];
+      }
+    }
+
     const result = await processOrderReturn(merchant._id, {
       orderId: order._id,
-      items: intent.items,
+      items: returnItems,
       reason: 'WhatsApp return',
     });
 
@@ -1935,9 +2317,12 @@ async function handleExchangeOrderViaWhatsApp(merchant, intent, source = 'text',
   const contextId = rawMessage?.context?.id || null;
   const orderNumber = intent.orderNumber || null;
 
-  const order = await findOrderByReference(merchant._id, { orderNumber, contextId });
+  const order = await findOrderByReference(merchant._id, {
+    orderNumber,
+    contextId,
+    itemName: intent.returnItem?.name,
+  });
   if (!order) {
-    // If no order number and no quote-reply: DO NOT guess recent order!
     return replyToMerchant(merchant, spokenPhrases.askReturnOrderNumber(language), source);
   }
 

@@ -77,3 +77,39 @@ export function formatQuantity(qty, unit) {
   // Loose weight or liquid measures (kg, litre, g, dozen, etc.)
   return `${q} ${u}`;
 }
+
+/**
+ * Normalizes phone numbers to Pakistani standard 12-digit format (923XXXXXXXXX).
+ * @param {string} str
+ * @returns {string} e.g. "923053331098"
+ */
+export function normalizePhone(str) {
+  if (!str) return '';
+  const digits = String(str).replace(/\D/g, '');
+  if (digits.startsWith('92') && digits.length === 12) return digits;
+  if (digits.startsWith('0') && digits.length === 11) return '92' + digits.slice(1);
+  if (digits.length === 10 && digits.startsWith('3')) return '92' + digits;
+  return digits;
+}
+
+/**
+ * Formats a phone number cleanly for UI display (+92 305 3331098).
+ * Avoids duplicate + or "+0305..." artifacts.
+ * @param {string} phone
+ * @returns {string} e.g. "+92 305 3331098"
+ */
+export function formatPhone(phone) {
+  if (!phone) return '';
+  const digits = String(phone).replace(/\D/g, '');
+  if (digits.startsWith('92') && digits.length === 12) {
+    return `+92 ${digits.slice(2, 5)} ${digits.slice(5)}`;
+  }
+  if (digits.startsWith('0') && digits.length === 11) {
+    return `+92 ${digits.slice(1, 4)} ${digits.slice(4)}`;
+  }
+  if (digits.length === 10 && digits.startsWith('3')) {
+    return `+92 ${digits.slice(0, 3)} ${digits.slice(3)}`;
+  }
+  return String(phone).startsWith('+') ? phone : `+${phone}`;
+}
+

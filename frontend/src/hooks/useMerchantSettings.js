@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { queryKeys } from '../lib/queryKeys';
 import { useAuthStore } from '../lib/store';
+import { normalizePhone } from '../lib/format';
 
 export function useMerchantProfile() {
   const token = useAuthStore((state) => state.token);
@@ -90,25 +91,34 @@ export function useStaffMembers() {
       const stored =
         localStorage.getItem(`verbatask_staff_${mId}`) ||
         localStorage.getItem(`boldukan_staff_${mId}`);
-      const localList = stored ? JSON.parse(stored) : [];
+      const rawLocalList = stored ? JSON.parse(stored) : [];
+      // Deduplicate local fallback list by normalized phone
+      const localList = rawLocalList.filter((item, idx, arr) => {
+        const norm = normalizePhone(item.whatsappNumber);
+        return idx === arr.findIndex((x) => (norm && normalizePhone(x.whatsappNumber) === norm) || x._id === item._id);
+      });
+
       const defaultCode = `VT-${(merchant?._id || '1098').slice(-4).toUpperCase()}`;
 
       try {
         const res = await api.get('/api/merchant/staff');
-        if (res) {
-          // If server returns staff, merge with any local members
-          const serverMembers = res.staffMembers || [];
-          const merged = [...serverMembers];
-          for (const lm of localList) {
-            if (!merged.some((sm) => sm.whatsappNumber === lm.whatsappNumber || sm._id === lm._id)) {
-              merged.push(lm);
-            }
-          }
+        const staffData = res?.data || res;
+        if (staffData && Array.isArray(staffData.staffMembers)) {
+          // Deduplicate server list by normalized phone
+          const serverMembers = staffData.staffMembers.filter((item, idx, arr) => {
+            const norm = normalizePhone(item.whatsappNumber);
+            return idx === arr.findIndex((x) => (norm && normalizePhone(x.whatsappNumber) === norm) || x._id === item._id);
+          });
+
+          // Server is single source of truth — sync local storage directly
+          localStorage.setItem(`verbatask_staff_${mId}`, JSON.stringify(serverMembers));
+          localStorage.removeItem(`boldukan_staff_${mId}`);
+
           return {
-            ...res,
-            shopCode: res.shopCode || defaultCode,
-            staffMembers: merged,
-            activeCount: merged.length,
+            ...staffData,
+            shopCode: staffData.shopCode || defaultCode,
+            staffMembers: serverMembers,
+            activeCount: serverMembers.filter((s) => s.active).length,
           };
         }
       } catch (err) {
@@ -119,7 +129,7 @@ export function useStaffMembers() {
         shopCode: merchant?.shopCode || defaultCode,
         subscriptionTier: 'pro',
         staffLimit: 5,
-        activeCount: localList.length,
+        activeCount: localList.filter((s) => s.active).length,
         staffMembers: localList,
       };
     },
@@ -135,28 +145,46 @@ export function useAddStaffMember() {
   return useMutation({
     mutationFn: async (payload) => {
       const mId = merchant?._id || 'store';
-      const stored =
-        localStorage.getItem(`verbatask_staff_${mId}`) ||
-        localStorage.getItem(`boldukan_staff_${mId}`);
-      const list = stored ? JSON.parse(stored) : [];
-
-      const newMember = {
-        _id: 'staff_' + Date.now(),
-        name: payload.name,
-        whatsappNumber: payload.whatsappNumber,
-        active: true,
-        createdAt: new Date().toISOString(),
-      };
+      const normPhone = normalizePhone(payload.whatsappNumber);
 
       try {
-        const res = await api.post('/api/merchant/staff', payload);
-        // Also cache locally
-        list.push(newMember);
-        localStorage.setItem(`verbatask_staff_${mId}`, JSON.stringify(list));
-        return res || { staffMembers: list };
+        const res = await api.post('/api/merchant/staff', {
+          name: payload.name.trim(),
+          whatsappNumber: normPhone,
+        });
+
+        // Server returned updated staff list: sync with localStorage directly
+        const serverList = res?.staffMembers || res?.data?.staffMembers;
+        if (Array.isArray(serverList)) {
+          localStorage.setItem(`verbatask_staff_${mId}`, JSON.stringify(serverList));
+          localStorage.removeItem(`boldukan_staff_${mId}`);
+        }
+        return res;
       } catch (err) {
         console.warn('[Staff] Remote add failed, saved locally:', err.message);
-        list.push(newMember);
+        const stored =
+          localStorage.getItem(`verbatask_staff_${mId}`) ||
+          localStorage.getItem(`boldukan_staff_${mId}`);
+        const list = stored ? JSON.parse(stored) : [];
+
+        const existingIdx = list.findIndex(
+          (m) => normalizePhone(m.whatsappNumber) === normPhone
+        );
+        if (existingIdx >= 0) {
+          list[existingIdx] = {
+            ...list[existingIdx],
+            name: payload.name.trim(),
+            active: true,
+          };
+        } else {
+          list.push({
+            _id: 'staff_' + Date.now(),
+            name: payload.name.trim(),
+            whatsappNumber: normPhone,
+            active: true,
+            createdAt: new Date().toISOString(),
+          });
+        }
         localStorage.setItem(`verbatask_staff_${mId}`, JSON.stringify(list));
         return { staffMembers: list };
       }
@@ -179,12 +207,18 @@ export function useRemoveStaffMember() {
         localStorage.getItem(`verbatask_staff_${mId}`) ||
         localStorage.getItem(`boldukan_staff_${mId}`);
       if (stored) {
-        const list = JSON.parse(stored).filter((m) => m._id !== staffId);
+        const list = JSON.parse(stored).filter(
+          (m) => m._id !== staffId && m.whatsappNumber !== staffId && normalizePhone(m.whatsappNumber) !== normalizePhone(staffId)
+        );
         localStorage.setItem(`verbatask_staff_${mId}`, JSON.stringify(list));
       }
 
       try {
-        await api.delete(`/api/merchant/staff/${staffId}`);
+        const res = await api.delete(`/api/merchant/staff/${staffId}`);
+        const serverList = res?.staffMembers || res?.data?.staffMembers;
+        if (Array.isArray(serverList)) {
+          localStorage.setItem(`verbatask_staff_${mId}`, JSON.stringify(serverList));
+        }
       } catch (err) {
         console.warn('[Staff] Remote remove failed, removed locally:', err.message);
       }

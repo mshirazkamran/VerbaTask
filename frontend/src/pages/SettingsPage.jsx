@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   UserCheck,
   Volume2,
+  AlertTriangle,
 } from 'lucide-react';
 import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { Card } from '../components/ui/Card';
@@ -29,6 +30,8 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Badge } from '../components/ui/Badge';
 import { Skeleton } from '../components/ui/Skeleton';
+import Modal from '../components/ui/Modal';
+import { api } from '../lib/api';
 import {
   useMerchantProfile,
   useUpdateMerchantProfile,
@@ -43,6 +46,7 @@ import {
   useRegenerateShopCode,
 } from '../hooks/useMerchantSettings';
 import { useUiStore } from '../lib/store';
+import { formatPhone, normalizePhone } from '../lib/format';
 
 const getBusinessTypes = (isUrdu) => [
   { value: 'kiryana', label: isUrdu ? 'کریانہ / جنرل اسٹور' : 'Kiryana / Grocery Store' },
@@ -100,7 +104,10 @@ export function SettingsPage({ initialTab }) {
 
   const handleShareInvite = (code) => {
     if (!code) return;
-    const msg = `As-salamu alaykum! Join our shop account on VerbaTask by sending: join ${code} [Your Name]`;
+    const cleanStore = (profile?.businessName || 'Dukaan').split(',')[0].trim();
+    const msg = isUrdu
+      ? `Assalam-o-Alaikum! ${cleanStore} کے وربا ٹاسک کھاتے میں شامل ہونے کے لیے واٹس ایپ بوٹ کو یہ میسج بھیجیں:\njoin ${code} علی`
+      : `Assalam-o-Alaikum! To join ${cleanStore}'s shop ledger on VerbaTask, send this message to the bot:\njoin ${code} Ali`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
   };
@@ -116,11 +123,17 @@ export function SettingsPage({ initialTab }) {
       return;
     }
 
+    const normalizedPhone = normalizePhone(staffPhoneInput.trim());
+    if (!normalizedPhone || normalizedPhone.length < 10) {
+      toast.error('Please enter a valid Pakistani WhatsApp number (e.g. 03001234567)');
+      return;
+    }
+
     try {
       setIsAddingStaff(true);
       await addStaffMutation.mutateAsync({
         name: staffNameInput.trim(),
-        whatsappNumber: staffPhoneInput.trim(),
+        whatsappNumber: normalizedPhone,
       });
       toast.success(`${staffNameInput.trim()} added to your shop staff!`);
       setStaffNameInput('');
@@ -170,6 +183,26 @@ export function SettingsPage({ initialTab }) {
   const [phoneCooldown, setPhoneCooldown] = useState(0);
   const [maskedNewPhone, setMaskedNewPhone] = useState('');
   const [phoneRemainingAttempts, setPhoneRemainingAttempts] = useState(3);
+
+  // Disable / Delete Shop State
+  const [isDisableModalOpen, setIsDisableModalOpen] = useState(false);
+  const [confirmStoreNameInput, setConfirmStoreNameInput] = useState('');
+  const [isDisabling, setIsDisabling] = useState(false);
+
+  const handleDisableShop = async () => {
+    try {
+      setIsDisabling(true);
+      await api.post('/api/merchants/disable-shop');
+      toast.success(isUrdu ? 'دکان کامیابی سے غیر فعال اور نمبر ان لنک ہو گیا ہے' : 'Shop disabled and credentials unlinked successfully.');
+      setIsDisableModalOpen(false);
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.href = '/login';
+    } catch (err) {
+      toast.error(err.message || 'Failed to disable shop');
+      setIsDisabling(false);
+    }
+  };
 
   // Phone cooldown timer
   useEffect(() => {
@@ -665,230 +698,293 @@ export function SettingsPage({ initialTab }) {
               {isUrdu ? 'دکان کی معلومات محفوظ کریں' : 'Save Store Changes'}
             </Button>
           </div>
+
+          {/* Danger Zone: Disable & Unlink Store */}
+          <div className="mt-10 pt-6 border-t border-rule">
+            <div className="rounded-2xl border border-coral/30 bg-coral/5 p-5 sm:p-6 transition-colors">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="size-5 text-coral shrink-0" />
+                    <h3 className="font-heading font-semibold text-ink text-base">
+                      {isUrdu ? 'دکان ختم / غیر فعال کریں' : 'Delete / Disable Shop'}
+                    </h3>
+                  </div>
+                  <p className="text-xs text-muted max-w-xl">
+                    {isUrdu
+                      ? 'یہ عمل آپ کا واٹس ایپ نمبر اور ای میل ان لنک کر دے گا تاکہ آپ دوبارہ نیا اکاؤنٹ یا نمبر استعمال کر سکیں۔ دکان کا تمام سابقہ ریکارڈ محفوظ رہے گا مگر ڈیش بورڈ بند ہو جائے گا۔'
+                      : 'Unlinks your WhatsApp number and email credentials, freeing them for future use. Store records are safely archived in the database, while active store access is disabled.'}
+                  </p>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setIsDisableModalOpen(true)}
+                  className="shrink-0"
+                >
+                  {isUrdu ? 'دکان ختم کریں' : 'Delete Shop'}
+                </Button>
+              </div>
+            </div>
+          </div>
         </form>
       )}
 
       {/* Tab: Team & Multi-Staff (Pro) */}
-      {activeTab === 'team' && (
-        <div className="space-y-6">
-          {/* Shop Reference Code Card */}
-          <Card>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 pb-4 border-b border-hairline">
-              <div className="flex items-center gap-3">
-                <div className="grid size-10 shrink-0 place-items-center rounded-pill bg-primary-tint text-primary-deep dark:text-primary">
-                  <Users className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className={`font-display text-lg font-semibold tracking-tight text-ink ${isUrdu ? 'font-urdu text-xl' : ''}`}>
-                      {isUrdu ? 'دکان کا ریفرنس کوڈ اور ٹیم' : 'Shop Reference Code & Team'}
-                    </h2>
-                    <Badge variant="success">
-                      {isUrdu ? 'سب کے لیے فعال' : 'ALL ACCESS PREVIEW'}
-                    </Badge>
+      {activeTab === 'team' && (() => {
+        const staffList = (staffData?.staffMembers || []).filter((member, idx, arr) => {
+          const norm = normalizePhone(member.whatsappNumber);
+          return idx === arr.findIndex((x) => (norm && normalizePhone(x.whatsappNumber) === norm) || x._id === member._id);
+        });
+        const activeStaffCount = staffList.filter((s) => s.active).length;
+        const staffLimit = staffData?.staffLimit ?? 5;
+
+        return (
+          <div className="space-y-6">
+            {/* Shop Reference Code Card */}
+            <Card>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 pb-4 border-b border-hairline">
+                <div className="flex items-center gap-3">
+                  <div className="grid size-10 shrink-0 place-items-center rounded-pill bg-primary-tint text-primary-deep dark:text-primary">
+                    <Users className="w-5 h-5" />
                   </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className={`font-display text-lg font-semibold tracking-tight text-ink ${isUrdu ? 'font-urdu text-xl' : ''}`}>
+                        {isUrdu ? 'دکان کا ریفرنس کوڈ اور ٹیم' : 'Shop Reference Code & Team'}
+                      </h2>
+                      <Badge variant="success">
+                        {isUrdu ? 'سب کے لیے فعال' : 'ALL ACCESS PREVIEW'}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted mt-0.5">
+                      {isUrdu
+                        ? '3 سے 5 ملازمین کے ذاتی واٹس ایپ نمبر جوڑیں تاکہ وہ بھی کھاتہ میں سیلز درج کر سکیں (ٹیسٹنگ کے دوران سب کے لیے مفت)'
+                        : "Connect 3–5 assistants' personal WhatsApp numbers to log sales into your unified shop ledger (Free for all during testing)"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[11px] font-mono font-medium tracking-wide whitespace-nowrap shrink-0">
+                    <ShieldCheck className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <span className="whitespace-nowrap">
+                      {isUrdu ? 'مفت ٹیسٹنگ رسائی' : 'FREE PREVIEW'} ({activeStaffCount}/{staffLimit} {isUrdu ? 'فعال' : 'Active'})
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Shop Code Display & Sharing Box */}
+              {(() => {
+                const effectiveShopCode =
+                  staffData?.shopCode ||
+                  profile?.shopCode ||
+                  `VT-${(profile?._id || profile?.id || '1098').slice(-4).toUpperCase()}`;
+
+                return (
+                  <div className="rounded-xl border border-hairline bg-paper-2/50 p-5 sm:p-6 mb-6">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+                          {isUrdu ? 'آپ کی دکان کا ریفرنس کوڈ' : 'Your Shop Reference Code'}
+                        </span>
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-3xl font-bold tracking-wider text-primary-deep dark:text-primary">
+                            {effectiveShopCode}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCopyCode(effectiveShopCode)}
+                            leftIcon={<Copy className="w-3.5 h-3.5" />}
+                          >
+                            {isUrdu ? 'کوڈ کاپی کریں' : 'Copy Code'}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleRegenerateCode}
+                            loading={regenerateCodeMutation.isPending}
+                            className="text-xs text-muted hover:text-ink"
+                            title={isUrdu ? 'نیا ریفرنس کوڈ بنائیں' : 'Generate a new reference code'}
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-2.5">
+                        <Button
+                          type="button"
+                          variant="primary"
+                          onClick={() => handleShareInvite(effectiveShopCode)}
+                          leftIcon={<WhatsAppIcon className="w-4 h-4 fill-current" />}
+                        >
+                          {isUrdu ? 'واٹس ایپ پر ملازم کو دعوت دیں' : 'Invite Assistant via WhatsApp'}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Instructions banner */}
+                    <div className="mt-5 pt-4 border-t border-hairline/70 grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
+                      <div className="flex items-start gap-3 rounded-lg bg-paper-2/40 dark:bg-paper-2/20 border border-hairline/60 p-3">
+                        <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary-tint font-mono font-bold text-xs text-primary-deep dark:text-primary">
+                          1
+                        </div>
+                        <div className="space-y-1 min-w-0 flex-1">
+                          <div className="font-semibold text-ink">
+                            {isUrdu ? 'ملازم کو کیسے شامل کریں' : 'How assistants join'}
+                          </div>
+                          <p className="text-muted leading-relaxed">
+                            {isUrdu ? (
+                              <>نیچے براہ راست ان کا واٹس ایپ نمبر درج کریں (وہ فوری شامل ہو جائیں گے)، یا ملازم واٹس ایپ پر <code className="inline-block font-mono bg-paper px-1.5 py-0.5 rounded border border-hairline text-ink font-semibold text-[11px]">join {effectiveShopCode} Ali</code> بھیجے۔</>
+                            ) : (
+                              <>Add their number directly below (instant access), or assistant texts <code className="inline-block font-mono bg-paper px-1.5 py-0.5 rounded border border-hairline text-ink font-semibold text-[11px]">join {effectiveShopCode} Ali</code> to the bot.</>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3 rounded-lg bg-paper-2/40 dark:bg-paper-2/20 border border-hairline/60 p-3">
+                        <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary-tint font-mono font-bold text-xs text-primary-deep dark:text-primary">
+                          2
+                        </div>
+                        <div className="space-y-1 min-w-0 flex-1">
+                          <div className="font-semibold text-ink">
+                            {isUrdu ? 'سیلز اور کھاتہ کا عمل' : 'How staff sales work'}
+                          </div>
+                          <p className="text-muted leading-relaxed">
+                            {isUrdu
+                              ? 'ان کا بھیجا گیا کوئی بھی وائس نوٹ یا میسج آپ کی دکان کے کھاتے میں ان کے نام کے ساتھ خودکار درج ہو جائے گا۔'
+                              : 'Any voice note or text they send records an order under your shop with their name tagged.'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Quick Add Form */}
+              <form onSubmit={handleAddStaff} className="rounded-xl border border-hairline bg-paper p-4 sm:p-5 mb-6">
+                <div className="mb-3">
+                  <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
+                    <UserPlus className="w-4 h-4 text-primary" />
+                    {isUrdu ? 'ملازم کو براہ راست شامل کریں (فوری رسائی)' : 'Add Staff Member Directly (Instant Access)'}
+                  </h3>
                   <p className="text-xs text-muted mt-0.5">
                     {isUrdu
-                      ? '3 سے 5 ملازمین کے ذاتی واٹس ایپ نمبر جوڑیں تاکہ وہ بھی کھاتہ میں سیلز درج کر سکیں (ٹیسٹنگ کے دوران سب کے لیے مفت)'
-                      : "Connect 3–5 assistants' personal WhatsApp numbers to log sales into your unified shop ledger (Free for all during testing)"}
+                      ? 'ملازم کا نام اور واٹس ایپ نمبر درج کریں — وہ فوری شامل ہو جائیں گے اور انہیں کوئی کوڈ ڈالنے کی ضرورت نہیں ہو گی۔'
+                      : 'Enter assistant name and WhatsApp number — they are added immediately with no code entry required.'}
                   </p>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200">
-                  <ShieldCheck className="w-3.5 h-3.5 mr-1" />
-                  {isUrdu ? 'مفت ٹیسٹنگ رسائی' : 'FREE PREVIEW'} ({staffData?.activeCount ?? 0}/{staffData?.staffLimit ?? 5} {isUrdu ? 'فعال' : 'Active'})
-                </Badge>
-              </div>
-            </div>
-
-            {/* Shop Code Display & Sharing Box */}
-            {/* Shop Reference Code Card */}
-            {(() => {
-              const effectiveShopCode =
-                staffData?.shopCode ||
-                profile?.shopCode ||
-                `VT-${(profile?._id || profile?.id || '1098').slice(-4).toUpperCase()}`;
-
-              return (
-                <div className="rounded-xl border border-hairline bg-paper-2/50 p-5 sm:p-6 mb-6">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-                        {isUrdu ? 'آپ کی دکان کا ریفرنس کوڈ' : 'Your Shop Reference Code'}
-                      </span>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-3xl font-bold tracking-wider text-primary-deep dark:text-primary">
-                          {effectiveShopCode}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCopyCode(effectiveShopCode)}
-                          leftIcon={<Copy className="w-3.5 h-3.5" />}
-                        >
-                          {isUrdu ? 'کوڈ کاپی کریں' : 'Copy Code'}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleRegenerateCode}
-                          loading={regenerateCodeMutation.isPending}
-                          className="text-xs text-muted hover:text-ink"
-                          title={isUrdu ? 'نیا ریفرنس کوڈ بنائیں' : 'Generate a new reference code'}
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-2.5">
-                      <Button
-                        type="button"
-                        variant="primary"
-                        onClick={() => handleShareInvite(effectiveShopCode)}
-                        leftIcon={<WhatsAppIcon className="w-4 h-4 fill-current" />}
-                      >
-                        {isUrdu ? 'واٹس ایپ پر ملازم کو دعوت دیں' : 'Invite Assistant via WhatsApp'}
-                      </Button>
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  <div className="sm:col-span-5">
+                    <Input
+                      placeholder={isUrdu ? 'ملازم کا نام (مثلاً: علی، حمزہ)' : 'Assistant Name (e.g. Ali, Hamza)'}
+                      value={staffNameInput}
+                      onChange={(e) => setStaffNameInput(e.target.value)}
+                    />
                   </div>
-
-                  {/* Instructions banner */}
-                  <div className="mt-4 pt-4 border-t border-hairline/60 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-muted">
-                    <div className="flex items-start gap-2">
-                      <span className="font-bold text-ink">{isUrdu ? '1. ملازم کیسے شامل ہو:' : '1. How staff join:'}</span>
-                      <span>
-                        {isUrdu ? (
-                          <>ملازم وربا ٹاسک بوٹ کو <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {effectiveShopCode} Ali</code> لکھ کر بھیجے۔</>
-                        ) : (
-                          <>Assistant texts <code className="bg-paper px-1.5 py-0.5 rounded text-ink font-semibold">join {effectiveShopCode} Ali</code> to the VerbaTask WhatsApp bot.</>
-                        )}
-                      </span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="font-bold text-ink">{isUrdu ? '2. سیلز کیسے درج ہوں گی:' : '2. How sales work:'}</span>
-                      <span>
-                        {isUrdu
-                          ? 'ان کا بھیجا گیا کوئی بھی وائس نوٹ یا میسج آپ کی دکان کے کھاتے میں ان کے نام کے ساتھ درج ہو جائے گا۔'
-                          : 'Any voice note or text they send records an order under your shop with their name tagged.'}
-                      </span>
-                    </div>
+                  <div className="sm:col-span-5">
+                    <Input
+                      placeholder={isUrdu ? 'واٹس ایپ فون (مثلاً: 03001234567)' : 'WhatsApp Phone (e.g. 03001234567)'}
+                      value={staffPhoneInput}
+                      onChange={(e) => setStaffPhoneInput(e.target.value)}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Button
+                      type="submit"
+                      variant="secondary"
+                      loading={isAddingStaff}
+                      className="w-full justify-center"
+                    >
+                      {isUrdu ? 'ملازم شامل کریں' : 'Add Staff'}
+                    </Button>
                   </div>
                 </div>
-              );
-            })()}
+              </form>
 
-            {/* Quick Add Form */}
-            <form onSubmit={handleAddStaff} className="rounded-xl border border-hairline bg-paper p-4 sm:p-5 mb-6">
-              <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
-                <UserPlus className="w-4 h-4 text-primary" />
-                {isUrdu ? 'ملازم کو براہ راست شامل کریں' : 'Add Staff Member Directly'}
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                <div className="sm:col-span-5">
-                  <Input
-                    placeholder={isUrdu ? 'ملازم کا نام (مثلاً: علی، حمزہ)' : 'Assistant Name (e.g. Ali, Hamza)'}
-                    value={staffNameInput}
-                    onChange={(e) => setStaffNameInput(e.target.value)}
-                  />
+              {/* Staff Members List */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
+                    <UserCheck className="w-4 h-4 text-muted" />
+                    {isUrdu ? `فعال ٹیم ممبران (${staffList.length})` : `Active Team Members (${staffList.length})`}
+                  </h3>
+                  <span className="text-xs text-muted">
+                    {isUrdu ? `زیادہ سے زیادہ ${staffLimit} ملازمین کی اجازت ہے` : `Max ${staffLimit} staff members allowed`}
+                  </span>
                 </div>
-                <div className="sm:col-span-5">
-                  <Input
-                    placeholder={isUrdu ? 'واٹس ایپ فون (مثلاً: 03001234567)' : 'WhatsApp Phone (e.g. 03001234567)'}
-                    value={staffPhoneInput}
-                    onChange={(e) => setStaffPhoneInput(e.target.value)}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Button
-                    type="submit"
-                    variant="secondary"
-                    loading={isAddingStaff}
-                    className="w-full justify-center"
-                  >
-                    {isUrdu ? 'ملازم شامل کریں' : 'Add Staff'}
-                  </Button>
-                </div>
-              </div>
-            </form>
 
-            {/* Staff Members List */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-muted" />
-                  {isUrdu ? `فعال ٹیم ممبران (${staffData?.staffMembers?.length || 0})` : `Active Team Members (${staffData?.staffMembers?.length || 0})`}
-                </h3>
-                <span className="text-xs text-muted">
-                  {isUrdu ? `زیادہ سے زیادہ ${staffData?.staffLimit || 5} ملازمین کی اجازت ہے` : `Max ${staffData?.staffLimit || 5} staff members allowed`}
-                </span>
-              </div>
-
-              {staffLoading && !staffData ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-14 w-full" />
-                  <Skeleton className="h-14 w-full" />
-                </div>
-              ) : (!staffData?.staffMembers || staffData.staffMembers.length === 0) ? (
-                <div className="text-center py-8 px-4 rounded-xl border border-dashed border-hairline bg-paper-2/30">
-                  <Users className="w-8 h-8 text-muted mx-auto mb-2 opacity-50" />
-                  <p className="text-sm font-medium text-ink">{isUrdu ? 'ابھی کوئی ملازم منسلک نہیں ہے' : 'No staff assistants linked yet'}</p>
-                  <p className="text-xs text-muted max-w-sm mx-auto mt-1">
-                    {isUrdu ? (
-                      <>اپنی دکان کا کوڈ <strong className="text-ink">{staffData?.shopCode || profile?.shopCode}</strong> ملازمین کے ساتھ شیئر کریں یا اوپر ان کا نمبر درج کریں۔</>
-                    ) : (
-                      <>Share your shop code <strong className="text-ink">{staffData?.shopCode || profile?.shopCode}</strong> with your shop boys or enter their phone number above to get started.</>
-                    )}
-                  </p>
-                </div>
-              ) : (
-                <div className="divide-y divide-hairline rounded-xl border border-hairline bg-paper overflow-hidden">
-                  {staffData.staffMembers.map((member) => (
-                    <div key={member._id} className="flex items-center justify-between p-3.5 sm:px-4 hover:bg-paper-2/40 transition-colors">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="grid size-9 shrink-0 place-items-center rounded-pill bg-paper-2 text-ink font-semibold text-xs border border-hairline">
-                          {member.name.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-sm text-ink truncate">{member.name}</span>
-                            <Badge variant={member.active ? 'success' : 'muted'} className="text-[10px] px-1.5 py-0">
-                              {member.active ? (isUrdu ? 'فعال' : 'Active') : (isUrdu ? 'غیر فعال' : 'Inactive')}
-                            </Badge>
-                            {member.addedBy === 'whatsapp_code' && (
-                              <span className="text-[10px] text-muted hidden sm:inline">{isUrdu ? 'بذریعہ واٹس ایپ کوڈ' : 'via WhatsApp Code'}</span>
-                            )}
+                {staffLoading && !staffData ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-14 w-full" />
+                    <Skeleton className="h-14 w-full" />
+                  </div>
+                ) : (staffList.length === 0) ? (
+                  <div className="text-center py-8 px-4 rounded-xl border border-dashed border-hairline bg-paper-2/30">
+                    <Users className="w-8 h-8 text-muted mx-auto mb-2 opacity-50" />
+                    <p className="text-sm font-medium text-ink">{isUrdu ? 'ابھی کوئی ملازم منسلک نہیں ہے' : 'No staff assistants linked yet'}</p>
+                    <p className="text-xs text-muted max-w-sm mx-auto mt-1">
+                      {isUrdu ? (
+                        <>اپنی دکان کا کوڈ <strong className="text-ink">{staffData?.shopCode || profile?.shopCode}</strong> ملازمین کے ساتھ شیئر کریں یا اوپر ان کا نمبر درج کریں۔</>
+                      ) : (
+                        <>Share your shop code <strong className="text-ink">{staffData?.shopCode || profile?.shopCode}</strong> with your shop boys or enter their phone number above to get started.</>
+                      )}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-hairline rounded-xl border border-hairline bg-paper overflow-hidden">
+                    {staffList.map((member) => (
+                      <div key={member._id} className="flex items-center justify-between p-3.5 sm:px-4 hover:bg-paper-2/40 transition-colors">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="grid size-9 shrink-0 place-items-center rounded-pill bg-paper-2 text-ink font-semibold text-xs border border-hairline">
+                            {(member.name || 'ST').slice(0, 2).toUpperCase()}
                           </div>
-                          <span className="text-xs font-mono text-muted block truncate">
-                            +{member.whatsappNumber}
-                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm text-ink truncate">{member.name}</span>
+                              <Badge variant={member.active ? 'success' : 'muted'} className="text-[10px] px-1.5 py-0">
+                                {member.active ? (isUrdu ? 'فعال' : 'Active') : (isUrdu ? 'غیر فعال' : 'Inactive')}
+                              </Badge>
+                              {member.addedBy === 'whatsapp_code' && (
+                                <span className="text-[10px] text-muted hidden sm:inline">{isUrdu ? 'بذریعہ واٹس ایپ کوڈ' : 'via WhatsApp Code'}</span>
+                              )}
+                            </div>
+                            <span className="text-xs font-mono text-muted block truncate">
+                              {formatPhone(member.whatsappNumber)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveStaff(member._id, member.name)}
+                            className="text-danger hover:bg-danger-tint hover:text-danger-deep p-2"
+                            title={isUrdu ? 'ملازم کو ہٹائیں' : 'Remove staff member'}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveStaff(member._id, member.name)}
-                          className="text-danger hover:bg-danger-tint hover:text-danger-deep p-2"
-                          title={isUrdu ? 'ملازم کو ہٹائیں' : 'Remove staff member'}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Card>
-        </div>
-      )}
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+        );
+      })()}
 
       {/* Tab 2: Pakistani Banks & Payment Methods */}
       {activeTab === 'payments' && (
@@ -1413,6 +1509,73 @@ export function SettingsPage({ initialTab }) {
           </div>
         </form>
       )}
+
+      {/* DISABLE / DELETE SHOP CONFIRMATION MODAL */}
+      <Modal
+        isOpen={isDisableModalOpen}
+        onClose={() => {
+          if (!isDisabling) {
+            setIsDisableModalOpen(false);
+            setConfirmStoreNameInput('');
+          }
+        }}
+        title={isUrdu ? 'دکان ختم کرنے کی تصدیق' : 'Confirm Shop Deletion / Disable'}
+        description={
+          isUrdu
+            ? 'کیا آپ واقعی اس دکان کو غیر فعال اور نمبر ان لنک کرنا چاہتے ہیں؟'
+            : 'Are you sure you want to disable this store and unlink your phone number and email?'
+        }
+      >
+        <div className="space-y-4 pt-1">
+          <div className="rounded-lg bg-coral/10 border border-coral/20 p-3.5 text-xs text-coral-deep dark:text-coral leading-relaxed">
+            <p className="font-semibold mb-1">
+              {isUrdu ? '⚠️ توجہ فرمائیں:' : '⚠️ Warning:'}
+            </p>
+            <p>
+              {isUrdu
+                ? `آپ کا واٹس ایپ نمبر (${profile?.whatsappNumber || ''}) اور ای میل (${profile?.email || ''}) فوری طور پر آزاد کر دیے جائیں گے اور آپ لاگ آؤٹ ہو جائیں گے۔`
+                : `Your WhatsApp number (${profile?.whatsappNumber || ''}) and email (${profile?.email || ''}) will be unlinked immediately, and you will be logged out.`}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-ink">
+              {isUrdu
+                ? `تصدیق کے لیے دکان کا نام لکھیں: "${businessName || profile?.businessName || 'Store'}"`
+                : `Type "${businessName || profile?.businessName || 'Store'}" to confirm:`}
+            </label>
+            <Input
+              value={confirmStoreNameInput}
+              onChange={(e) => setConfirmStoreNameInput(e.target.value)}
+              placeholder={businessName || profile?.businessName || 'Store'}
+              autoFocus
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-rule">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => {
+                setIsDisableModalOpen(false);
+                setConfirmStoreNameInput('');
+              }}
+              disabled={isDisabling}
+            >
+              {isUrdu ? 'منسوخ کریں' : 'Cancel'}
+            </Button>
+            <Button
+              variant="danger"
+              type="button"
+              disabled={confirmStoreNameInput.trim().toLowerCase() !== (businessName || profile?.businessName || 'Store').trim().toLowerCase() || isDisabling}
+              loading={isDisabling}
+              onClick={handleDisableShop}
+            >
+              {isUrdu ? 'ہاں، دکان ختم کریں' : 'Yes, Delete Shop'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
         </div>
       </div>
     </div>

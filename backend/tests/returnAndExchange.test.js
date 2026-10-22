@@ -39,6 +39,29 @@ describe('Return, Exchange & Fractional Units System Tests', () => {
       assert.equal(res2.itemName, null);
     });
 
+    test('parses Pakistani retail returns for small items (e.g. 20 ki chini wapis, 20 wapis, 2 biscuit wapis)', () => {
+      const res1 = parseReturnOrExchangeHeuristic('20 ki chini wapis aa gayi');
+      assert.ok(res1);
+      assert.equal(res1.intent, 'return_order');
+      assert.equal(res1.targetAmount, 20);
+      assert.equal(res1.itemName, 'chini');
+
+      const res2 = parseReturnOrExchangeHeuristic('20 rupay ki cheeni wapis');
+      assert.ok(res2);
+      assert.equal(res2.targetAmount, 20);
+      assert.equal(res2.itemName, 'cheeni');
+
+      const res3 = parseReturnOrExchangeHeuristic('20 wapis');
+      assert.ok(res3);
+      assert.equal(res3.targetAmount, 20);
+      assert.equal(res3.itemName, null);
+
+      const res4 = parseReturnOrExchangeHeuristic('2 biscuit wapis');
+      assert.ok(res4);
+      assert.equal(res4.quantity, 2);
+      assert.equal(res4.itemName, 'biscuit');
+    });
+
     test('parses exchange intent with replacement item', () => {
       const res = parseReturnOrExchangeHeuristic('is ki jagah cheeni de do');
       assert.ok(res);
