@@ -28,3 +28,8 @@ urdu_translation.md
 frontend/dev-dist
 
 summary.md
+
+# AI tools and context
+.agents/
+.hallmark/
+skills-lock.json
