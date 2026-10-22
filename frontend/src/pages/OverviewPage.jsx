@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router';
-import { ArrowUpRight, AlertCircle, Calendar, Package } from 'lucide-react';
-import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
+import { ArrowUpRight, AlertCircle } from 'lucide-react';
 import { useReactTable, getCoreRowModel, getSortedRowModel } from '@tanstack/react-table';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -10,24 +9,16 @@ import { Badge } from '../components/ui/Badge';
 import { Table } from '../components/ui/Table';
 import { Skeleton } from '../components/ui/Skeleton';
 import { CountUp } from '../components/ui/CountUp';
-import { useDashboard, useNotifyExpiries } from '../hooks/useDashboard';
-import { useUpdateInventoryItem } from '../hooks/useInventory';
+import { useDashboard } from '../hooks/useDashboard';
 import { ReportDropdown } from '../components/ReportDropdown';
 import { useAuthStore, useUiStore } from '../lib/store';
 import { getTranslations } from '../lib/translations';
-import { formatPKR, formatDate, formatQuantity } from '../lib/format';
+import { formatPKR, formatDate } from '../lib/format';
 
 import cashLogo from '../assets/cash-logo.jpeg';
 import epLogo from '../assets/ep-logo.png';
 import jcLogo from '../assets/jc-logo.png';
 import bankLogo from '../assets/bank-logo.png';
-
-const PAYMENT_COLORS = {
-  cash: 'var(--color-chart-1)',
-  easypaisa: 'var(--color-chart-2)',
-  jazzcash: 'var(--color-chart-3)',
-  bank: 'var(--color-chart-4)',
-};
 
 const PAYMENT_LOGOS = {
   cash: cashLogo,
@@ -75,7 +66,7 @@ function SectionHead({ title, meta, action }) {
 }
 
 /* "Needs you" — one row per thing that wants the shopkeeper's attention. */
-function AttentionRow({ to, label, hint, value, tone, loading }) {
+function AttentionRow({ to, label, hint, value, tone, loading, className = '' }) {
   const tones = {
     coral: 'bg-coral-tint text-danger-ink',
     pear: 'bg-pear-tint text-warn-ink',
@@ -84,7 +75,7 @@ function AttentionRow({ to, label, hint, value, tone, loading }) {
   return (
     <Link
       to={to}
-      className={`group flex items-center justify-between gap-4 rounded-card px-5 py-4 transition-transform duration-200 hover:-translate-y-0.5 ${tones[tone]}`}
+      className={`group flex flex-1 items-center justify-between gap-4 rounded-card px-5 py-4 transition-transform duration-200 hover:-translate-y-0.5 ${tones[tone]} ${className}`}
     >
       <span className="min-w-0">
         <span className="block font-display text-base font-semibold tracking-tight">{label}</span>
@@ -110,18 +101,7 @@ export function OverviewPage() {
   const t = getTranslations(language).dashboard;
 
   const { data, isLoading, error } = useDashboard();
-  const updateItem = useUpdateInventoryItem();
-  const notifyExpiries = useNotifyExpiries();
   const merchant = useAuthStore((s) => s.merchant);
-
-  const handleClearExpiry = async (itemId, currentDates, dateToClear) => {
-    try {
-      const newDates = currentDates.filter((d) => d !== dateToClear);
-      await updateItem.mutateAsync({ id: itemId, expiryDates: newDates });
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
   const stats = useMemo(() => {
     if (!data) return null;
@@ -179,21 +159,6 @@ export function OverviewPage() {
     return trend;
   }, [data, isUrdu, URDU_DAYS]);
 
-  const paymentBreakdown = useMemo(() => {
-    const counts = {};
-    (data?.recentOrders || []).forEach((o) => {
-      const method = (o.paymentMethod || 'cash').toLowerCase();
-      counts[method] = (counts[method] || 0) + 1;
-    });
-    const total = Object.values(counts).reduce((a, b) => a + b, 0);
-    return {
-      total,
-      rows: Object.entries(counts)
-        .sort((a, b) => b[1] - a[1])
-        .map(([method, value]) => ({ method, value, share: total ? value / total : 0 })),
-    };
-  }, [data]);
-
   const recentOrdersColumns = useMemo(
     () => [
       {
@@ -208,7 +173,7 @@ export function OverviewPage() {
           const items = getValue() || [];
           const summary = items.map((i) => `${i.name} ×${i.quantity}`).join(', ');
           return (
-            <span className="block max-w-[150px] truncate text-sm text-ink sm:max-w-[200px] 2xl:max-w-[280px]" title={summary}>
+            <span className="block max-w-[200px] truncate text-sm text-ink sm:max-w-[320px] md:max-w-[420px] lg:max-w-[600px] xl:max-w-[800px]" title={summary}>
               {summary || '—'}
             </span>
           );
@@ -282,9 +247,9 @@ export function OverviewPage() {
         <ReportDropdown />
       </div>
 
-      {/* Row 1 · 7/5 — the day's number with its week, beside what needs you */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-6">
-        <Card padding="none" className="overflow-hidden lg:col-span-7">
+      {/* Row 1 — Equal 50/50 split: Sales graph left, Needs You right */}
+      <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2 lg:gap-6">
+        <Card padding="none" className="flex flex-col justify-between overflow-hidden">
           <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 px-5 pt-5 sm:px-7 sm:pt-7">
             <div className="min-w-0">
               <p className="label">{t.salesToday}</p>
@@ -353,195 +318,63 @@ export function OverviewPage() {
           </div>
         </Card>
 
-        <div className="flex flex-col gap-3 lg:col-span-5">
+        <div className="flex flex-col gap-3">
           <p className="label px-1">{t.needsYou}</p>
-          <AttentionRow
-            to="/dashboard/approvals"
-            label={t.approvalsWaiting}
-            hint={pending ? t.approvalsPendingHint : t.approvalsNoneHint}
-            value={pending}
-            tone={pending ? 'coral' : 'calm'}
-            loading={isLoading}
-          />
-          <AttentionRow
-            to="/dashboard/inventory"
-            label={t.runningLow}
-            hint={lowStock ? t.runningLowHint : t.allStockedHint}
-            value={lowStock}
-            tone={lowStock ? 'pear' : 'calm'}
-            loading={isLoading}
-          />
-          <AttentionRow
-            to="/dashboard/workflows"
-            label={t.workflowsOn}
-            hint={t.workflowsHint}
-            value={stats?.activeWorkflows ?? 0}
-            tone="calm"
-            loading={isLoading}
-          />
-        </div>
-      </div>
-
-      {/* Row 2 · 8/4 — the ledger, beside how the money came in and what's running out */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-6">
-        <Card padding="none" className="min-w-0 overflow-hidden lg:col-span-8">
-          <SectionHead
-            title={t.recentOrders}
-            meta={t.fromWhatsAppAndDashboard}
-            action={
-              <Link to="/dashboard/orders" className="link-type text-sm">
-                {t.allOrders} <ArrowUpRight className="size-3.5 rtl:rotate-90" />
-              </Link>
-            }
-          />
-          <div className="mt-3 pb-2">
-            {isLoading ? (
-              <div className="space-y-2 px-5 pb-4 sm:px-6">
-                <Skeleton variant="tableRow" />
-                <Skeleton variant="tableRow" />
-                <Skeleton variant="tableRow" />
-              </div>
-            ) : (
-              <Table table={recentOrdersTable} emptyText={t.noOrdersYet} />
-            )}
-          </div>
-        </Card>
-
-        <div className="flex min-w-0 flex-col gap-5 lg:col-span-4 lg:gap-6">
-          <Card padding="none">
-            <SectionHead title={t.paidBy} meta={paymentBreakdown.total ? `${paymentBreakdown.total} ${t.recentOrdersCount}` : t.noOrdersYet} />
-            <div className="px-5 pb-5 pt-4 sm:px-6">
-              {isLoading ? (
-                <Skeleton className="h-3 w-full" />
-              ) : paymentBreakdown.total ? (
-                <>
-                  <div className="flex h-3 w-full gap-0.5 overflow-hidden rounded-pill" role="img" aria-label="Share of orders by payment method">
-                    {paymentBreakdown.rows.map((r) => (
-                      <span
-                        key={r.method}
-                        style={{ width: `${r.share * 100}%`, background: PAYMENT_COLORS[r.method] || 'var(--color-muted)' }}
-                      />
-                    ))}
-                  </div>
-                  <ul className="mt-4 space-y-2.5">
-                    {paymentBreakdown.rows.map((r) => (
-                      <li key={r.method} className="flex items-center justify-between gap-3">
-                        <span className="flex items-center gap-2.5">
-                          <span className="size-2.5 rounded-pill" style={{ background: PAYMENT_COLORS[r.method] || 'var(--color-muted)' }} />
-                          <PaymentMethod method={r.method} isUrdu={isUrdu} t={t} />
-                        </span>
-                        <span className="font-mono text-xs text-muted">
-                          {r.value} · {Math.round(r.share * 100)}%
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : (
-                <p className="text-sm text-muted">{t.noOrdersSplit}</p>
-              )}
-            </div>
-          </Card>
-
-          <Card padding="none" className="flex-1">
-            <SectionHead
-              title={t.runningLow}
-              meta={lowStock ? `${lowStock} ${lowStock === 1 ? t.itemCount : t.itemsCount}` : t.allStocked}
-              action={
-                lowStock ? (
-                  <Link to="/dashboard/inventory" className="link-type text-sm">
-                    {t.restock}
-                  </Link>
-                ) : null
-              }
+          <div className="flex flex-1 flex-col justify-between gap-3">
+            <AttentionRow
+              to="/dashboard/approvals"
+              label={t.approvalsWaiting}
+              hint={pending ? t.approvalsPendingHint : t.approvalsNoneHint}
+              value={pending}
+              tone={pending ? 'coral' : 'calm'}
+              loading={isLoading}
+              className="flex-1"
             />
-            <div className="pb-2 pt-2">
-              {isLoading ? (
-                <div className="space-y-3 px-5 pb-4 pt-2 sm:px-6">
-                  <Skeleton variant="text" />
-                  <Skeleton variant="text" />
-                </div>
-              ) : data?.lowStockItems?.length ? (
-                <ul className="divide-y divide-rule">
-                  {data.lowStockItems.map((item) => (
-                    <li key={item._id} className="flex items-center justify-between gap-3 px-5 py-3 sm:px-6">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-ink">{item.name}</p>
-                        <p className="font-mono text-[11px] text-muted">
-                          {item.price ? formatPKR(item.price) : t.noPrice} / {item.unit || 'unit'}
-                        </p>
-                      </div>
-                      <Badge variant={item.quantity === 0 ? 'danger' : 'warning'} dot>
-                        {formatQuantity(item.quantity, item.unit)}
-                      </Badge>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="flex items-center gap-3 px-5 pb-4 pt-2 sm:px-6">
-                  <span className="grid size-9 place-items-center rounded-pill bg-success-tint text-success-ink">
-                    <Package className="size-4" />
-                  </span>
-                  <p className="text-sm text-ink-2">{t.nothingUnderAlert}</p>
-                </div>
-              )}
-            </div>
-          </Card>
+            <AttentionRow
+              to="/dashboard/inventory"
+              label={t.runningLow}
+              hint={lowStock ? t.runningLowHint : t.allStockedHint}
+              value={lowStock}
+              tone={lowStock ? 'pear' : 'calm'}
+              loading={isLoading}
+              className="flex-1"
+            />
+            <AttentionRow
+              to="/dashboard/workflows"
+              label={t.workflowsOn}
+              hint={t.workflowsHint}
+              value={stats?.activeWorkflows ?? 0}
+              tone="calm"
+              loading={isLoading}
+              className="flex-1"
+            />
+          </div>
         </div>
       </div>
 
-      {data?.expiringItems?.length > 0 && (
-        <Card padding="none">
-          <SectionHead
-            title={t.expiringSoon}
-            meta={`${data.expiringItems.length} ${t.batchesWithin45Days}`}
-            action={
-              <button
-                type="button"
-                onClick={() => notifyExpiries.mutate()}
-                disabled={notifyExpiries.isPending}
-                className="btn btn--soft btn--sm"
-                title="Send the list to your WhatsApp"
-              >
-                <WhatsAppIcon className="size-3.5" />
-                {notifyExpiries.isPending ? t.sending : t.sendToWhatsApp}
-              </button>
-            }
-          />
-          <ul className="mt-3 divide-y divide-rule pb-2">
-            {data.expiringItems.map((item) => {
-              const target = new Date();
-              target.setDate(target.getDate() + 45);
-              const threshold = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}`;
-              const dateToShow = item.expiryDates.filter((d) => d <= threshold).sort()[0];
-
-              return (
-                <li key={item._id} className="flex items-center justify-between gap-3 px-5 py-3 sm:px-6">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="grid size-8 shrink-0 place-items-center rounded-pill bg-coral-tint text-danger-ink">
-                      <Calendar className="size-4" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-ink">{item.name}</p>
-                      <p className="font-mono text-[11px] text-muted">
-                        {t.expires} <span className="text-danger-ink">{dateToShow}</span>
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleClearExpiry(item._id, item.expiryDates, dateToShow)}
-                    className="btn btn--ghost btn--sm"
-                    title="Mark this batch as sold or removed"
-                  >
-                    {t.cleared}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-      )}
+      {/* Row 2 — Recent orders stretched full width to the right side */}
+      <Card padding="none" className="w-full min-w-0 overflow-hidden">
+        <SectionHead
+          title={t.recentOrders}
+          meta={t.fromWhatsAppAndDashboard}
+          action={
+            <Link to="/dashboard/orders" className="link-type text-sm">
+              {t.allOrders} <ArrowUpRight className="size-3.5 rtl:rotate-90" />
+            </Link>
+          }
+        />
+        <div className="mt-3 pb-2">
+          {isLoading ? (
+            <div className="space-y-2 px-5 pb-4 sm:px-6">
+              <Skeleton variant="tableRow" />
+              <Skeleton variant="tableRow" />
+              <Skeleton variant="tableRow" />
+            </div>
+          ) : (
+            <Table table={recentOrdersTable} emptyText={t.noOrdersYet} />
+          )}
+        </div>
+      </Card>
     </div>
   );
 }
