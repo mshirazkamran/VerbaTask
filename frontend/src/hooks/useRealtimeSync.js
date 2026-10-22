@@ -49,11 +49,31 @@ export function useRealtimeSync() {
             duration: 3500,
           });
         } else if (meta?.type === 'staff') {
-          toast.success('⚡ Live: Store staff team updated', {
-            id: 'realtime-staff',
-            description: meta.staffMember?.name ? `${meta.staffMember.name} joined via Shop Code!` : 'Team members updated.',
-            duration: 3500,
-          });
+          if (meta.action === 'rejected') {
+            toast.error('Staff transfer declined', {
+              id: 'realtime-staff-rejected',
+              description: meta.staffName ? `${meta.staffName} declined the transfer request.` : 'Assistant declined the transfer request.',
+              duration: 5000,
+            });
+          } else if (meta.action === 'pending_transfer') {
+            toast.info('Transfer invitation dispatched', {
+              id: 'realtime-staff-pending',
+              description: 'Awaiting assistant confirmation on WhatsApp.',
+              duration: 4000,
+            });
+          } else if (meta.action === 'joined') {
+            toast.success('Store assistant linked!', {
+              id: 'realtime-staff-joined',
+              description: meta.staffName ? `${meta.staffName} accepted and joined your store!` : 'Team member joined!',
+              duration: 4500,
+            });
+          } else {
+            toast.success('⚡ Live: Store staff team updated', {
+              id: 'realtime-staff',
+              description: meta.staffMember?.name ? `${meta.staffMember.name} joined via Shop Code!` : 'Team members updated.',
+              duration: 3500,
+            });
+          }
         } else if (meta?.type === 'approval') {
           toast.info('⚡ Live: Approval decision processed', {
             id: 'realtime-approval',

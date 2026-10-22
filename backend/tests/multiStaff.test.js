@@ -204,6 +204,7 @@ describe('Multi-Staff Shop Reference Code System Tests', () => {
 
   test('WhatsApp handleIncomingMessage allows assistant to join via shop code', async () => {
     const origFindOne = Merchant.findOne;
+    const origFindOneState = ConversationState.findOne;
     let saved = false;
 
     const mockMerchant = {
@@ -215,6 +216,8 @@ describe('Multi-Staff Shop Reference Code System Tests', () => {
       staffMembers: [],
       save: async () => { saved = true; },
     };
+
+    ConversationState.findOne = async () => null;
 
     Merchant.findOne = (query) => {
       if (query.shopCode || query.$or) return Promise.resolve(mockMerchant);
@@ -254,6 +257,7 @@ describe('Multi-Staff Shop Reference Code System Tests', () => {
       assert.equal(mockMerchant.staffMembers[0].addedBy, 'whatsapp_code');
     } finally {
       Merchant.findOne = origFindOne;
+      ConversationState.findOne = origFindOneState;
     }
   });
 
@@ -482,6 +486,139 @@ describe('Multi-Staff Shop Reference Code System Tests', () => {
     } finally {
       axios.create = origCreateAxios;
       InventoryItem.find = origFind;
+    }
+  });
+
+  test('handleIncomingMessage processes transfer rejection (replying 2): marks staff member as rejected, notifies owner on WhatsApp, and emits dashboard update', async () => {
+    const origFindById = Merchant.findById;
+    const origFindOne = ConversationState.findOne;
+    const origDeleteMany = ConversationState.deleteMany;
+    const origCreateAxios = axios.create;
+
+    const ownerPhone = '923001112233';
+    const assistantPhone = '923456789012';
+    const newShopId = '507f191e810c19729de860ea';
+    const oldShopId = '507f191e810c19729de860eb';
+
+    let savedNewShop = false;
+    const newShop = {
+      _id: newShopId,
+      businessName: 'Al Sheikh Store',
+      whatsappNumber: ownerPhone,
+      staffMembers: [
+        {
+          _id: 'staff_entry_1',
+          name: 'Soban',
+          whatsappNumber: assistantPhone,
+          active: false,
+          status: 'pending_switch',
+        },
+      ],
+      save: async () => { savedNewShop = true; },
+    };
+
+    const oldShop = {
+      _id: oldShopId,
+      businessName: 'Ideal Bakery',
+      whatsappNumber: '923009998877',
+      staffMembers: [
+        {
+          _id: 'staff_old_1',
+          name: 'Soban',
+          whatsappNumber: assistantPhone,
+          active: true,
+          status: 'active',
+        },
+      ],
+      save: async () => {},
+    };
+
+    const mockPendingState = {
+      _id: 'state_123',
+      whatsappNumber: assistantPhone,
+      flow: 'pending_staff_transfer',
+      data: {
+        newShopId,
+        oldShopId,
+        oldRole: 'staff',
+        staffName: 'Soban',
+        newShopName: 'Al Sheikh Store',
+        oldShopName: 'Ideal Bakery',
+      },
+    };
+
+    let deletedStates = [];
+    ConversationState.findOne = async () => mockPendingState;
+    ConversationState.deleteMany = async (query) => {
+      deletedStates.push(query);
+      return { deletedCount: 1 };
+    };
+
+    Merchant.findById = async (id) => {
+      if (String(id) === newShopId) return newShop;
+      if (String(id) === oldShopId) return oldShop;
+      return null;
+    };
+
+    const sentRequests = [];
+    axios.create = () => ({
+      post: async (url, data) => {
+        sentRequests.push({ url, data });
+        return { data: { messages: [{ id: 'mock_msg_id' }] } };
+      },
+    });
+
+    try {
+      const req = {
+        body: {
+          entry: [
+            {
+              changes: [
+                {
+                  value: {
+                    messages: [
+                      {
+                        id: 'msg_reject_01',
+                        from: assistantPhone,
+                        type: 'text',
+                        text: { body: '2' },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const res = { sendStatus: () => {} };
+      await handleIncomingMessage(req, res);
+
+      // Verify new shop staff record was marked rejected
+      assert.ok(savedNewShop, 'New shop should be saved with rejected status');
+      const staffMember = newShop.staffMembers.find((s) => s.whatsappNumber === assistantPhone);
+      assert.ok(staffMember);
+      assert.equal(staffMember.active, false);
+      assert.equal(staffMember.status, 'rejected');
+
+      // Verify ConversationState was cleared
+      assert.ok(deletedStates.length > 0, 'Pending conversation state should be cleared');
+
+      // Verify outbound messages:
+      // 1 to the owner notifying of rejection, 1 to assistant confirming they stayed
+      const ownerMessage = sentRequests.find((r) => r.data?.to === ownerPhone);
+      assert.ok(ownerMessage, 'Owner should receive rejection WhatsApp notification');
+      assert.ok(ownerMessage.data.text.body.includes('mustarad'), 'Owner message should state the request was rejected');
+
+      const assistantMessage = sentRequests.find((r) => r.data?.to === assistantPhone);
+      assert.ok(assistantMessage, 'Assistant should receive confirmation WhatsApp message');
+      assert.ok(assistantMessage.data.text.body.includes('Ideal Bakery'), 'Assistant message should confirm staying with old shop');
+    } finally {
+      Merchant.findById = origFindById;
+      ConversationState.findOne = origFindOne;
+      ConversationState.deleteMany = origDeleteMany;
+      axios.create = origCreateAxios;
     }
   });
 });

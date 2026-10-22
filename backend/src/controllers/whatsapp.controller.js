@@ -255,131 +255,181 @@ export async function handleIncomingMessage(req, res) {
  * Handles an assistant's response to an inter-store transfer request.
  */
 async function handlePendingStaffTransferFlow(from, message) {
-  if (mongoose.connection?.readyState === 0) return false;
   try {
+    const normFrom = normalizePhone(from) || from;
+    const possibleFroms = Array.from(new Set([from, normFrom, normFrom.replace(/^92/, '0')]));
+
     const pendingState = await ConversationState.findOne({
-      whatsappNumber: from,
+      whatsappNumber: { $in: possibleFroms },
       flow: 'pending_staff_transfer',
     });
 
     if (!pendingState) return false;
 
-  const rawText = (message.text?.body || message.interactive?.button_reply?.id || message.interactive?.list_reply?.id || '').trim().toLowerCase();
-  if (!rawText) return false;
+    const rawText = (message.text?.body || message.interactive?.button_reply?.id || message.interactive?.list_reply?.id || '').trim().toLowerCase();
+    if (!rawText) return false;
 
-  const data = pendingState.data || {};
-  const { newShopId, oldShopId, oldRole, staffName, newShopName, oldShopName } = data;
+    const data = pendingState.data || {};
+    const { newShopId, oldShopId, oldRole, staffName, newShopName, oldShopName } = data;
 
-  // Accept: "1", "1️⃣", "accept", "qubool", "yes", "shamil", "قبول", "ہاں"
-  const isAccept = /^(?:1|1️⃣|accept|qubool|yes|shamil|agree|join|قبول|ہاں|شامل)$/i.test(rawText);
-  // Reject: "2", "2️⃣", "reject", "mustarad", "no", "rehne do", "مسترد", "نہیں"
-  const isReject = /^(?:2|2️⃣|reject|mustarad|no|cancel|rehne\s*do|مسترد|نہیں|رہنے\s*دو)$/i.test(rawText);
+    // Accept: "1", "1️⃣", "accept", "qubool", "yes", "shamil", "agree", "join", "قبول", "ہاں", "شامل"
+    const isAccept = /^(?:1|1️⃣|accept|qubool|yes|shamil|agree|join|قبول|ہاں|شامل)$/i.test(rawText);
+    // Reject: "2", "2️⃣", "reject", "mustarad", "no", "cancel", "rehne do", "مسترد", "نہیں", "رہنے\s*دو"
+    const isReject = /^(?:2|2️⃣|reject|mustarad|no|cancel|rehne\s*do|مسترد|نہیں|رہنے\s*دو)$/i.test(rawText);
 
-  if (!isAccept && !isReject) {
-    await sendTextMessage(
-      from,
-      `Assalam o Alikum! Barah-e-karam pehle store transfer ka jawab dein:\n\n` +
-      `1️⃣ *Qubool karein* (Leave ${oldShopName || 'Purani Dukaan'} & Join ${newShopName || 'Nayi Dukaan'})\n` +
-      `2️⃣ *Mustarad karein* (Stay at ${oldShopName || 'Purani Dukaan'})\n\n` +
-      `_1 ya 2 likh kar bhejein._`
-    );
-    return true;
-  }
+    if (!isAccept && !isReject) {
+      await sendTextMessage(
+        from,
+        `Assalam o Alikum! Barah-e-karam pehle store transfer ka jawab dein:\n\n` +
+        `1️⃣ *Qubool karein* (Leave ${oldShopName || 'Purani Dukaan'} & Join ${newShopName || 'Nayi Dukaan'})\n` +
+        `2️⃣ *Mustarad karein* (Stay at ${oldShopName || 'Purani Dukaan'})\n\n` +
+        `_1 ya 2 likh kar bhejein._`
+      );
+      return true;
+    }
 
-  const newShop = await Merchant.findById(newShopId);
-  const oldShop = await Merchant.findById(oldShopId);
+    const newShop = await Merchant.findById(newShopId);
+    const oldShop = await Merchant.findById(oldShopId);
 
-  if (isAccept) {
-    // 1. Leave old shop
-    if (oldShop) {
-      if (oldRole === 'owner') {
-        const unlinkedSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-        oldShop.unlinkedWhatsappNumber = oldShop.whatsappNumber;
-        oldShop.whatsappNumber = `unlinked_${unlinkedSuffix}`;
-        await oldShop.save();
-      } else if (Array.isArray(oldShop.staffMembers)) {
-        const oldStaff = oldShop.staffMembers.find((s) => s.whatsappNumber === from);
-        if (oldStaff) {
-          oldStaff.active = false;
+    const matchesFrom = (phone) => {
+      if (!phone) return false;
+      return possibleFroms.includes(phone) || normalizePhone(phone) === normFrom;
+    };
+
+    if (isAccept) {
+      // 1. Leave old shop
+      if (oldShop) {
+        if (oldRole === 'owner') {
+          const unlinkedSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+          oldShop.unlinkedWhatsappNumber = oldShop.whatsappNumber;
+          oldShop.whatsappNumber = `unlinked_${unlinkedSuffix}`;
           await oldShop.save();
-          emitDashboardUpdate(oldShop._id, { type: 'staff', action: 'transferred_out', staff: oldShop.staffMembers });
-          try {
-            await sendTextMessage(
-              oldShop.whatsappNumber,
-              `Assalam o Alikum! اطلاع: *${staffName || 'Assistant'}* (${from}) ne aapki dukaan chhor kar *${newShopName || 'Nayi Dukaan'}* join kar li hai.`
-            );
-          } catch (e) {}
+        } else if (Array.isArray(oldShop.staffMembers)) {
+          const oldStaff = oldShop.staffMembers.find((s) => matchesFrom(s.whatsappNumber));
+          if (oldStaff) {
+            oldStaff.active = false;
+            await oldShop.save();
+            emitDashboardUpdate(oldShop._id, { type: 'staff', action: 'transferred_out', staff: oldShop.staffMembers });
+            const oldOwnerPhone = normalizePhone(oldShop.whatsappNumber) || oldShop.whatsappNumber;
+            if (oldOwnerPhone && !oldOwnerPhone.startsWith('unlinked_')) {
+              try {
+                await sendTextMessage(
+                  oldOwnerPhone,
+                  `Assalam o Alikum! اطلاع: *${staffName || 'Assistant'}* (${from}) ne aapki dukaan chhor kar *${newShopName || 'Nayi Dukaan'}* join kar li hai.`
+                );
+              } catch (e) {
+                console.error('Failed to notify old shop owner of staff transfer:', e?.message || e);
+              }
+            }
+          }
         }
       }
-    }
 
-    // 2. Activate in new shop
-    if (newShop && Array.isArray(newShop.staffMembers)) {
-      let targetStaff = newShop.staffMembers.find((s) => s.whatsappNumber === from);
-      if (targetStaff) {
-        targetStaff.active = true;
-        targetStaff.status = 'active';
-      } else {
-        newShop.staffMembers.push({
-          name: staffName || 'Assistant',
-          whatsappNumber: from,
-          active: true,
-          status: 'active',
-          addedAt: new Date(),
-          addedBy: 'owner',
-        });
-      }
-      await newShop.save();
-      emitDashboardUpdate(newShop._id, { type: 'staff', action: 'joined', staff: newShop.staffMembers });
-
-      try {
-        await sendTextMessage(
-          newShop.whatsappNumber,
-          `Assalam o Alikum! 🎉 *${staffName || 'Assistant'}* (${from}) ne request qubool kar li hai aur ab aapki dukaan (*${newShopName}*) se munsalik hain.`
-        );
-      } catch (e) {}
-    }
-
-    await ConversationState.deleteOne({ whatsappNumber: from });
-
-    await sendTextMessage(
-      from,
-      `Assalam o Alikum *${staffName || 'Assistant'}*! 🎉\n\n` +
-      `Mubarak ho! Aap ab kamiyabi se *${newShopName || 'Dukaan'}* ke sath shamil ho chuke hain.\n\n` +
-      `Ab aap is WhatsApp chat par voice note ya text bhej kar sales aur inventory ka hisab darj kar sakte hain:\n` +
-      `🎙️ *"2 doodh 400"*\n` +
-      `🎙️ *"Ali ko 500 udhaar"*\n\n` +
-      `Shuru karne ke liye koi bhi sale ya "inventory" likh kar check karein!`
-    );
-    return true;
-  }
-
-  if (isReject) {
-    if (newShop && Array.isArray(newShop.staffMembers)) {
-      const pendingStaff = newShop.staffMembers.find((s) => s.whatsappNumber === from);
-      if (pendingStaff) {
-        pendingStaff.active = false;
-        pendingStaff.status = 'rejected';
+      // 2. Activate in new shop
+      if (newShop && Array.isArray(newShop.staffMembers)) {
+        let targetStaff = newShop.staffMembers.find((s) => matchesFrom(s.whatsappNumber));
+        if (targetStaff) {
+          targetStaff.active = true;
+          targetStaff.status = 'active';
+        } else {
+          newShop.staffMembers.push({
+            name: staffName || 'Assistant',
+            whatsappNumber: normFrom,
+            active: true,
+            status: 'active',
+            addedAt: new Date(),
+            addedBy: 'owner',
+          });
+        }
         await newShop.save();
-        emitDashboardUpdate(newShop._id, { type: 'staff', action: 'rejected', staff: newShop.staffMembers });
+        emitDashboardUpdate(newShop._id, {
+          type: 'staff',
+          action: 'joined',
+          staffName: staffName || 'Assistant',
+          staffPhone: from,
+          staff: newShop.staffMembers,
+        });
+
+        const ownerPhone = normalizePhone(newShop.whatsappNumber) || newShop.whatsappNumber;
+        if (ownerPhone && !ownerPhone.startsWith('unlinked_')) {
+          try {
+            await sendTextMessage(
+              ownerPhone,
+              `Assalam o Alikum! 🎉 *${staffName || 'Assistant'}* (${from}) ne request qubool kar li hai aur ab aapki dukaan (*${newShopName}*) se munsalik hain.`
+            );
+          } catch (e) {
+            console.error('Failed to notify owner of accepted staff transfer:', e?.message || e);
+          }
+        }
       }
 
-      try {
-        await sendTextMessage(
-          newShop.whatsappNumber,
-          `Assalam o Alikum! اطلاع: *${staffName || 'Assistant'}* (${from}) ne *${newShopName || 'Aapki dukaan'}* mein shamil hone ki darkhwast mustarad kar di hai aur apni pehli dukaan ke sath rahenge.`
-        );
-      } catch (e) {}
+      await ConversationState.deleteMany({
+        whatsappNumber: { $in: possibleFroms },
+        flow: 'pending_staff_transfer',
+      });
+
+      await sendTextMessage(
+        from,
+        `Assalam o Alikum *${staffName || 'Assistant'}*! 🎉\n\n` +
+        `Mubarak ho! Aap ab kamiyabi se *${newShopName || 'Dukaan'}* ke sath shamil ho chuke hain.\n\n` +
+        `Ab aap is WhatsApp chat par voice note ya text bhej kar sales aur inventory ka hisab darj kar sakte hain:\n` +
+        `🎙️ *"2 doodh 400"*\n` +
+        `🎙️ *"Ali ko 500 udhaar"*\n\n` +
+        `Shuru karne ke liye koi bhi sale ya "inventory" likh kar check karein!`
+      );
+      return true;
     }
 
-    await ConversationState.deleteOne({ whatsappNumber: from });
+    if (isReject) {
+      if (newShop && Array.isArray(newShop.staffMembers)) {
+        let pendingStaff = newShop.staffMembers.find((s) => matchesFrom(s.whatsappNumber));
+        if (pendingStaff) {
+          pendingStaff.active = false;
+          pendingStaff.status = 'rejected';
+        } else {
+          pendingStaff = {
+            name: staffName || 'Assistant',
+            whatsappNumber: normFrom,
+            active: false,
+            status: 'rejected',
+            addedAt: new Date(),
+            addedBy: 'owner',
+          };
+          newShop.staffMembers.push(pendingStaff);
+        }
+        await newShop.save();
+        emitDashboardUpdate(newShop._id, {
+          type: 'staff',
+          action: 'rejected',
+          staffName: staffName || pendingStaff.name || 'Assistant',
+          staffPhone: from,
+          staff: newShop.staffMembers,
+        });
 
-    await sendTextMessage(
-      from,
-      `Assalam o Alikum! Aap ne darkhwast mustarad kar di hai.\n\nAap badastoor *${oldShopName || 'apni dukaan'}* ke sath munsalik hain.`
-    );
-    return true;
-  }
+        const ownerPhone = normalizePhone(newShop.whatsappNumber) || newShop.whatsappNumber;
+        if (ownerPhone && !ownerPhone.startsWith('unlinked_')) {
+          try {
+            await sendTextMessage(
+              ownerPhone,
+              `Assalam o Alikum! اطلاع: *${staffName || pendingStaff.name || 'Assistant'}* (${from}) ne *${newShopName || 'Aapki dukaan'}* mein shamil hone ki darkhwast mustarad kar di hai aur apni pehli dukaan ke sath rahenge.`
+            );
+          } catch (e) {
+            console.error('Failed to notify owner of rejected staff transfer:', e?.message || e);
+          }
+        }
+      }
+
+      await ConversationState.deleteMany({
+        whatsappNumber: { $in: possibleFroms },
+        flow: 'pending_staff_transfer',
+      });
+
+      await sendTextMessage(
+        from,
+        `Assalam o Alikum! Aap ne darkhwast mustarad kar di hai.\n\nAap badastoor *${oldShopName || 'apni dukaan'}* ke sath munsalik hain.`
+      );
+      return true;
+    }
 
     return false;
   } catch (err) {

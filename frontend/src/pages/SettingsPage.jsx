@@ -22,6 +22,8 @@ import {
   UserCheck,
   Volume2,
   AlertTriangle,
+  Clock,
+  XCircle,
 } from 'lucide-react';
 import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { Card } from '../components/ui/Card';
@@ -102,14 +104,14 @@ export function SettingsPage({ initialTab }) {
     toast.success(`Shop code ${code} copied to clipboard!`);
   };
 
-  const handleShareInvite = (code) => {
+  const handleCopyInviteMessage = (code) => {
     if (!code) return;
     const cleanStore = (profile?.businessName || 'Dukaan').split(',')[0].trim();
     const msg = isUrdu
       ? `Assalam-o-Alaikum! ${cleanStore} کے وربا ٹاسک کھاتے میں شامل ہونے کے لیے واٹس ایپ بوٹ کو یہ میسج بھیجیں:\njoin ${code} علی`
       : `Assalam-o-Alaikum! To join ${cleanStore}'s shop ledger on VerbaTask, send this message to the bot:\njoin ${code} Ali`;
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    window.open(whatsappUrl, '_blank');
+    navigator.clipboard.writeText(msg);
+    toast.success(isUrdu ? 'دعوتی پیغام کاپی ہو گیا!' : 'Invitation message copied to clipboard!');
   };
 
   const handleAddStaff = async (e) => {
@@ -131,11 +133,15 @@ export function SettingsPage({ initialTab }) {
 
     try {
       setIsAddingStaff(true);
-      await addStaffMutation.mutateAsync({
+      const res = await addStaffMutation.mutateAsync({
         name: staffNameInput.trim(),
         whatsappNumber: normalizedPhone,
       });
-      toast.success(`${staffNameInput.trim()} added to your shop staff!`);
+      if (res?.pendingApproval) {
+        toast.info(res.message || (isUrdu ? 'واٹس ایپ پر شمولیت کی درخواست بھیج دی گئی ہے۔' : 'Transfer invitation sent to assistant on WhatsApp!'));
+      } else {
+        toast.success(isUrdu ? `${staffNameInput.trim()} کو دکان میں شامل کر لیا گیا!` : `${staffNameInput.trim()} added to your shop staff!`);
+      }
       setStaffNameInput('');
       setStaffPhoneInput('');
     } catch (err) {
@@ -818,15 +824,20 @@ export function SettingsPage({ initialTab }) {
                         </div>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row gap-2.5">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                         <Button
                           type="button"
-                          variant="primary"
-                          onClick={() => handleShareInvite(effectiveShopCode)}
-                          leftIcon={<WhatsAppIcon className="w-4 h-4 fill-current" />}
+                          variant="outline"
+                          onClick={() => handleCopyInviteMessage(effectiveShopCode)}
+                          leftIcon={<Copy className="w-4 h-4" />}
                         >
-                          {isUrdu ? 'واٹس ایپ پر ملازم کو دعوت دیں' : 'Invite Assistant via WhatsApp'}
+                          {isUrdu ? 'دعوتی پیغام کاپی کریں' : 'Copy Invite Message'}
                         </Button>
+                        <span className="text-xs text-muted">
+                          {isUrdu
+                            ? '💡 یا نیچے ملازم کا نمبر براہ راست درج کریں — وربا ٹاسک بوٹ خودکار طور پر انہیں واٹس ایپ پر دعوتی پیغام بھیج دے گا۔'
+                            : '💡 Or enter their phone number below — VerbaTask bot automatically sends them the invite on WhatsApp.'}
+                        </span>
                       </div>
                     </div>
 
@@ -842,9 +853,9 @@ export function SettingsPage({ initialTab }) {
                           </div>
                           <p className="text-muted leading-relaxed">
                             {isUrdu ? (
-                              <>نیچے براہ راست ان کا واٹس ایپ نمبر درج کریں (وہ فوری شامل ہو جائیں گے)، یا ملازم واٹس ایپ پر <code className="inline-block font-mono bg-paper px-1.5 py-0.5 rounded border border-hairline text-ink font-semibold text-[11px]">join {effectiveShopCode} Ali</code> بھیجے۔</>
+                              <>نیچے براہ راست ان کا واٹس ایپ نمبر درج کریں (وربا ٹاسک خودکار واٹس ایپ بھیج دے گا)، یا دعوتی میسج کاپی کر کے انہیں بھیجیں تاکہ وہ <code className="inline-block font-mono bg-paper px-1.5 py-0.5 rounded border border-hairline text-ink font-semibold text-[11px]">join {effectiveShopCode} Ali</code> بھیجیں۔</>
                             ) : (
-                              <>Add their number directly below (instant access), or assistant texts <code className="inline-block font-mono bg-paper px-1.5 py-0.5 rounded border border-hairline text-ink font-semibold text-[11px]">join {effectiveShopCode} Ali</code> to the bot.</>
+                              <>Add their number below (VerbaTask sends the WhatsApp invite automatically), or copy the invite message so they can text <code className="inline-block font-mono bg-paper px-1.5 py-0.5 rounded border border-hairline text-ink font-semibold text-[11px]">join {effectiveShopCode} Ali</code> to the bot.</>
                             )}
                           </p>
                         </div>
@@ -916,7 +927,7 @@ export function SettingsPage({ initialTab }) {
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
                     <UserCheck className="w-4 h-4 text-muted" />
-                    {isUrdu ? `فعال ٹیم ممبران (${staffList.length})` : `Active Team Members (${staffList.length})`}
+                    {isUrdu ? `ٹیم ممبران (${staffList.length})` : `Team Members (${staffList.length})`}
                   </h3>
                   <span className="text-xs text-muted">
                     {isUrdu ? `زیادہ سے زیادہ ${staffLimit} ملازمین کی اجازت ہے` : `Max ${staffLimit} staff members allowed`}
@@ -942,42 +953,97 @@ export function SettingsPage({ initialTab }) {
                   </div>
                 ) : (
                   <div className="divide-y divide-hairline rounded-xl border border-hairline bg-paper overflow-hidden">
-                    {staffList.map((member) => (
-                      <div key={member._id} className="flex items-center justify-between p-3.5 sm:px-4 hover:bg-paper-2/40 transition-colors">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="grid size-9 shrink-0 place-items-center rounded-pill bg-paper-2 text-ink font-semibold text-xs border border-hairline">
-                            {(member.name || 'ST').slice(0, 2).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-sm text-ink truncate">{member.name}</span>
-                              <Badge variant={member.active ? 'success' : 'muted'} className="text-[10px] px-1.5 py-0">
-                                {member.active ? (isUrdu ? 'فعال' : 'Active') : (isUrdu ? 'غیر فعال' : 'Inactive')}
-                              </Badge>
-                              {member.addedBy === 'whatsapp_code' && (
-                                <span className="text-[10px] text-muted hidden sm:inline">{isUrdu ? 'بذریعہ واٹس ایپ کوڈ' : 'via WhatsApp Code'}</span>
-                              )}
-                            </div>
-                            <span className="text-xs font-mono text-muted block truncate">
-                              {formatPhone(member.whatsappNumber)}
-                            </span>
-                          </div>
-                        </div>
+                    {staffList.map((member) => {
+                      const isPending = member.status === 'pending_switch';
+                      const isRejected = member.status === 'rejected';
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveStaff(member._id, member.name)}
-                            className="text-danger hover:bg-danger-tint hover:text-danger-deep p-2"
-                            title={isUrdu ? 'ملازم کو ہٹائیں' : 'Remove staff member'}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                      let badgeVariant = 'muted';
+                      let badgeText = isUrdu ? 'غیر فعال' : 'Inactive';
+
+                      if (isPending) {
+                        badgeVariant = 'warning';
+                        badgeText = isUrdu ? 'منتقلی کا انتظار' : 'Pending Transfer';
+                      } else if (isRejected) {
+                        badgeVariant = 'danger';
+                        badgeText = isUrdu ? 'منتقلی مسترد' : 'Transfer Rejected';
+                      } else if (member.active) {
+                        badgeVariant = 'success';
+                        badgeText = isUrdu ? 'فعال' : 'Active';
+                      }
+
+                      return (
+                        <div key={member._id} className="flex items-center justify-between p-3.5 sm:px-4 hover:bg-paper-2/40 transition-colors">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`grid size-9 shrink-0 place-items-center rounded-pill font-semibold text-xs border ${
+                              isRejected
+                                ? 'bg-coral-tint text-danger-ink border-red-200 dark:border-red-900/50'
+                                : isPending
+                                ? 'bg-pear-tint text-warn-ink border-amber-200 dark:border-amber-900/50'
+                                : 'bg-paper-2 text-ink border-hairline'
+                            }`}>
+                              {(member.name || 'ST').slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-sm text-ink truncate">{member.name}</span>
+                                <Badge variant={badgeVariant} className="text-[10px] px-1.5 py-0">
+                                  {badgeText}
+                                </Badge>
+                                {member.addedBy === 'whatsapp_code' && (
+                                  <span className="text-[10px] text-muted hidden sm:inline">{isUrdu ? 'بذریعہ واٹس ایپ کوڈ' : 'via WhatsApp Code'}</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                <span className="text-xs font-mono text-muted block truncate">
+                                  {formatPhone(member.whatsappNumber)}
+                                </span>
+                                {isPending && (
+                                  <span className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1 font-medium">
+                                    <Clock className="w-3 h-3 shrink-0" />
+                                    {isUrdu ? 'واٹس ایپ پر شمولیت کی تصدیق کا انتظار ہے' : 'Awaiting confirmation on WhatsApp'}
+                                  </span>
+                                )}
+                                {isRejected && (
+                                  <span className="text-[11px] text-coral flex items-center gap-1 font-medium">
+                                    <XCircle className="w-3 h-3 shrink-0" />
+                                    {isUrdu ? 'ملازم نے شمولیت مسترد کر دی ہے اور اپنی سابقہ دکان پر ہیں' : 'Assistant declined transfer and stayed at previous store'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {isRejected && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setStaffNameInput(member.name);
+                                  setStaffPhoneInput(member.whatsappNumber);
+                                }}
+                                className="text-xs py-1 px-2.5 h-8"
+                                title={isUrdu ? 'دوبارہ دعوت دیں' : 'Re-invite assistant'}
+                              >
+                                <RefreshCw className="w-3 h-3 mr-1" />
+                                {isUrdu ? 'دوبارہ بھیجیں' : 'Re-invite'}
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveStaff(member._id, member.name)}
+                              className="text-danger hover:bg-danger-tint hover:text-danger-deep p-2"
+                              title={isUrdu ? 'ملازم کو ہٹائیں' : 'Remove staff member'}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
