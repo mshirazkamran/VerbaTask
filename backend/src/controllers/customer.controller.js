@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import Customer from '../models/Customer.js';
 import { emitDashboardUpdate } from '../socket.js';
+import { recordKhataPayment } from '../services/khata.service.js';
 
 export async function getCustomers(req, res) {
   try {
@@ -168,8 +169,20 @@ export async function settleBalance(req, res) {
       return res.status(404).json({ success: false, error: { message: 'Customer not found' } });
     }
 
-    customer.balance = Math.max(0, customer.balance - amountNum);
+    const previousBalance = Number(customer.balance) || 0;
+    const appliedAmount = Math.min(amountNum, Math.max(0, previousBalance));
+    customer.balance = Math.max(0, previousBalance - amountNum);
     await customer.save();
+
+    if (appliedAmount > 0) {
+      await recordKhataPayment({
+        merchantId: req.merchantId,
+        customerId: customer._id,
+        amount: appliedAmount,
+        balanceAfter: customer.balance,
+        source: 'dashboard',
+      });
+    }
 
     emitDashboardUpdate(req.merchantId, {
       type: 'customer',

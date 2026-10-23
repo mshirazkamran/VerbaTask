@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit-table';
 import InventoryItem from '../models/InventoryItem.js';
 import Order from '../models/Order.js';
+import { getKhataStatement } from './khata.service.js';
 
 function createPdfBuffer(doc) {
   return new Promise((resolve, reject) => {
@@ -563,4 +564,115 @@ export async function generateSalesReport(merchant) {
   doc.end();
 
   return { buffer: await createPdfBuffer(doc), filename: 'Daily_Sales_Report.pdf' };
+}
+
+const titleCase = (str) => String(str || '').replace(/\b[a-z]/g, (c) => c.toUpperCase());
+
+const formatKhataDate = (date) =>
+  new Date(date).toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Karachi',
+  });
+
+/**
+ * Per-customer khata (udhaar) statement: every purchase with its date and items,
+ * every payment received, and the running balance down to what is still owed.
+ */
+export async function generateKhataReport(merchant, customer) {
+  const { rows, totals } = await getKhataStatement(merchant._id, customer);
+  const theme = '#B45309';
+  // PDF standard fonts cannot draw Urdu script, so an Urdu-script name falls back to a plain label.
+  const displayName = titleCase(customer.name).replace(/[^\x20-\x7E]/g, '').trim() || 'Customer';
+
+  const doc = new PDFDocument({ margins: { top: 35, bottom: 45, left: 35, right: 35 }, size: 'A4', bufferPages: true });
+  drawHeader(doc, merchant, `Khata Statement - ${displayName}`, theme);
+
+  doc.font('Helvetica').fontSize(9).fillColor('#475569')
+    .text(`Customer: ${displayName}${customer.phone ? `   |   Phone: ${customer.phone}` : ''}`, 35, doc.y, { width: 525 });
+  doc.y += 8;
+
+  drawKpiCards(doc, [
+    {
+      label: 'Outstanding Balance',
+      value: `PKR ${totals.balance.toLocaleString()}`,
+      bgColor: totals.balance > 0 ? '#FEF2F2' : '#ECFDF5',
+      borderColor: totals.balance > 0 ? '#FECACA' : '#A7F3D0',
+      labelColor: totals.balance > 0 ? '#B91C1C' : '#047857',
+      valueColor: totals.balance > 0 ? '#7F1D1D' : '#064E3B',
+    },
+    {
+      label: 'Total Taken On Udhaar',
+      value: `PKR ${totals.purchased.toLocaleString()}`,
+      bgColor: '#FFFBEB',
+      borderColor: '#FDE68A',
+      labelColor: '#B45309',
+      valueColor: '#78350F',
+    },
+    {
+      label: 'Total Paid Back',
+      value: `PKR ${totals.paid.toLocaleString()}`,
+      bgColor: '#ECFDF5',
+      borderColor: '#A7F3D0',
+      labelColor: '#047857',
+      valueColor: '#064E3B',
+    },
+  ], doc.y);
+
+  if (rows.length === 0) {
+    doc.font('Helvetica').fontSize(10).fillColor('#64748B')
+      .text('No purchases or payments have been recorded for this khata yet.', 35, doc.y);
+  } else {
+    const fmt = (n) => (n ? Number(n).toLocaleString() : '-');
+    const datas = rows.map((r, idx) => ({
+      date: formatKhataDate(r.date),
+      details: r.details,
+      debit: fmt(r.debit),
+      credit: fmt(r.credit),
+      balance: Number(r.balance).toLocaleString(),
+      options: {
+        backgroundColor: idx % 2 === 0 ? '#FFFBEB' : '#FFFFFF',
+        backgroundOpacity: 1,
+      },
+    }));
+
+    const header = (label, property, width, align) => ({
+      label, property, width, headerColor: theme, headerOpacity: 1, headerAlign: align, align,
+    });
+
+    await doc.table(
+      {
+        headers: [
+          header('Date', 'date', 100, 'left'),
+          header('Details', 'details', 200, 'left'),
+          header('Udhaar (PKR)', 'debit', 75, 'right'),
+          header('Paid (PKR)', 'credit', 75, 'right'),
+          header('Balance (PKR)', 'balance', 75, 'right'),
+        ],
+        datas,
+      },
+      {
+        x: 35,
+        width: 525,
+        padding: 6,
+        divider: {
+          header: { disabled: false, width: 1, opacity: 1, color: '#92400E' },
+          horizontal: { disabled: false, width: 0.5, opacity: 0.25, color: '#CBD5E1' },
+          vertical: { disabled: true },
+        },
+        prepareHeader: () => doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#FFFFFF'),
+        prepareRow: () => doc.font('Helvetica').fontSize(8.5).fillColor('#1E293B'),
+      }
+    );
+  }
+
+  applyFootersToAllPages(doc);
+  doc.end();
+
+  const safeName = String(customer.name || 'customer').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'customer';
+  return { buffer: await createPdfBuffer(doc), filename: `Khata_${safeName}.pdf` };
 }

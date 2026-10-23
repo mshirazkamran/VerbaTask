@@ -16,6 +16,7 @@ import {
   normalizeNumberWords,
 } from '../src/services/qwen.service.js';
 import Customer from '../src/models/Customer.js';
+import KhataPayment from '../src/models/KhataPayment.js';
 
 describe('Khata Settlement & Single-Voice Avatar Customization Tests', () => {
   describe('Single-Voice Policy & VOICE_PROFILES Mapping', () => {
@@ -243,10 +244,12 @@ describe('Khata Settlement & Single-Voice Avatar Customization Tests', () => {
 
       const origFind = Customer.find;
       const origFindOne = Customer.findOne;
+      const origPaymentCreate = KhataPayment.create;
       Customer.findOne = async () => fakeCustomer;
       Customer.find = () => ({
         limit: async () => [fakeCustomer],
       });
+      KhataPayment.create = async (data) => data;
 
       let sentVoice = null;
       __setTestSender(
@@ -279,6 +282,7 @@ describe('Khata Settlement & Single-Voice Avatar Customization Tests', () => {
       } finally {
         Customer.find = origFind;
         Customer.findOne = origFindOne;
+        KhataPayment.create = origPaymentCreate;
         __setTestSender(null, null);
       }
     });

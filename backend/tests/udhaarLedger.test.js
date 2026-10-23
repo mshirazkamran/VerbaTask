@@ -44,36 +44,99 @@ describe('Udhaar / Khaata (Ledger) System Tests', () => {
   });
 
   describe('createOrder with Udhaar', () => {
-    test('creates customer and adds balance when udhaar and customerName are provided', async () => {
+    test('refuses an udhaar sale when the customer has no khata, without creating one or touching stock', async () => {
       const merchantId = 'merchant_123';
-      let savedInventoryItem = null;
-      let createdCustomer = null;
-      let savedCustomer = null;
-      let createdOrder = null;
+      let stockSaved = false;
+      let customerCreated = false;
+      let orderCreated = false;
 
-      // Mock InventoryItem.findOne
       const origInvFind = InventoryItem.findOne;
-      InventoryItem.findOne = async () => {
-        return {
-          _id: 'inv_123',
-          name: 'Rice',
-          price: 200,
-          quantity: 10,
-          save: async function() { savedInventoryItem = this; }
-        };
-      };
+      InventoryItem.findOne = async () => ({
+        _id: 'inv_123',
+        name: 'Rice',
+        price: 200,
+        quantity: 10,
+        save: async () => { stockSaved = true; },
+      });
 
-      // Mock Customer
       const origCustFindOne = Customer.findOne;
       const origCustCreate = Customer.create;
-      Customer.findOne = async () => null; // Simulate new customer
-      Customer.create = async (data) => {
-        const cust = { ...data, _id: 'cust_999', save: async function() { savedCustomer = this; } };
-        createdCustomer = cust;
-        return cust;
-      };
+      Customer.findOne = async () => null; // no khata exists
+      Customer.create = async () => { customerCreated = true; return {}; };
 
-      // Mock Order
+      const origOrderCreate = Order.create;
+      Order.create = async () => { orderCreated = true; return {}; };
+
+      try {
+        await assert.rejects(
+          createOrder({
+            merchantId,
+            source: 'text',
+            paymentMethod: 'udhaar',
+            customerName: 'Ahmad',
+            items: [{ name: 'Rice', quantity: 2 }],
+          }),
+          /KHATA_NOT_FOUND/
+        );
+
+        assert.equal(customerCreated, false, 'a sale must never open a khata');
+        assert.equal(stockSaved, false, 'stock must not be deducted for a refused sale');
+        assert.equal(orderCreated, false);
+      } finally {
+        InventoryItem.findOne = origInvFind;
+        Customer.findOne = origCustFindOne;
+        Customer.create = origCustCreate;
+        Order.create = origOrderCreate;
+      }
+    });
+
+    test('refuses an udhaar sale that names no customer', async () => {
+      const origInvFind = InventoryItem.findOne;
+      let stockSaved = false;
+      InventoryItem.findOne = async () => ({
+        _id: 'inv_123', name: 'Rice', price: 200, quantity: 10, save: async () => { stockSaved = true; },
+      });
+
+      try {
+        await assert.rejects(
+          createOrder({
+            merchantId: 'merchant_123',
+            source: 'text',
+            paymentMethod: 'udhaar',
+            items: [{ name: 'Rice', quantity: 1 }],
+          }),
+          /KHATA_NAME_REQUIRED/
+        );
+        assert.equal(stockSaved, false);
+      } finally {
+        InventoryItem.findOne = origInvFind;
+      }
+    });
+
+    test('adds the sale to an existing khata and creates no new customer', async () => {
+      const merchantId = 'merchant_123';
+      let savedInventoryItem = null;
+      let savedCustomer = null;
+      let createdOrder = null;
+      let customerCreated = false;
+
+      const origInvFind = InventoryItem.findOne;
+      InventoryItem.findOne = async () => ({
+        _id: 'inv_123',
+        name: 'Rice',
+        price: 200,
+        quantity: 10,
+        save: async function() { savedInventoryItem = this; },
+      });
+
+      const origCustFindOne = Customer.findOne;
+      const origCustCreate = Customer.create;
+      Customer.findOne = async ({ name }) =>
+        name === 'ahmad'
+          ? { _id: 'cust_999', name: 'ahmad', balance: 100, save: async function() { savedCustomer = this; } }
+          : null;
+      Customer.create = async () => { customerCreated = true; return {}; };
+
       const origOrderCreate = Order.create;
       Order.create = async (data) => {
         createdOrder = data;
@@ -86,19 +149,12 @@ describe('Udhaar / Khaata (Ledger) System Tests', () => {
           source: 'text',
           paymentMethod: 'udhaar',
           customerName: 'Ahmad',
-          items: [{ name: 'Rice', quantity: 2 }]
+          items: [{ name: 'Rice', quantity: 2 }],
         });
 
-        // Verify Inventory Deduction
         assert.equal(savedInventoryItem.quantity, 8);
-
-        // Verify Customer Creation & Balance
-        assert.ok(createdCustomer);
-        assert.equal(createdCustomer.name, 'ahmad');
-        assert.equal(savedCustomer.balance, 400);
-
-        // Verify Order Payload
-        assert.ok(createdOrder);
+        assert.equal(customerCreated, false);
+        assert.equal(savedCustomer.balance, 500); // 100 owed before + 2 x 200
         assert.equal(createdOrder.paymentMethod, 'udhaar');
         assert.equal(createdOrder.customerName, 'ahmad');
         assert.equal(createdOrder.customerId, 'cust_999');

@@ -306,17 +306,134 @@ export const spokenPhrases = {
     };
   },
 
-  khataSettled(language = 'ur', { customerName, amount, previousBalance, remainingBalance }) {
+  khataSettled(language = 'ur', { customerName, amount, previousBalance, remainingBalance, unappliedAmount = 0 }) {
     const isUrdu = language === 'ur';
+    const extra = unappliedAmount > 0
+      ? (isUrdu
+        ? `\n⚠️ بقایا سے Rs. ${Number(unappliedAmount).toLocaleString()} زیادہ تھے، وہ درج نہیں کیے گئے۔`
+        : `\n⚠️ Rs. ${Number(unappliedAmount).toLocaleString()} was more than the balance owed, so it was not recorded.`)
+      : '';
     if (isUrdu) {
       return {
         spoken: `جی محترم، ${customerName} صاحب کے کھاتے میں ${amount} روپے جمع کر لیے گئے ہیں۔ اب ان کا بقایا ${remainingBalance} روپے ہے۔ جزاک اللہ!`,
-        text: `✅ *کھاتہ وصولی درج ہو گئی!*\nگاہک: *${customerName.toUpperCase()}*\nوصول شدہ رقم: *Rs. ${Number(amount).toLocaleString()}*\nپہلا بقایا: Rs. ${Number(previousBalance).toLocaleString()}\nنیا بقایا: *Rs. ${Number(remainingBalance).toLocaleString()}*`,
+        text: `✅ *کھاتہ وصولی درج ہو گئی!*\nگاہک: *${customerName.toUpperCase()}*\nوصول شدہ رقم: *Rs. ${Number(amount).toLocaleString()}*\nپہلا بقایا: Rs. ${Number(previousBalance).toLocaleString()}\nنیا بقایا: *Rs. ${Number(remainingBalance).toLocaleString()}*${extra}`,
       };
     }
     return {
       spoken: `Certainly! Recorded payment of Rs. ${amount} for ${customerName}. Remaining balance is Rs. ${remainingBalance}. Thank you!`,
-      text: `✅ *Ledger payment recorded!*\nCustomer: *${customerName.toUpperCase()}*\nAmount Received: *Rs. ${Number(amount).toLocaleString()}*\nPrevious Balance: Rs. ${Number(previousBalance).toLocaleString()}\nRemaining Balance: *Rs. ${Number(remainingBalance).toLocaleString()}*`,
+      text: `✅ *Ledger payment recorded!*\nCustomer: *${customerName.toUpperCase()}*\nAmount Received: *Rs. ${Number(amount).toLocaleString()}*\nPrevious Balance: Rs. ${Number(previousBalance).toLocaleString()}\nRemaining Balance: *Rs. ${Number(remainingBalance).toLocaleString()}*${extra}`,
+    };
+  },
+
+  khataCreated(language = 'ur', { customerName, phone } = {}) {
+    const name = String(customerName || '');
+    if (language === 'ur') {
+      return {
+        spoken: `جی محترم، ${name} کا کھاتہ بن گیا ہے۔ اب آپ ان کے کھاتے میں سامان ڈال سکتے ہیں۔`,
+        text: `✅ *کھاتہ بن گیا!*\nگاہک: *${name.toUpperCase()}*\nفون: ${phone}\nبقایا: Rs. 0\n\nاب لکھیں یا بولیں: "${name} ke khate me lipton daal do"`,
+      };
+    }
+    return {
+      spoken: `Done! ${name}'s khata has been created. You can now add items to it.`,
+      text: `✅ *Khata created!*\nCustomer: *${name.toUpperCase()}*\nPhone: ${phone}\nBalance: Rs. 0\n\nNow say or type: "${name} ke khate me lipton daal do"`,
+    };
+  },
+
+  khataNeedsPhone(language = 'ur', { customerName } = {}) {
+    const name = String(customerName || '');
+    if (language === 'ur') {
+      return {
+        spoken: `${name} کا کھاتہ بنانے کے لیے فون نمبر ضروری ہے۔ براہ کرم نمبر کے ساتھ دوبارہ بھیجیں۔`,
+        text: `📱 *${name}* کا کھاتہ بنانے کے لیے فون نمبر ضروری ہے۔\n\nدوبارہ بھیجیں:\n"${name} ka khata bnao phone 03001234567"`,
+      };
+    }
+    return {
+      spoken: `A phone number is needed to create ${name}'s khata. Please send it again with the number.`,
+      text: `📱 A phone number is required to create *${name}*'s khata.\n\nSend it again like:\n"${name} ka khata bnao phone 03001234567"`,
+    };
+  },
+
+  khataInvalidPhone(language = 'ur', { customerName } = {}) {
+    const name = String(customerName || '');
+    if (language === 'ur') {
+      return {
+        spoken: `فون نمبر درست نہیں ہے۔ براہ کرم پاکستانی موبائل نمبر بتائیں۔`,
+        text: `❌ فون نمبر درست نہیں ہے۔ پاکستانی موبائل نمبر لکھیں، جیسے 03001234567۔\n\n"${name} ka khata bnao phone 03001234567"`,
+      };
+    }
+    return {
+      spoken: `That phone number isn't valid. Please give a Pakistani mobile number.`,
+      text: `❌ That phone number isn't valid. Use a Pakistani mobile number like 03001234567.\n\n"${name} ka khata bnao phone 03001234567"`,
+    };
+  },
+
+  khataExists(language = 'ur', { customerName, balance = 0 } = {}) {
+    const name = String(customerName || '');
+    const bal = `Rs. ${Number(balance).toLocaleString()}`;
+    if (language === 'ur') {
+      return {
+        spoken: `${name} کا کھاتہ پہلے سے موجود ہے۔ ان کا بقایا ${balance} روپے ہے۔`,
+        text: `ℹ️ *${name.toUpperCase()}* کا کھاتہ پہلے سے موجود ہے۔\nبقایا: *${bal}*`,
+      };
+    }
+    return {
+      spoken: `${name} already has a khata. The balance is ${balance} rupees.`,
+      text: `ℹ️ *${name.toUpperCase()}* already has a khata.\nBalance: *${bal}*`,
+    };
+  },
+
+  khataPhoneInUse(language = 'ur', { existingName } = {}) {
+    const name = String(existingName || '');
+    if (language === 'ur') {
+      return {
+        spoken: `یہ فون نمبر پہلے ہی ${name} کے کھاتے میں درج ہے۔`,
+        text: `ℹ️ یہ فون نمبر پہلے ہی *${name.toUpperCase()}* کے کھاتے میں درج ہے۔ نیا کھاتہ نہیں بنایا گیا۔`,
+      };
+    }
+    return {
+      spoken: `That phone number already belongs to ${name}'s khata.`,
+      text: `ℹ️ That phone number already belongs to *${name.toUpperCase()}*'s khata. No new khata was created.`,
+    };
+  },
+
+  khataNotFound(language = 'ur', { customerName } = {}) {
+    const name = String(customerName || '');
+    if (language === 'ur') {
+      return {
+        spoken: `${name} کا کوئی کھاتہ نہیں ہے۔ پہلے کھاتہ بنائیں، پھر سامان ڈالیں۔`,
+        text: `❌ *${name}* کا کوئی کھاتہ نہیں ہے، اس لیے کچھ درج نہیں کیا گیا۔\n\nپہلے کھاتہ بنائیں:\n"${name} ka khata bnao phone 03001234567"`,
+      };
+    }
+    return {
+      spoken: `There is no khata for ${name}. Please create the khata first.`,
+      text: `❌ There is no khata for *${name}*, so nothing was recorded.\n\nCreate it first:\n"${name} ka khata bnao phone 03001234567"`,
+    };
+  },
+
+  khataNameRequired(language = 'ur') {
+    if (language === 'ur') {
+      return {
+        spoken: `کس کے کھاتے میں ڈالوں؟ براہ کرم گاہک کا نام بھی بتائیں۔`,
+        text: `❓ کس کے کھاتے میں ڈالوں؟ گاہک کا نام بتائیں، جیسے:\n"soban bhai ke khate me lipton daal do"`,
+      };
+    }
+    return {
+      spoken: `Whose khata should I add this to? Please say the customer's name too.`,
+      text: `❓ Whose khata should this go to? Include the customer's name, like:\n"soban bhai ke khate me lipton daal do"`,
+    };
+  },
+
+  khataNothingOwed(language = 'ur', { customerName } = {}) {
+    const name = String(customerName || '');
+    if (language === 'ur') {
+      return {
+        spoken: `${name} کا کوئی بقایا نہیں ہے، اس لیے کوئی رقم درج نہیں کی گئی۔`,
+        text: `ℹ️ *${name.toUpperCase()}* کا کوئی بقایا نہیں ہے، اس لیے کوئی رقم درج نہیں کی گئی۔`,
+      };
+    }
+    return {
+      spoken: `${name} has nothing outstanding, so no payment was recorded.`,
+      text: `ℹ️ *${name.toUpperCase()}* has no outstanding balance, so no payment was recorded.`,
     };
   },
 
@@ -347,12 +464,26 @@ export const spokenPhrases = {
     if (language === 'ur') {
       return {
         spoken: `یہ وربا ٹاسک کی مکمل رہنمائی ہے۔ آپ بول کر یا لکھ کر سیل درج کر سکتے ہیں، نیا مال شامل کر سکتے ہیں، رپورٹس منگوا سکتے ہیں، اور دکان کی سیٹنگز بدل سکتے ہیں۔`,
-        text: `📋 *وربا ٹاسک مکمل رہنمائی / Commands Guide*\n\nآپ یہ تمام کام واٹس ایپ پر بول کر یا لکھ کر سکتے ہیں:\n\n🛒 *1. سیل درج کرنا (Sales)*\n• وائس نوٹ: بولیں "دو کلو چینی کیش" یا "5 چاول ایزی پیسہ"\n• لکھیں: "2 rice cash" یا "10 milk jazzcash"\n• گائیڈڈ بٹن: لکھیں *"order"*\n\n📦 *2. انوینٹری اور نیا مال (Stock & Inventory)*\n• نیا مال قیمت کے ساتھ: "add 50 rice price 300" یا "maal aya 20 chini 150"\n• قیمت مقرر کریں: *"set price rice 300"* یا *"chini ki price 160"*\n• اسٹاک چیک کریں: "stock rice" یا "chini kitni hai"\n• کل سامان کی لسٹ: لکھیں *"stock list"* یا *"inventory"*\n\n📄 *3. پی ڈی ایف رپورٹس (PDF Reports)*\n• لکھیں *"report"* (سیلز، انوینٹری، کم اسٹاک یا ایکسپائری رپورٹس)\n\n⚙️ *4. دکان اور سیٹنگز (Store & Settings)*\n• دکان کی معلومات: لکھیں *"profile"* یا *"settings"*\n• دکان کا نام بدلیں: *"set name [نیا نام]"*\n• شہر / مقام بدلیں: *"set location [شہر]"*\n• زبان تبدیل کریں: *"urdu"* یا *"english"*\n• وائس جوابات: *"voice on"* یا *"voice off"*\n\n💳 *5. بینک اور ادائیگی (Payment & Banks)*\n• طریقے دیکھیں: لکھیں *"banks"* یا *"payment methods"*\n• آن / آف کریں: *"enable easypaisa"* یا *"disable jazzcash"*\n\n⚡ *6. آٹومیشن الرٹس (Workflows)*\n• بول کر الرٹ بنائیں: "jab doodh 5 se kam ho alert karo"\n• لسٹ دیکھیں: لکھیں *"workflows"*`,
+        text: `📋 *وربا ٹاسک مکمل رہنمائی / Commands Guide*\n\nآپ یہ تمام کام واٹس ایپ پر بول کر یا لکھ کر سکتے ہیں:\n\n🛒 *1. سیل درج کرنا (Sales)*\n• وائس نوٹ: بولیں "دو کلو چینی کیش" یا "5 چاول ایزی پیسہ"\n• لکھیں: "2 rice cash" یا "10 milk jazzcash"\n• گائیڈڈ بٹن: لکھیں *"order"*\n\n📦 *2. انوینٹری اور نیا مال (Stock & Inventory)*\n• نیا مال قیمت کے ساتھ: "add 50 rice price 300" یا "maal aya 20 chini 150"\n• قیمت مقرر کریں: *"set price rice 300"* یا *"chini ki price 160"*\n• اسٹاک چیک کریں: "stock rice" یا "chini kitni hai"\n• کل سامان کی لسٹ: لکھیں *"stock list"* یا *"inventory"*\n\n📄 *3. پی ڈی ایف رپورٹس (PDF Reports)*\n• لکھیں *"report"* (سیلز، انوینٹری، کم اسٹاک یا ایکسپائری رپورٹس)\n\n⚙️ *4. دکان اور سیٹنگز (Store & Settings)*\n• دکان کی معلومات: لکھیں *"profile"* یا *"settings"*\n• دکان کا نام بدلیں: *"set name [نیا نام]"*\n• شہر / مقام بدلیں: *"set location [شہر]"*\n• زبان تبدیل کریں: *"urdu"* یا *"english"*\n• وائس جوابات: *"voice on"* یا *"voice off"*\n\n💳 *5. بینک اور ادائیگی (Payment & Banks)*\n• طریقے دیکھیں: لکھیں *"banks"* یا *"payment methods"*\n• آن / آف کریں: *"enable easypaisa"* یا *"disable jazzcash"*\n\n⚡ *6. آٹومیشن الرٹس (Workflows)*\n• بول کر الرٹ بنائیں: "jab doodh 5 se kam ho alert karo"\n• لسٹ دیکھیں: لکھیں *"workflows"*
+
+📒 *7. کھاتہ / ادھار (Khata)*
+• نیا کھاتہ (فون نمبر ضروری): "soban bhai ka khata bnao phone 03001234567"
+• کھاتے میں سامان: "soban bhai ke khate me lipton daal do"
+• رقم وصول: "soban bhai ne 500 udhaar me se diye"
+• بقایا: "soban bhai ka khata"
+• رپورٹ: "soban bhai ke khata ki report bhej do"`,
       };
     }
     return {
       spoken: `Here is your VerbaTask commands guide. You can log sales, add stock, check inventory, download PDF reports, and manage store settings by speaking or typing.`,
-      text: `📋 *VerbaTask Commands Guide*\n\nYou can manage your entire store by speaking or typing:\n\n🛒 *1. Log Sales*\n• Voice Note: Send audio like "2 kg sugar cash" or "5 rice easypaisa"\n• Text: Type "2 rice cash" or "10 milk jazzcash"\n• Guided Flow: Type *"order"* to pick from stock list\n\n📦 *2. Stock & Inventory*\n• Add Stock with Price: "add 50 rice price 300" or "maal aya 20 chini 150"\n• Set / Update Price: *"set price rice 300"* or *"price sugar 160"*\n• Check Stock: "stock rice" or "how much sugar left"\n• View All Stock: Type *"stock list"* or *"inventory"*\n\n📄 *3. Download PDF Reports*\n• Type *"report"* for sales, inventory, low stock, or expiring reports\n\n⚙️ *4. Store & Profile Settings*\n• View Store Info: Type *"profile"* or *"settings"*\n• Change Shop Name: *"set name [New Name]"*\n• Change Location: *"set location [City]"*\n• Switch Language: Type *"urdu"* or *"english"*\n• Voice Replies: Type *"voice on"* or *"voice off"*\n\n💳 *5. Payment & Banks*\n• View Accepted Methods: Type *"banks"* or *"payment methods"*\n• Enable / Disable: *"enable easypaisa"* or *"disable jazzcash"*\n\n⚡ *6. Automations & Alerts*\n• Create Alert: "alert me when cooking oil is below 5"\n• View Active Rules: Type *"workflows"*`,
+      text: `📋 *VerbaTask Commands Guide*\n\nYou can manage your entire store by speaking or typing:\n\n🛒 *1. Log Sales*\n• Voice Note: Send audio like "2 kg sugar cash" or "5 rice easypaisa"\n• Text: Type "2 rice cash" or "10 milk jazzcash"\n• Guided Flow: Type *"order"* to pick from stock list\n\n📦 *2. Stock & Inventory*\n• Add Stock with Price: "add 50 rice price 300" or "maal aya 20 chini 150"\n• Set / Update Price: *"set price rice 300"* or *"price sugar 160"*\n• Check Stock: "stock rice" or "how much sugar left"\n• View All Stock: Type *"stock list"* or *"inventory"*\n\n📄 *3. Download PDF Reports*\n• Type *"report"* for sales, inventory, low stock, or expiring reports\n\n⚙️ *4. Store & Profile Settings*\n• View Store Info: Type *"profile"* or *"settings"*\n• Change Shop Name: *"set name [New Name]"*\n• Change Location: *"set location [City]"*\n• Switch Language: Type *"urdu"* or *"english"*\n• Voice Replies: Type *"voice on"* or *"voice off"*\n\n💳 *5. Payment & Banks*\n• View Accepted Methods: Type *"banks"* or *"payment methods"*\n• Enable / Disable: *"enable easypaisa"* or *"disable jazzcash"*\n\n⚡ *6. Automations & Alerts*\n• Create Alert: "alert me when cooking oil is below 5"\n• View Active Rules: Type *"workflows"*
+
+📒 *7. Khata / Udhaar*
+• New khata (phone required): "soban bhai ka khata bnao phone 03001234567"
+• Add items to a khata: "soban bhai ke khate me lipton daal do"
+• Record a payment: "soban bhai ne 500 udhaar me se diye"
+• Check balance: "soban bhai ka khata"
+• Statement PDF: "soban bhai ke khata ki report bhej do"`,
     };
   },
 
