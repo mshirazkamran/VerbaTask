@@ -362,7 +362,7 @@ export const NUMBER_WORDS_MAP = {
   'گیارہ': 11, 'بارہ': 12, 'تیرہ': 13, 'چودہ': 14, 'پندرہ': 15, 'سولہ': 16, 'سترہ': 17, 'اٹھارہ': 18, 'انیس': 19, 'بیس': 20,
   'پچیس': 25, 'تیس': 30, 'چالیس': 40, 'پچاس': 50, 'سو': 100,
   'پاؤ': 0.25, 'پاو': 0.25, 'آدھا': 0.5, 'ادھا': 0.5, 'سوا': 1.25, 'ڈیڑھ': 1.5, 'پونے': 0.75, 'ڈھائی': 2.5,
-  'ek': 1, 'do': 2, 'teen': 3, 'char': 4, 'panch': 5, 'che': 6, 'chhe': 6, 'saat': 7, 'aath': 8, 'nau': 9, 'das': 10,
+  'ek': 1, 'do': 2, 'teen': 3, 'tin': 3, 'char': 4, 'panch': 5, 'che': 6, 'chhe': 6, 'saat': 7, 'aath': 8, 'nau': 9, 'das': 10,
   'gyarah': 11, 'barah': 12, 'terah': 13, 'chaudah': 14, 'pandrah': 15, 'solah': 16, 'satrah': 17, 'atharah': 18, 'unnees': 19, 'bees': 20,
   'pachees': 25, 'tees': 30, 'chalees': 40, 'pachas': 50, 'sau': 100,
   'pao': 0.25, 'paon': 0.25, 'aadha': 0.5, 'adha': 0.5, 'half': 0.5,
@@ -832,7 +832,7 @@ const KHATA_PAYMENT_WITH_DEBT_REGEX = new RegExp(
 // "gave / paid back" in the many ways voice transcripts spell it: "wapis kr diya", "krdiya", "de diye hain",
 // "jama karwa diye", "ada kar diye", "lauta diye", "واپس کر دیے". Up to four helper words, then the verb.
 const SETTLE_VERB_HELPER = '(?:wapis|wapas|واپس|jama|جمع|ada|ادا|bhar|lauta|lota|chuka|لوٹا|چکا|karwa|krwa|karva|kar|kr|کروا|کر|de|dey|دے)';
-const SETTLE_VERB_FINAL = '(?:diye|diya|dia|diay|di|dye|deye|dee|kiye|kiya|kie|karwaye|krwaye|karaye|lautaye|lotaye|chukaye|bhare|paid|دیے|دیا|دی|دئے|کیے|کیا|کروائے|کرائے|لوٹائے|چکائے|بھرے)';
+const SETTLE_VERB_FINAL = '(?:diye|diya|dia|diay|die|di|dye|deye|dee|kiye|kiya|kie|karwaye|krwaye|karaye|lautaye|lotaye|chukaye|bhare|paid|دیے|دیا|دی|دئے|کیے|کیا|کروائے|کرائے|لوٹائے|چکائے|بھرے)';
 const SETTLE_AUX = '(?:\\s+(?:hai|hain|hy|he|hen|hyn|ہے|ہیں))?';
 const SETTLE_CURRENCY = '(?:rupay|rupaye|rupee|rupees|rupy|rs|roopay|pkr|روپے|روپیہ)';
 // "udhaar se", "udhar mein se", "apne khate se" closing the sentence (no word after "se").
@@ -856,7 +856,8 @@ export function parseKhataSettleHeuristic(text) {
   }
   // "<name> ne <amount> [rupay] wapis kr diya hai": money paid back. Checked before the returns
   // exclusion below — "wapis" with only an amount between "ne" and the verb (no item) is a payment.
-  const general = normalizeNumberWords(text).toLowerCase().trim().replace(/[.!?،۔]+$/, '').trim().match(KHATA_PAYMENT_GENERAL_REGEX);
+  // Whisper adds commas mid-sentence ("Ali ne, 400 rupay wapis kar diye, udhaar se.").
+  const general = normalizeNumberWords(text.replace(/[,،]/g, ' ')).toLowerCase().replace(/\s+/g, ' ').trim().replace(/[.!?،۔]+$/, '').trim().match(KHATA_PAYMENT_GENERAL_REGEX);
   if (general) {
     const amount = parseFloat(general[2]);
     const name = general[1].trim();
@@ -1283,13 +1284,13 @@ const BARE_DEBT_REGEX = new RegExp(`${U_START}(?:${SALE_DEBT_WORDS})(?:\\s+(?:${
 // "... udhaar pe de diya", "... likh do". "daal do" is only stripped when it can't be the lentil
 // ("2 kilo daal do" keeps its daal).
 const SALE_CLOSING_VERB_REGEX = new RegExp(
-  `(?:\\s+(?:pe|par|per|pr|py|پر|پہ))?\\s+(?:de\\s*diya|de\\s*diye|de\\s*dia|de\\s*di|de\\s*do|diay|diye|diya|de\\s*dein|dey\\s*diya|likh\\s*do|likh\\s*dein|(?<!(?:\\d|kilo|kg|kilos|pao|aadha|adha|gram|gm|dedh|dhai|packet|کلو|پاؤ|آدھا)\\s+)(?:daal|dal)\\s*(?:do|dein|den|de)|دے\\s*دیا|دے\\s*دیے|دے\\s*دو|لکھ\\s*دو|ڈال\\s*دو)\\s*$`,
+  `(?:\\s+(?:pe|par|per|pr|py|پر|پہ))?\\s+(?:de\\s*diya|de\\s*diye|de\\s*dia|de\\s*di|de\\s*do|diay|diye|diya|de\\s*dein|dey\\s*diya|likh\\s*do|likh\\s*dein|(?<!(?:\\d|kilo|kg|kilos|pao|aadha|adha|gram|gm|dedh|dhai|packet|کلو|پاؤ|آدھا)\\s+)(?:daal|dal)\\s*(?:do|dein|den|de)|دے\\s*دیا|دے\\s*دیے|دے\\s*دو|لکھ\\s*دو|ڈال\\s*دو)(?:\\s+(?:hai|hain|ہے|ہیں))?\\s*$`,
   'iu'
 );
 
 const SALE_FILLER_WORDS = [
-  'becha', 'bechi', 'beche', 'sold', 'furokht', 'diye', 'diya', 'diay', 'dia', 'dye', 'de', 'do', 'dy', 'le', 'lo', 'ko', 'ka', 'ki', 'ke',
-  'rupay', 'rs', 'rupees', 'roopay', 'pkr', 'روپے', 'روپیہ', 'بیچا', 'بیچی', 'دیے', 'دیا',
+  'becha', 'bechi', 'beche', 'sold', 'furokht', 'diye', 'diya', 'diay', 'dia', 'die', 'dye', 'de', 'do', 'dy', 'le', 'lo', 'ko', 'ka', 'ki', 'ke',
+  'hai', 'hain', 'rupay', 'rs', 'rupees', 'roopay', 'pkr', 'روپے', 'روپیہ', 'بیچا', 'بیچی', 'دیے', 'دیا', 'دے', 'دی', 'ہیں', 'ہے',
 ];
 const SALE_FILLER_REGEX = unicodeWord(SALE_FILLER_WORDS.join('|'), 'giu');
 // Words that can follow a quantity without being an item name (packaging and money words).
@@ -1305,7 +1306,7 @@ const NOT_A_CUSTOMER_NAME = new Set([
   ...SALE_DEBT_WORDS.split('|'),
   ...SALE_PARTICLE.split('|'),
   ...SALE_POSTPOSITION.split('|'),
-  'to', 'for', 'se', 'de', 'di', 'dia', 'diya', 'diye', 'diay', 'dye', 'dey', 'do', 'dein', 'den', 'dena', 'dedo', 'dediya', 'daal', 'dal', 'dalo', 'likh', 'likho',
+  'to', 'for', 'se', 'de', 'di', 'dia', 'diya', 'diye', 'diay', 'die', 'dye', 'dey', 'do', 'dein', 'den', 'dena', 'dedo', 'dediya', 'daal', 'dal', 'dalo', 'likh', 'likho',
   'kar', 'karo', 'kardo', 'hai', 'hain', 'aur', 'and', 'or', 'phir', 'plus', 'cash', 'sale', 'becha', 'pay',
   'سے', 'دے', 'دیا', 'دیے', 'دو', 'ڈال', 'لکھ', 'کر', 'ہے', 'اور', 'پھر',
 ]);

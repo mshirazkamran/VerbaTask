@@ -1374,7 +1374,16 @@ async function handleTextMessage(merchant, text, rawMessage = null) {
 async function handleVoiceNote(merchant, mediaId, rawMessage = null) {
   try {
     const { buffer, mimeType } = await downloadMedia(mediaId);
-    const intent = await transcribeAndParse(buffer, mimeType, merchant.language, merchant);
+
+    // While "which khata?" is open, a voice note is most likely the answer ("doosra", "Ali bhai"):
+    // check that before parsing it as a new command, which can cost an LLM call.
+    const awaitingKhataChoice = await ConversationState.findOne({ whatsappNumber: getSenderRecipient(merchant), flow: 'customer_disambiguation' });
+    let intent = await transcribeAndParse(buffer, mimeType, merchant.language, merchant, { parse: !awaitingKhataChoice });
+    if (awaitingKhataChoice) {
+      const khataChoice = await handleTypedKhataChoice(merchant, intent.transcript || '');
+      if (khataChoice !== null) return khataChoice;
+      intent = { ...(await parseIntent(intent.transcript || '', merchant)), transcript: intent.transcript, detectedLanguage: intent.detectedLanguage };
+    }
     const effectiveLanguage = intent.detectedLanguage || merchant.language || 'ur';
     const transcript = intent.transcript || intent.rawText || '';
 
@@ -1387,11 +1396,7 @@ async function handleVoiceNote(merchant, mediaId, rawMessage = null) {
       return sendTextMessage(getSenderRecipient(merchant), msg);
     }
 
-    // 0. Answer to "which khata?" spoken instead of tapped
-    const khataChoice = await handleTypedKhataChoice(merchant, transcript);
-    if (khataChoice !== null) return khataChoice;
-
-    // 0b. Active Pending New Item reply from VN
+    // 0. Active Pending New Item reply from VN
     const pendingNewItem = await ConversationState.findOne({
       whatsappNumber: getSenderRecipient(merchant),
       flow: 'pending_new_item',

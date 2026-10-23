@@ -2,6 +2,7 @@ import FormData from 'form-data';
 import axios from 'axios';
 import { parseIntent } from '../services/qwen.service.js';
 import { logger, errorSummary } from '../services/logger.service.js';
+import { hasDevanagari, devanagariToRoman } from '../services/transliteration.service.js';
 
 // Groq runs OpenAI-compatible Whisper endpoints for free (2,000 req/day on
 // the free tier, no credit card) — get a key at console.groq.com. This is
@@ -42,7 +43,7 @@ export function buildVocabularyPrompt(merchant, catalog) {
  * @param {string} [language='ur'] merchant language ('en' or 'ur')
  * @param {Object} [merchant=null] merchant document
  */
-export async function transcribeAndParse(buffer, mimeType, language = 'ur', merchant = null) {
+export async function transcribeAndParse(buffer, mimeType, language = 'ur', merchant = null, { parse = true } = {}) {
   if (!buffer || !buffer.length) {
     return { type: 'unknown', rawText: '', error: 'empty_audio' };
   }
@@ -55,7 +56,14 @@ export async function transcribeAndParse(buffer, mimeType, language = 'ur', merc
   const catalog = merchant?._id ? await getMerchantCatalog(merchant._id) : null;
   const prompt = buildVocabularyPrompt(merchant, catalog);
 
-  const transcript = await transcribeWithRetry(buffer, cleanMimeType, language, prompt);
+  let transcript = await transcribeWithRetry(buffer, cleanMimeType, language, prompt);
+
+  // Whisper often writes Urdu speech in Hindi script; the parsers read Roman Urdu and Urdu script.
+  if (hasDevanagari(transcript)) {
+    const roman = devanagariToRoman(transcript);
+    logger.info('stt.transliterated', { from: 'devanagari', original: transcript, roman });
+    transcript = roman;
+  }
 
   if (!transcript?.trim()) {
     logger.warn('stt.empty_transcript', { audioBytes: buffer.length });
@@ -64,6 +72,8 @@ export async function transcribeAndParse(buffer, mimeType, language = 'ur', merc
 
   const detectedLanguage = /[\u0600-\u06FF]/.test(transcript) ? 'ur' : (language || 'ur');
   logger.info('stt.transcript', { language: detectedLanguage, transcript });
+  // parse: false when the caller first checks whether this is an answer to a question it asked.
+  if (!parse) return { type: 'unparsed', transcript, detectedLanguage };
   const intent = await parseIntent(transcript, merchant);
   return { ...intent, transcript, detectedLanguage };
 }

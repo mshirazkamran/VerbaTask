@@ -111,7 +111,7 @@ export async function getKhataStatement(merchantId, customer) {
 
 // Words that don't tell two customers apart: politeness ("ali" and "ali bhai" are the same
 // person) and the "wala" descriptor (it's in many names, so it never makes a match on its own).
-const KHATA_HONORIFICS = new Set(['bhai', 'bhae', 'bhaiya', 'bhaijan', 'bhaijaan', 'sahab', 'sahib', 'saheb', 'sb', 'ji', 'janab', 'wala', 'بھائی', 'صاحب', 'جی']);
+const KHATA_HONORIFICS = new Set(['bhai', 'bhae', 'bhaiya', 'bhaijan', 'bhaijaan', 'sahab', 'sahib', 'saheb', 'sahb', 'sb', 'ji', 'janab', 'wala', 'بھائی', 'صاحب', 'جی']);
 
 // "wala", "walay", "wale", "waala": one descriptor however it's spelled or transcribed.
 const WALA_SPELLINGS = /^(?:w|o)+a+l+(?:a|aa|ay|ai|e|ey|y|ee|i|ay)$/;
@@ -119,7 +119,8 @@ const WALA_SPELLINGS = /^(?:w|o)+a+l+(?:a|aa|ay|ai|e|ey|y|ee|i|ay)$/;
 /** Urdu-script name word -> Roman letters, so "علی" can be compared with a khata saved as "ali". */
 function romanizeNameWord(word) {
   if (!/[\u0600-\u06FF]/.test(word)) return word;
-  return transliterateUrdu(word.replace(/^و/, 'w').replace(/ؤ/g, 'o')).toLowerCase();
+  // "بھائی" -> "bhaii" -> "bhai": Urdu letters often double a vowel the Roman spelling doesn't.
+  return transliterateUrdu(word.replace(/^و/, 'w').replace(/ؤ/g, 'o')).toLowerCase().replace(/([aeiou])\1+/g, '$1');
 }
 
 const nameWords = (name) => String(name || '')
@@ -171,6 +172,10 @@ export function rankKhataCustomers(customers, spokenName) {
   const spokenFull = nameWords(spokenName);
   if (!spokenFull.length) return { match: null, candidates: [] };
   const spokenCore = withoutHonorifics(spokenFull);
+  // Voice notes come back in Urdu script while khatas are saved in Roman letters, so an exact
+  // spelling is impossible; there, every word matching letter-for-letter by sound counts as exact.
+  const spokenInUrdu = /[\u0600-\u06FF]/.test(String(spokenName));
+  const sameBySound = (a, b) => a.length === b.length && a.every((w, i) => consonantSkeleton(w) === consonantSkeleton(b[i]) && sameNameWord(w, b[i]));
 
   const scored = (customers || []).filter((c) => c?.name).map((customer) => {
     const full = nameWords(customer.name);
@@ -178,7 +183,7 @@ export function rankKhataCustomers(customers, spokenName) {
     const matched = spokenCore.filter((w) => core.some((cw) => sameNameWord(w, cw))).length;
     return {
       customer,
-      exact: sameWords(full, spokenFull) || sameWords(core, spokenCore),
+      exact: sameWords(full, spokenFull) || sameWords(core, spokenCore) || (spokenInUrdu && sameBySound(core, spokenCore)),
       // Every word said (honorifics included) appears in this name: a rival for the same words.
       containsAllSaid: spokenFull.every((w) => full.some((cw) => sameNameWord(w, cw))),
       matched,
@@ -202,10 +207,31 @@ export function rankKhataCustomers(customers, spokenName) {
  * Reads the merchant's answer to "which khata?" — a number ("2"), or a name typed/spoken
  * ("Ali sheikhy bhai"). Returns the chosen candidate, or null when the answer doesn't pick one.
  */
+// Spoken answers to a numbered list: "do", "دو", "doosra", "دوسرا", "number 2", "second".
+const CHOICE_NUMBER_WORDS = [
+  ['1', 'ek', 'aik', 'one', 'first', 'pehla', 'pehli', 'pehle', 'ایک', 'پہلا', 'پہلی', 'پہلے'],
+  ['2', 'do', 'two', 'second', 'doosra', 'dusra', 'doosri', 'dusri', 'دو', 'دوسرا', 'دوسری'],
+  ['3', 'teen', 'tin', 'three', 'third', 'teesra', 'tisra', 'teesri', 'تین', 'تیسرا', 'تیسری'],
+  ['4', 'char', 'chaar', 'four', 'fourth', 'chautha', 'چار', 'چوتھا'],
+  ['5', 'panch', 'paanch', 'five', 'fifth', 'پانچ', 'پانچواں'],
+  ['6', 'che', 'chhe', 'six', 'چھ'],
+  ['7', 'saat', 'seven', 'سات'],
+  ['8', 'aath', 'eight', 'آٹھ'],
+  ['9', 'nau', 'nine', 'نو'],
+];
+
+function choiceIndex(text) {
+  const words = text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean)
+    .filter((w) => !['number', 'no', 'nmbr', 'wala', 'wali', 'nambar', 'نمبر', 'والا', 'والی'].includes(w));
+  if (words.length !== 1) return null;
+  const hit = CHOICE_NUMBER_WORDS.findIndex((group) => group.includes(words[0]));
+  return hit === -1 ? null : hit;
+}
+
 export function pickKhataCandidate(candidates, answer) {
   const text = String(answer || '').trim();
-  const index = text.match(/^(\d)\.?$/);
-  if (index) return candidates[Number(index[1]) - 1] || null;
+  const index = choiceIndex(text);
+  if (index !== null) return candidates[index] || null;
 
   const { match, candidates: ranked } = rankKhataCustomers(candidates, text);
   if (match) return match;

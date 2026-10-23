@@ -78,7 +78,9 @@ describe('Khata payments said in voice notes', () => {
   it('spelling variants and Urdu script still find the khata to confirm', () => {
     const names = (n) => rankKhataCustomers(KHATAS, n).candidates.map((c) => c.name);
     assert.equal(names('ali shiekhy town walay')[0], 'ali sheikhy town wala');
-    assert.equal(names('علی شیخی ٹاؤن والے')[0], 'ali sheikhy town wala');
+    // Urdu script can't be spelled like the Roman khata, so a full sound-alike match counts as exact.
+    assert.equal(rankKhataCustomers(KHATAS, 'علی شیخی ٹاؤن والے').match.name, 'ali sheikhy town wala');
+    assert.deepEqual(names('علی'), ['ali bhai', 'ali sheikhy town wala'], 'still asks when two khatas fit');
     assert.equal(rankKhataCustomers(KHATAS, 'Ali Sheikhy Town Wale').match.name, 'ali sheikhy town wala');
   });
 });
