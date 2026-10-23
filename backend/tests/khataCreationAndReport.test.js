@@ -90,6 +90,33 @@ describe('Khata creation, udhaar sales, settlement and reports', () => {
       assert.equal(r.items[0].name, 'lipton yellow label');
     });
 
+    test('survives the spelling variations voice transcription produces', async () => {
+      const variants = [
+        'talal ko lipton yellow label udhaar pe de diya',
+        'Talal ko Lipton Yellow Label udhaar pe de diya.',
+        'Talal ko Lipton Yellow Label, udhaar pe de diya.',
+        'talal ko lipton yellow label udhar pe de diya',
+        'talal ko lipton yellow label udhaar par de diya',
+        'talal ko lipton yellow label udhaar pe de dia',
+        'talal ko lipton yellow label udhaar pe de di',
+        'talal ko lipton yellow label udhaar ma de diya',
+        'talal ko ek lipton yellow label udhaar pe de diya',
+        'talal ko lipton yellow label ادھار پر دے دیا',
+      ];
+      for (const t of variants) {
+        const r = await parseIntent(t);
+        assert.equal(r.type, 'log_sale', t);
+        assert.equal(r.paymentMethod, 'udhaar', `${t} must not become a cash sale`);
+        assert.equal(r.customerName, 'talal', t);
+        assert.equal(r.items[0].name, 'lipton yellow label', t);
+      }
+    });
+
+    test('paying a debt back is not mistaken for a khata sale', async () => {
+      assert.equal(parseKhataSaleHeuristic('talal ko 3 rupay udhaar wapis kar diye'), null);
+      assert.equal(parseKhataSaleHeuristic('talal ko lipton udhaar wapis kar diya'), null);
+    });
+
     test('keeps explicit quantities and several items', () => {
       const r = parseKhataSaleHeuristic('soban bhai ke khate mein 2 chawal aur 1 doodh daal do');
       assert.deepEqual(r.items.map((i) => [i.name, i.quantity]), [['chawal', 2], ['doodh', 1]]);

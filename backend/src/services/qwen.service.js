@@ -1029,19 +1029,25 @@ export function parseKhataSaleHeuristic(text) {
   const lower = text.replace(/[۰-۹]/g, (d) => URDU_DIGITS_MAP[d] || d).toLowerCase().trim().replace(/[.!?،۔]+$/, '').trim();
   const khataNoun = '(?:khaata|khaate|khata|khate|udhaar|udhar|کھاتہ|کھاتے|ادھار)';
   const inWord = '(?:me|mein|main|men|may|میں)';
-  const putVerb = '(?:daal\\s*do|dal\\s*do|daalo|dalo|daal\\s*dein|dal\\s*dein|add\\s*kar\\s*do|add\\s*karo|likh\\s*do|likho|chadha\\s*do|ڈال\\s*دو|ڈالو|لکھ\\s*دو)';
-  const gaveVerb = '(?:de\\s*diya|de\\s*diye|de\\s*do|dey\\s*diya|diya|diye|di|دے\\s*دیا|دیا|دیے|دے\\s*دو)';
+  const putVerbStem = '(?:daal|dal|dalo|add|likh|likho|chadha|chadhao|ڈال|ڈالو|لکھ)';
   const nameSrc = "[a-zA-Z\\u0600-\\u06FF][a-zA-Z\\s\\u0600-\\u06FF.'-]*?";
 
   let customerName = null;
   let itemsText = null;
 
-  const a = lower.match(new RegExp(`^(${nameSrc})\\s+${KHATA_PARTICLE}\\s+${khataNoun}\\s*${inWord}\\s+(.+?)\\s+${putVerb}$`, 'i'));
+  // Voice transcripts spell the closing words many ways ("de diya", "de dia", "de di", "daal do",
+  // "dal de"), so everything after the udhaar/khata marker is free text. Only a payment word in
+  // that tail ("udhaar wapis kar diya") rules it out — that is a settlement, not a sale.
+  const paymentTail = /(?:wapis|wapas|jama|wasool|\bada\b|return|واپس|جمع|وصول|ادا)/i;
+
+  // "<name> ke khate me <items> [daal do / likh do ...]"
+  const a = lower.match(new RegExp(`^(${nameSrc})\\s+${KHATA_PARTICLE}\\s+${khataNoun}\\s*${inWord}\\s+(.+?)(?:\\s+${putVerbStem}\\S*(?:\\s+\\S+){0,3})?$`, 'i'));
   if (a) { customerName = a[1]; itemsText = a[2]; }
 
+  // "<name> ko <items> udhaar [pe/par/me] [de diya ...]"
   if (!customerName) {
-    const b = lower.match(new RegExp(`^(${nameSrc})\\s+(?:ko|کو)\\s+(.+?)\\s+(?:udhaar|udhar|khate|khata|ادھار|کھاتے)\\s*(?:pe|par|per|${'me|mein|main|men'}|پر|میں)\\s+${gaveVerb}$`, 'i'));
-    if (b) { customerName = b[1]; itemsText = b[2]; }
+    const b = lower.match(new RegExp(`^(${nameSrc})\\s+(?:ko|کو)\\s+(.+?)\\s+${khataNoun}(?:\\s+(.*))?$`, 'i'));
+    if (b && !paymentTail.test(b[3] || '')) { customerName = b[1]; itemsText = b[2]; }
   }
 
   if (!customerName) {
@@ -1326,6 +1332,12 @@ export async function parseIntent(text, merchant = null) {
           parsed.paymentMethod = normalizePaymentMethod(parsed.paymentMethod) || parsed.paymentMethod.toLowerCase();
         } else {
           parsed.paymentMethod = 'cash';
+        }
+
+        // A sentence that says udhaar/khata is a khata sale. Never let the model's "cash" default
+        // quietly turn it into a cash sale; with no customer name the bot asks whose khata it is.
+        if (hasKhataDebtWord(text) && parsed.paymentMethod !== 'udhaar') {
+          parsed.paymentMethod = 'udhaar';
         }
 
         // Migrate single item to items array if LLM hallucinated the old schema
