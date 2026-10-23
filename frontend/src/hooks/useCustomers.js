@@ -126,6 +126,8 @@ export function useCreateCustomer() {
         const res = await api.post('/api/customers', payload);
         return res || localCustomer;
       } catch (err) {
+        // The server refused (e.g. missing/duplicate phone): show that, don't fake a khata locally.
+        if (!/network error/i.test(err?.message || '')) throw err;
         console.warn('[Customers] Server POST failed, saved to local overlay:', err.message);
         const store = getLocalStore(mId);
         store.created.push(localCustomer);
@@ -194,3 +196,34 @@ export function useDeleteCustomer() {
   });
 }
 
+
+/** One customer's khata: dated purchases with items, payments, running balance and totals. */
+export function useCustomerStatement(customerId) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!customerId) return undefined;
+    const handleUpdate = (data) => {
+      if (!data || data.type === 'customer' || data.type === 'order') {
+        queryClient.invalidateQueries({ queryKey: ['customer-statement', customerId] });
+      }
+    };
+    socket.on('dashboard_update', handleUpdate);
+    return () => {
+      socket.off('dashboard_update', handleUpdate);
+    };
+  }, [queryClient, customerId]);
+
+  return useQuery({
+    queryKey: ['customer-statement', customerId],
+    queryFn: () => api.get(`/api/customers/${customerId}/statement`),
+    enabled: !!customerId,
+  });
+}
+
+/** Sends a customer's khata PDF to the merchant's linked WhatsApp. */
+export function useSendCustomerStatement() {
+  return useMutation({
+    mutationFn: (customerId) => api.post(`/api/customers/${customerId}/statement/whatsapp`, {}),
+  });
+}

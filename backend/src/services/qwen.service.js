@@ -897,6 +897,24 @@ export function parseKhataSettleHeuristic(text) {
   return null;
 }
 
+// Every way "khata" shows up in typed text and Whisper transcripts ("khatha", "khatta", "account"...).
+const KHATA_NOUNS = 'khaatha|khaata|khaate|khatha|khatta|khata|khate|khaa|kahta|khta|account|ledger|کھاتہ|کھاتے|کھاتا';
+const KHATA_PARTICLE = '(?:ka|ke|ki|کا|کے|کی)';
+const KHATA_NAME = "[a-zA-Z\\u0600-\\u06FF][a-zA-Z\\s\\u0600-\\u06FF.'-]*?";
+const WORD_START = '(?<=^|[\\s,،.])';
+const WORD_END = '(?=$|[\\s,،.!?۔])';
+const KHATA_NOUN_REGEX = new RegExp(`${WORD_START}(?:${KHATA_NOUNS})${WORD_END}`, 'i');
+// "make / open" in Roman Urdu, Urdu script and English, matched as the start of a word ("bana do", "banado", "kholo").
+const KHATA_CREATE_VERB_REGEX = new RegExp(`${WORD_START}(?:bana|bna|banao|bnao|banado|bnado|banana|bnana|banaen|banayein|banalo|bnalo|khol|kholo|create|open|make|start|بنا|بناؤ|بنائیں|بنادو|کھول|کھولو)`, 'i');
+const PHONE_NUMBER_REGEX = /\+?\d[\d\s-]{4,16}\d/;
+// Words that can sit next to a customer's name but are never part of it.
+const NAME_FILLER = new Set([
+  'please', 'plz', 'zara', 'ab', 'ek', 'aik', 'mera', 'meri', 'mere', 'hamara', 'naya', 'nayi', 'new', 'customer',
+  'gahak', 'grahak', 'hai', 'he', 'ha', 'hain', 'ye', 'yeh', 'is', 'iss', 'jo', 'and', 'aur', 'a', 'an', 'the',
+  'for', 'of', 'ka', 'ke', 'ki', 'uska', 'iska', 'unka', 'inka', 'udhaar', 'udhar', 'bhi', 'ji',
+  'نیا', 'نئی', 'میرا', 'ایک', 'گاہک', 'ہے', 'یہ', 'کا', 'کے', 'کی', 'ادھار',
+]);
+
 /**
  * Normalizes a Pakistani mobile number ("0300 1234567", "+92 300 1234567", "3001234567")
  * to the local 11-digit form "03001234567". Returns null when it isn't a valid mobile number.
@@ -911,72 +929,75 @@ export function normalizePkMobile(input) {
   return /^3\d{9}$/.test(digits) ? `0${digits}` : null;
 }
 
-const KHATA_NOUNS = 'khaata|khaate|khata|khate|khaa|kahta|khta|کھاتہ|کھاتے|کھاتا';
-const KHATA_PARTICLE = '(?:ka|ke|ki|کا|کے|کی)';
-const KHATA_NAME = "[a-zA-Z\\u0600-\\u06FF][a-zA-Z\\s\\u0600-\\u06FF.'-]*?";
-const KHATA_CREATE_VERBS = '(?:bnao|banao|bana\\s*do|bana\\s*dein|bana\\s*den|banado|bna\\s*do|bnado|bana\\s*lo|banalo|create|open|kholo|khol\\s*do|khol\\s*dein|shuru\\s*karo|بناؤ|بنا\\s*دو|بنا\\s*دیں|بنائیں|کھولو|کھول\\s*دو)';
-const PHONE_LABEL_WORDS = '(?:phone|number|no|mobile|contact|jin|jis|with|ph|نمبر|فون|موبائل)';
+/** True when the text asks to make/open a khata ("talal ka khatha bana do", "create account for ali"). */
+export function looksLikeKhataCreation(text) {
+  if (!text || typeof text !== 'string') return false;
+  return KHATA_NOUN_REGEX.test(text) && KHATA_CREATE_VERB_REGEX.test(text);
+}
 
-/** Splits free text after "khata bnao" into a customer name and a phone number. */
-function splitKhataNameAndPhone(rest) {
-  const phoneMatch = rest.match(/\+?\d[\d\s-]{4,16}\d/);
-  const phone = phoneMatch ? normalizePkMobile(phoneMatch[0]) : null;
-  const cut = rest.search(new RegExp(`(?:^|\\s)${PHONE_LABEL_WORDS}(?=\\s|$)|\\d|\\+`, 'i'));
-  const rawName = (cut === -1 ? rest : rest.slice(0, cut))
-    .replace(new RegExp(`^\\s*${KHATA_PARTICLE}\\s+`, 'i'), '')
-    .replace(new RegExp(`\\s+${KHATA_PARTICLE}\\s*$`, 'i'), '')
-    .trim();
-  return { name: rawName, phone, invalidPhone: !!phoneMatch && !phone };
+/** Drops filler words from both ends of a captured name ("mera naya customer talal" -> "talal"). */
+function cleanKhataName(raw) {
+  const words = String(raw || '').replace(/[,،.]/g, ' ').split(/\s+/).filter(Boolean);
+  while (words.length && NAME_FILLER.has(words[0])) words.shift();
+  while (words.length && NAME_FILLER.has(words[words.length - 1])) words.pop();
+  const name = words.slice(-4).join(' ');
+  if (name.length < 2 || name.length > 40 || /\d/.test(name) || !/[a-zA-Z؀-ۿ]/.test(name)) return null;
+  return name;
 }
 
 /**
- * Fast-path heuristic for explicitly creating a customer khata (ledger account):
- * "Soban bhai ka udhaar ka khata bnao jin ka phone number 03001234567",
- * "khata banao ali 03211234567", "create khata for usman 0300-1234567".
- * Phone is returned when present and valid; the handler decides what to do without one.
+ * Fast-path heuristic for explicitly creating a customer khata (ledger account). Keyword based
+ * rather than one fixed sentence, because voice transcripts vary a lot:
+ * "Talal ka khatha bana do, uska number hai 0300 123 4567.", "طلال کا کھاتہ بنا دو، اس کا نمبر ہے 03001234567",
+ * "mera naya customer hai Talal, uska khata bana do", "create account for usman +92 300 1234567".
+ * customerName is null when no name could be found; phone is null when absent or invalid
+ * (invalidPhone tells the two apart). The handler decides what to ask for.
  */
 export function parseKhataCreateHeuristic(text) {
-  if (!text || typeof text !== 'string') return null;
+  if (!looksLikeKhataCreation(text)) return null;
   const lower = text.replace(/[۰-۹]/g, (d) => URDU_DIGITS_MAP[d] || d).toLowerCase().trim().replace(/[.!?،۔]+$/, '').trim();
-  const ender = '(?=$|[\\s,.!?۔])';
+
+  const phoneMatch = lower.match(PHONE_NUMBER_REGEX);
+  const phone = phoneMatch ? normalizePkMobile(phoneMatch[0]) : null;
+  // Remove the number and its label so neither can end up inside the name.
+  const body = (phoneMatch ? lower.replace(phoneMatch[0], ' ') : lower)
+    .replace(/(?:^|\s)(?:phone|number|nmbr|no|mobile|contact|ph|نمبر|فون|موبائل)(?=\s|$)/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const word = "[a-zA-Z\\u0600-\\u06FF.'-]+";
+  const upTo4Words = `((?:${word}\\s+){0,3}${word})`;
+  const noun = `(?:${KHATA_NOUNS})${WORD_END}`;
+  const adjectives = '(?:(?:naya|nayi|new|نیا|نئی|udhaar|udhar|ادھار)\\s+(?:ka\\s+|کا\\s+)?)*';
 
   let name = null;
-  let rest = '';
 
-  // 1. "<name> ka [udhaar ka] khata bnao ..."
-  const p1 = lower.match(new RegExp(`^(${KHATA_NAME})\\s+${KHATA_PARTICLE}\\s+(?:(?:udhaar|udhar|ادھار)\\s*${KHATA_PARTICLE}?\\s*)?(?:${KHATA_NOUNS})\\s+${KHATA_CREATE_VERBS}${ender}(.*)$`, 'i'));
-  if (p1) {
-    name = p1[1].trim();
-    rest = p1[2] || '';
+  // 1. "<name> ka [naya] [udhaar ka] khata ..."
+  const p1 = body.match(new RegExp(`${upTo4Words}\\s+${KHATA_PARTICLE}\\s+${adjectives}${noun}`, 'i'));
+  if (p1) name = cleanKhataName(p1[1]);
+
+  // 2. "<name>, uska / iska / jis ka khata ..."
+  if (!name) {
+    const p2 = body.match(new RegExp(`${upTo4Words}[,،]?\\s+(?:uska|iska|unka|inka|us\\s+ka|is\\s+ka|jis\\s*ka|jin\\s*ka|اس\\s+کا|ان\\s+کا|جس\\s+کا|جن\\s+کا)\\s+${adjectives}${noun}`, 'i'));
+    if (p2) name = cleanKhataName(p2[1]);
   }
 
-  // 2. "khata bnao <name> ..."
+  // 3. "[create|open|...] khata / account for|of <name>" and "khata bana do <name>"
   if (!name) {
-    const p2 = lower.match(new RegExp(`^(?:(?:udhaar|udhar|ادھار)\\s+)?(?:${KHATA_NOUNS})\\s+${KHATA_CREATE_VERBS}${ender}\\s*(?:for|of)?\\s*(.*)$`, 'i'));
-    if (p2) {
-      const split = splitKhataNameAndPhone(p2[1] || '');
-      name = split.name;
-      rest = p2[1] || '';
-    }
-  }
-
-  // 3. "create/open/new khata for <name> ..."
-  if (!name) {
-    const p3 = lower.match(/^(?:create|make|open|start|new|add)\s+(?:a\s+|an\s+|new\s+)?(?:(?:udhaar|udhar|credit)\s+)?(?:khaata|khata|ledger|account)\s+(?:for|of)\s+(.*)$/i);
+    const p3 = body.match(new RegExp(`${noun}\\s+(?:(?:for|of)\\s+|\\S+\\s+(?:do\\s+|dein\\s+|den\\s+|lo\\s+)?)(${word}(?:\\s+${word}){0,3})`, 'i'));
     if (p3) {
-      const split = splitKhataNameAndPhone(p3[1] || '');
-      name = split.name;
-      rest = p3[1] || '';
+      const after = p3[1].split(/\s+(?:ka|ke|ki|jis|jin|uska|iska|اس|جس)(?:\s|$)/i)[0];
+      name = cleanKhataName(after);
     }
   }
 
-  if (!name) return null;
-
-  const { phone, invalidPhone } = splitKhataNameAndPhone(rest);
-  const cleanName = name.replace(/\s+/g, ' ').trim();
-  if (cleanName.length < 2 || cleanName.length > 40 || !/[a-zA-Z؀-ۿ]/.test(cleanName)) return null;
-
-  return { type: 'create_khata', customerName: cleanName, phone, invalidPhone, rawText: text };
+  return {
+    type: 'create_khata',
+    customerName: name,
+    phone,
+    invalidPhone: !!phoneMatch && !phone,
+    rawText: text,
+  };
 }
 
 const KHATA_REPORT_WORDS = 'report|statement|history|hisab|hisaab|detail|details|tafseel|tafsil|رپورٹ|تفصیل|حساب|اسٹیٹمنٹ';
@@ -1080,6 +1101,19 @@ export function parseKhataSaleHeuristic(text) {
 }
 
 /**
+ * True for any explicit khata command (create, report, udhaar payment, adding goods to a khata).
+ * Lets these override a half-finished conversation flow instead of being read as its answer.
+ */
+export function isKhataCommand(text) {
+  return !!(
+    parseKhataCreateHeuristic(text) ||
+    parseKhataReportHeuristic(text) ||
+    (hasKhataDebtWord(text) && parseKhataSettleHeuristic(text)) ||
+    parseKhataSaleHeuristic(text)
+  );
+}
+
+/**
  * Fast-path heuristic parser for Khata customer inquiry requests.
  */
 export function parseKhataInquiryHeuristic(text) {
@@ -1125,7 +1159,11 @@ export function parseStandardSaleHeuristic(text) {
     /(?:kitna|kitni|kitne|check\s*stock|stock\s*check|how\s*much|how\s*many|report|summary|hisab|رپورٹ|کھاتہ|wapis|wapas|return|واپس|تبادلہ|exchange|badal)/i.test(lower) ||
     /^(?:stock\s*list|inventory|saman)\b/i.test(lower) ||
     // "udhaar me se" / "khate se" is money coming off a debt, never a sale.
-    new RegExp(`(?:${KHATA_DEBT_WORDS})\\s*(?:(?:me|mein|main|men|میں)\\s*)?(?:se|سے)(?=$|\\s)`, 'i').test(lower)
+    new RegExp(`(?:${KHATA_DEBT_WORDS})\\s*(?:(?:me|mein|main|men|میں)\\s*)?(?:se|سے)(?=$|\\s)`, 'i').test(lower) ||
+    // "<name> ka khata bana do" — opening a khata, never a sale.
+    looksLikeKhataCreation(lower) ||
+    // A mobile number in the message ("uska number 0300 1234567") is never a quantity.
+    /(?:\+?92|0)\s*3\d{2}[\s-]*\d{3}[\s-]*\d{4}/.test(lower)
   ) {
     return null;
   }

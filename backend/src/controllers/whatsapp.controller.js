@@ -17,7 +17,7 @@ import { respond as respondToApproval, findPendingByOrderId } from '../approvals
 import { generateLinkCode } from './auth.controller.js';
 import { getStaffLimit, normalizePhone } from './merchant.controller.js';
 import { emitDashboardUpdate } from '../socket.js';
-import { parseIntent, extractBusinessDetails, extractInventoryItems, resolveItemName, parseKhataSettleHeuristic, parseKhataInquiryHeuristic, parseKhataCreateHeuristic, parseKhataReportHeuristic, normalizePkMobile, parsePriceAndUnit } from '../services/qwen.service.js';
+import { parseIntent, extractBusinessDetails, extractInventoryItems, resolveItemName, parseKhataSettleHeuristic, parseKhataInquiryHeuristic, parseKhataCreateHeuristic, parseKhataReportHeuristic, normalizePkMobile, isKhataCommand, parsePriceAndUnit } from '../services/qwen.service.js';
 import { findSimilarInventoryItems, cleanAndStandardizeItemName } from '../crm/item-matching.js';
 import { transcribeAndParse } from '../agent/transcribeAndParse.js';
 import { downloadMedia } from '../services/media.service.js';
@@ -1203,7 +1203,8 @@ async function handleTextMessage(merchant, text, rawMessage = null) {
   });
   if (pendingNewItem) {
     const idleMs = Date.now() - new Date(pendingNewItem.updatedAt).getTime();
-    if (idleMs > 30 * 60 * 1000) {
+    // A khata command is a new request, not the answer to the pending item question.
+    if (idleMs > 30 * 60 * 1000 || isKhataCommand(text)) {
       await ConversationState.deleteOne({ _id: pendingNewItem._id });
     } else {
       return await handlePendingNewItemReply(merchant, text, 'text', pendingNewItem, rawMessage);
@@ -1513,7 +1514,8 @@ async function handleVoiceNote(merchant, mediaId, rawMessage = null) {
     });
     if (pendingNewItem) {
       const idleMs = Date.now() - new Date(pendingNewItem.updatedAt).getTime();
-      if (idleMs > 30 * 60 * 1000) {
+      // A khata command is a new request, not the answer to the pending item question.
+      if (idleMs > 30 * 60 * 1000 || isKhataCommand(transcript)) {
         await ConversationState.deleteOne({ _id: pendingNewItem._id });
       } else {
         return await handlePendingNewItemReply(merchant, transcript, 'voice', pendingNewItem, rawMessage);
@@ -3157,7 +3159,7 @@ export async function handleKhataCreate(merchant, rawCustomerName, rawPhone, sou
   const name = String(rawCustomerName || '').replace(/\s+/g, ' ').trim();
 
   if (!name) {
-    return replyToMerchant(merchant, spokenPhrases.khataNameRequired(language), source);
+    return replyToMerchant(merchant, spokenPhrases.khataCreateNeedsName(language), source);
   }
 
   if (!rawPhone) {

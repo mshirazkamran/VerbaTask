@@ -339,6 +339,19 @@ export const spokenPhrases = {
     };
   },
 
+  khataCreateNeedsName(language = 'ur') {
+    if (language === 'ur') {
+      return {
+        spoken: `کس کا کھاتہ بنانا ہے؟ براہ کرم گاہک کا نام اور فون نمبر بتائیں۔`,
+        text: `❓ کس کا کھاتہ بنانا ہے؟ نام اور فون نمبر کے ساتھ بھیجیں:\n"talal ka khata bnao phone 03001234567"`,
+      };
+    }
+    return {
+      spoken: `Whose khata should I create? Please say the customer's name and phone number.`,
+      text: `❓ Whose khata should I create? Send the name and phone number, like:\n"talal ka khata bnao phone 03001234567"`,
+    };
+  },
+
   khataNeedsPhone(language = 'ur', { customerName } = {}) {
     const name = String(customerName || '');
     if (language === 'ur') {

@@ -60,6 +60,30 @@ describe('Khata creation, udhaar sales, settlement and reports', () => {
       assert.equal(parseKhataCreateHeuristic('سوبان بھائی کا کھاتہ بنا دو 03001234567').phone, '03001234567');
     });
 
+    test('handles the ways voice transcription writes the same request', async () => {
+      const variants = [
+        'talal ka khata bana do, uska number ha 03001234567',
+        'Talal ka khatha bana do, uska number hai 03001234567.',
+        'Talal ka khatta bana do, uska number hai 0300 123 4567.',
+        'Talal ka account bana do, uska number hai 0300-1234567.',
+        'Talal ka naya khata bana do, uska number hai 03001234567',
+        'Talal ka khata banado, uska number 03001234567 hai.',
+        'Mera ek naya customer hai Talal, uska khata bana do, number 03001234567',
+        'طلال کا کھاتہ بنا دو، اس کا نمبر ہے 03001234567',
+      ];
+      for (const t of variants) {
+        const r = await parseIntent(t);
+        assert.equal(r.type, 'create_khata', `${t} must create a khata, not log a sale`);
+        assert.equal(r.phone, '03001234567', t);
+        assert.ok(['talal', 'طلال'].includes(r.customerName), `${t} -> ${r.customerName}`);
+      }
+    });
+
+    test('a message with a phone number is never parsed as a sale', () => {
+      assert.equal(parseStandardSaleHeuristic('talal ka number 03001234567'), null);
+      assert.equal(parseStandardSaleHeuristic('Talal ka khatha bana do, uska number hai 03001234567.'), null);
+    });
+
     test('returns no phone when none is given and flags an invalid one', () => {
       assert.equal(parseKhataCreateHeuristic('soban bhai ka khata bnao').phone, null);
       const bad = parseKhataCreateHeuristic('soban bhai ka khata bnao phone 0300123');
