@@ -2342,6 +2342,13 @@ async function handleReturnOrderViaWhatsApp(merchant, intent, source = 'text', r
     return replyToMerchant(merchant, phrases, source);
   } catch (err) {
     console.error('WhatsApp return failed:', err.message);
+    // Nothing on that order matched what was said: say so plainly instead of the error code.
+    if (err.message?.startsWith('NO_VALID_ITEMS')) {
+      const notOnOrder = language === 'ur'
+        ? '❌ واپسی درج نہیں ہوئی — یہ چیز اس آرڈر میں نہیں ہے (یا پہلے ہی واپس ہو چکی ہے)۔ چیز کا نام اور آرڈر نمبر دوبارہ بتائیں۔\n💡 اگر گاہک نے ادھار کے پیسے دیے ہیں تو یوں بولیں: "علی نے 400 روپے دیے"'
+        : '❌ Return not recorded — that item is not on this order (or was already returned). Please say the item name and order number again.\n💡 If the customer paid back udhaar money, say e.g. "Ali ne 400 rupay diye".';
+      return replyToMerchant(merchant, notOnOrder, source);
+    }
     const errText = language === 'ur'
       ? `❌ واپسی درج نہیں ہو سکی: ${err.message}`
       : `❌ Could not process return: ${err.message}`;

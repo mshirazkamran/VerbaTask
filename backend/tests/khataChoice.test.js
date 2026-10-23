@@ -56,6 +56,9 @@ describe('Khata payments said in voice notes', () => {
     ['ali shiekhy town walay ne paanch sau wapis kar diye', 'ali shiekhy town walay', 500],
     ['ali shiekhy town walay ne udhaar ke 500 wapis kr diye', 'ali shiekhy town walay', 500],
     ['علی شیخی ٹاؤن والے نے 500 روپے واپس کر دیے ہیں', 'علی شیخی ٹاؤن والے', 500],
+    ['Ali ne 400 wapis dediay udhaar se', 'ali', 400],
+    ['ali ne 400 rupay wapis diye udhar mein se', 'ali', 400],
+    ['ali ne 400 wapis kiye hain udhaar main se', 'ali', 400],
   ];
   for (const [said, name, amount] of payments) {
     it(`"${said}" is a ${amount} payment from "${name}"`, async () => {

@@ -835,8 +835,10 @@ const SETTLE_VERB_HELPER = '(?:wapis|wapas|واپس|jama|جمع|ada|ادا|bhar|
 const SETTLE_VERB_FINAL = '(?:diye|diya|dia|diay|di|dye|deye|dee|kiye|kiya|kie|karwaye|krwaye|karaye|lautaye|lotaye|chukaye|bhare|paid|دیے|دیا|دی|دئے|کیے|کیا|کروائے|کرائے|لوٹائے|چکائے|بھرے)';
 const SETTLE_AUX = '(?:\\s+(?:hai|hain|hy|he|hen|hyn|ہے|ہیں))?';
 const SETTLE_CURRENCY = '(?:rupay|rupaye|rupee|rupees|rupy|rs|roopay|pkr|روپے|روپیہ)';
+// "udhaar se", "udhar mein se", "apne khate se" closing the sentence (no word after "se").
+const DEBT_PHRASE_AT_END = `(?:(?:apne|apna|apni|اپنے|اپنا|اپنی)\\s+)?(?:${KHATA_DEBT_WORDS})(?:\\s*(?:ke|ka|ki|me|mein|main|men|کے|کا|کی|میں))?(?:\\s*(?:se|سے))?`;
 const KHATA_PAYMENT_GENERAL_REGEX = new RegExp(
-  `^([a-zA-Z\\s\\u0600-\\u06FF-]+?)\\s+(?:ne|nay|نے)\\s+(?:${DEBT_PHRASE})?(\\d+(?:\\.\\d+)?)\\s*(${SETTLE_CURRENCY})?\\s*(?:${DEBT_PHRASE})?(?:${SETTLE_VERB_HELPER}\\s*){0,4}${SETTLE_VERB_FINAL}(?:\\s+(?:${DEBT_PHRASE}))?${SETTLE_AUX}$`,
+  `^([a-zA-Z\\s\\u0600-\\u06FF-]+?)\\s+(?:ne|nay|نے)\\s+(?:${DEBT_PHRASE})?(\\d+(?:\\.\\d+)?)\\s*(${SETTLE_CURRENCY})?\\s*(?:${DEBT_PHRASE})?(?:${SETTLE_VERB_HELPER}\\s*){0,4}${SETTLE_VERB_FINAL}${SETTLE_AUX}(?:\\s+${DEBT_PHRASE_AT_END})?${SETTLE_AUX}$`,
   'iu'
 );
 

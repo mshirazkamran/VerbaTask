@@ -159,25 +159,43 @@ export async function processOrderReturn(merchantId, { orderId, orderNumber, con
         price: i.price,
       }));
 
-  for (const requested of targetItems) {
-    const qtyToReturn = Number(requested.quantity) || 0;
-    if (qtyToReturn <= 0) continue;
+  const sameId = (a, b) => a && b && a.toString() === b.toString();
+  const returnedSoFar = (line) => (order.returnHistory || []).reduce(
+    (sum, rh) => sum + (rh.items || [])
+      .filter((it) => sameId(it.inventoryItemId, line.inventoryItemId) || it.name === line.name)
+      .reduce((s, it) => s + (Number(it.quantity) || 0), 0),
+    0
+  );
 
-    // Find original line item in the order
-    const origLine = order.items.find(
+  for (const requested of targetItems) {
+    const requestedQty = Number(requested.quantity) || 0;
+    if (requestedQty <= 0) continue;
+
+    // Only goods that are on this order can come back: by id, by exact name, or by the
+    // stock item the said name resolves to ("chawal" -> the order's "Rice" line).
+    let origLine = order.items.find(
       (oi) =>
-        (requested.inventoryItemId && oi.inventoryItemId && oi.inventoryItemId.toString() === requested.inventoryItemId.toString()) ||
+        sameId(requested.inventoryItemId, oi.inventoryItemId) ||
         oi.name.toLowerCase() === (requested.name || '').trim().toLowerCase()
     );
+    if (!origLine && requested.name) {
+      const said = await resolveInventoryDoc(merchantId, { name: requested.name });
+      if (said) origLine = order.items.find((oi) => sameId(oi.inventoryItemId, said._id));
+    }
+    if (!origLine) continue;
 
-    const unitPrice = origLine ? origLine.price : (requested.price || 0);
+    // Never more than what was sold and not yet returned.
+    const qtyToReturn = Math.min(requestedQty, (Number(origLine.quantity) || 0) - returnedSoFar(origLine));
+    if (qtyToReturn <= 0) continue;
+
+    const unitPrice = origLine.price || 0;
     const itemRefund = unitPrice * qtyToReturn;
     totalRefund += itemRefund;
 
     // Restock the inventory item
     const inventoryItem = await resolveInventoryDoc(merchantId, {
-      inventoryItemId: requested.inventoryItemId || origLine?.inventoryItemId,
-      name: requested.name || origLine?.name,
+      inventoryItemId: origLine.inventoryItemId,
+      name: origLine.name,
     });
 
     if (inventoryItem) {
@@ -187,8 +205,8 @@ export async function processOrderReturn(merchantId, { orderId, orderNumber, con
     }
 
     returnedLines.push({
-      inventoryItemId: inventoryItem?._id || origLine?.inventoryItemId,
-      name: origLine?.name || requested.name || inventoryItem?.name || 'Item',
+      inventoryItemId: inventoryItem?._id || origLine.inventoryItemId,
+      name: origLine.name || inventoryItem?.name || 'Item',
       quantity: qtyToReturn,
       price: unitPrice,
     });
