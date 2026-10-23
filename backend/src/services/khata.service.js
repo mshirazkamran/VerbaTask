@@ -1,6 +1,6 @@
 import Order from '../models/Order.js';
 import KhataPayment from '../models/KhataPayment.js';
-import { levenshtein, simplifyPhonetic } from '../crm/item-matching.js';
+import { levenshtein, simplifyPhonetic, transliterateUrdu } from '../crm/item-matching.js';
 
 /**
  * Records one payment toward a customer's khata so reports can show when it came in.
@@ -109,22 +109,51 @@ export async function getKhataStatement(merchantId, customer) {
   return buildKhataStatement({ customer, orders, payments });
 }
 
-// Politeness words that don't tell two customers apart ("ali" and "ali bhai" are the same person).
-const KHATA_HONORIFICS = new Set(['bhai', 'bhae', 'bhaiya', 'bhaijan', 'bhaijaan', 'sahab', 'sahib', 'saheb', 'sb', 'ji', 'janab', 'بھائی', 'صاحب', 'جی']);
+// Words that don't tell two customers apart: politeness ("ali" and "ali bhai" are the same
+// person) and the "wala" descriptor (it's in many names, so it never makes a match on its own).
+const KHATA_HONORIFICS = new Set(['bhai', 'bhae', 'bhaiya', 'bhaijan', 'bhaijaan', 'sahab', 'sahib', 'saheb', 'sb', 'ji', 'janab', 'wala', 'بھائی', 'صاحب', 'جی']);
 
-const nameWords = (name) => String(name || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
+// "wala", "walay", "wale", "waala": one descriptor however it's spelled or transcribed.
+const WALA_SPELLINGS = /^(?:w|o)+a+l+(?:a|aa|ay|ai|e|ey|y|ee|i|ay)$/;
+
+/** Urdu-script name word -> Roman letters, so "علی" can be compared with a khata saved as "ali". */
+function romanizeNameWord(word) {
+  if (!/[\u0600-\u06FF]/.test(word)) return word;
+  return transliterateUrdu(word.replace(/^و/, 'w').replace(/ؤ/g, 'o')).toLowerCase();
+}
+
+const nameWords = (name) => String(name || '')
+  .toLowerCase()
+  .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+  .split(/\s+/)
+  .filter(Boolean)
+  .map((w) => {
+    const roman = romanizeNameWord(w);
+    return WALA_SPELLINGS.test(roman) ? 'wala' : roman;
+  });
+
+/** Consonant outline of a word: "sheikhy", "shiekhy" and "shikhi" all become "shkh". */
+const consonantSkeleton = (w) => w.replace(/y/g, 'i').replace(/w/g, 'o').replace(/[aeiou]+/g, '').replace(/(.)\1+/g, '$1');
 const withoutHonorifics = (words) => {
   const core = words.filter((w) => !KHATA_HONORIFICS.has(w));
   return core.length ? core : words;
 };
 
-/** Same word, allowing spelling slips in voice transcripts ("shikhy" ~ "sheikhy"). */
+/**
+ * Same word, allowing spelling slips in voice transcripts: "shikhy" ~ "sheikhy" ~ "shiekhy",
+ * and Urdu script romanized ("بھائی" ~ "bhai"). Only ever used to offer candidates — a khata is
+ * applied without asking only on an exact spelling.
+ */
 function sameNameWord(a, b) {
   if (a === b) return true;
   if (a.length < 3 || b.length < 3) return false;
   const pa = simplifyPhonetic(a);
   if (pa && pa === simplifyPhonetic(b)) return true;
-  return a.length >= 4 && b.length >= 4 && 1 - levenshtein(a, b) / Math.max(a.length, b.length) >= 0.8;
+  if (a.length >= 4 && b.length >= 4 && 1 - levenshtein(a, b) / Math.max(a.length, b.length) >= 0.8) return true;
+  const sa = consonantSkeleton(a);
+  const sb = consonantSkeleton(b);
+  const first = (w) => w.replace(/^y/, 'i').replace(/^w/, 'o')[0];
+  return sa.length > 0 && sa === sb && first(a) === first(b);
 }
 
 // Exact spelling only: a typo'd name is never applied to a khata without the merchant confirming it.

@@ -45,6 +45,41 @@ describe('rankKhataCustomers: which khata does a spoken name mean?', () => {
   });
 });
 
+describe('Khata payments said in voice notes', () => {
+  before(() => { for (const k of ['GROQ_API_KEY', 'GEMINI_API_KEY', 'DASHSCOPE_API_KEY']) delete process.env[k]; });
+
+  const payments = [
+    ['ali shiekhy town walay ne 500 wapis krdiya hai', 'ali shiekhy town walay', 500],
+    ['Ali shiekhy town walay ne 500 wapis kr diya hai.', 'ali shiekhy town walay', 500],
+    ['ali bhai ne 500 rupay jama karwa diye hain', 'ali bhai', 500],
+    ['Ali Sheikhy Town Wale ne 500 rupees de diye hain.', 'ali sheikhy town wale', 500],
+    ['ali shiekhy town walay ne paanch sau wapis kar diye', 'ali shiekhy town walay', 500],
+    ['ali shiekhy town walay ne udhaar ke 500 wapis kr diye', 'ali shiekhy town walay', 500],
+    ['علی شیخی ٹاؤن والے نے 500 روپے واپس کر دیے ہیں', 'علی شیخی ٹاؤن والے', 500],
+  ];
+  for (const [said, name, amount] of payments) {
+    it(`"${said}" is a ${amount} payment from "${name}"`, async () => {
+      const r = await parseIntent(said);
+      assert.equal(r.type, 'settle_khata');
+      assert.equal(r.customerName, name);
+      assert.equal(r.amount, amount);
+    });
+  }
+
+  it('goods coming back are still returns, not payments', async () => {
+    assert.equal((await parseIntent('ali ne 2 chawal wapis kiye')).type, 'return_order');
+    assert.equal((await parseIntent('ali ne 3 kilo chini wapis kar di')).type, 'return_order');
+    assert.equal((await parseIntent('ali ne 2 wapis kiye')).type, 'return_order');
+  });
+
+  it('spelling variants and Urdu script still find the khata to confirm', () => {
+    const names = (n) => rankKhataCustomers(KHATAS, n).candidates.map((c) => c.name);
+    assert.equal(names('ali shiekhy town walay')[0], 'ali sheikhy town wala');
+    assert.equal(names('علی شیخی ٹاؤن والے')[0], 'ali sheikhy town wala');
+    assert.equal(rankKhataCustomers(KHATAS, 'Ali Sheikhy Town Wale').match.name, 'ali sheikhy town wala');
+  });
+});
+
 describe('pickKhataCandidate: reading the merchant\'s answer', () => {
   const both = [{ id: 'c_ali_bhai', name: 'ali bhai' }, { id: 'c_ali_town', name: 'ali sheikhy town wala' }];
   it('accepts a number or a name', () => {
@@ -95,7 +130,9 @@ describe('WhatsApp: confirm the khata before anything is recorded', () => {
 
   before(() => {
     mock(axios, 'create', () => ({ post: async (_url, body) => { if (body?.type === 'interactive') interactive.push(body.interactive); return { data: { messages: [{ id: 'wamid.out' }] } }; } }));
-    mock(Customer, 'find', () => listOf(KHATAS));
+    // Like Mongoose documents: a copy that writes back to the khata on save().
+    const doc = (c) => ({ ...c, save: async function () { c.balance = this.balance; } });
+    mock(Customer, 'find', () => listOf(KHATAS.map(doc)));
     mock(Customer, 'findOne', async (q) => {
       if (q._id) return KHATAS.find((c) => c._id === q._id) ? { ...KHATAS.find((c) => c._id === q._id), save: async function () { Object.assign(KHATAS.find((c) => c._id === q._id), { balance: this.balance }); } } : null;
       const hit = KHATAS.find((c) => (q.name instanceof RegExp ? q.name.test(c.name) : c.name === q.name));
@@ -161,6 +198,25 @@ describe('WhatsApp: confirm the khata before anything is recorded', () => {
     assert.equal(interactive.length, 0);
     assert.equal(orders.length, 1);
     assert.equal(orders[0].customerName, 'ali bhai');
+  });
+
+  it('"ali shiekhy town walay ne 500 wapis krdiya hai" (voice): asks, then deducts 500 from that khata', async () => {
+    ALI_TOWN.balance = 1200;
+    await incomingText('ali shiekhy town walay ne 500 wapis krdiya hai');
+    assert.equal(payments.length, 0, 'nothing deducted before the merchant confirms');
+    assert.equal(interactive[0].action.buttons[0].reply.id, 'custpick_c_ali_town', 'best match offered first');
+    await incomingTap('custpick_c_ali_town');
+    assert.equal(payments.length, 1);
+    assert.equal(payments[0].amount, 500);
+    assert.equal(ALI_TOWN.balance, 700);
+    assert.equal(ALI_BHAI.balance, 4140);
+  });
+
+  it('an exactly named payment is applied straight away', async () => {
+    ALI_TOWN.balance = 1200;
+    await incomingText('Ali Sheikhy Town Wale ne 500 rupees de diye hain.');
+    assert.equal(interactive.length, 0);
+    assert.equal(ALI_TOWN.balance, 700);
   });
 
   it('a khata payment from "ali" also asks first, then applies to the chosen khata', async () => {

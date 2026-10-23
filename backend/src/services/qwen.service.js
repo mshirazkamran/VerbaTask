@@ -771,18 +771,18 @@ const COMPOUND_NUMBER_WORDS = [
   { pattern: /(?<=^|[\s\b])(?:do|2|دو)\s*(?:lakh|lac|لاکھ)(?=[\s\b]|$)/gi, value: 200000 },
   { pattern: /(?<=^|[\s\b])(?:ek|aik|1|ایک)\s*(?:lakh|lac|لاکھ)(?=[\s\b]|$)|(?<=^|[\s\b])(?:lakh|lac|لاکھ)(?=[\s\b]|$)/gi, value: 100000 },
   // Thousands
-  { pattern: /(?<=^|[\s\b])(?:pachas|50)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 50000 },
-  { pattern: /(?<=^|[\s\b])(?:chalees|40)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 40000 },
-  { pattern: /(?<=^|[\s\b])(?:tees|30)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 30000 },
-  { pattern: /(?<=^|[\s\b])(?:pachees|25)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 25000 },
-  { pattern: /(?<=^|[\s\b])(?:bees|20)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 20000 },
-  { pattern: /(?<=^|[\s\b])(?:pandrah|15)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 15000 },
-  { pattern: /(?<=^|[\s\b])(?:das|10)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 10000 },
-  { pattern: /(?<=^|[\s\b])(?:panch|5|پانچ)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 5000 },
-  { pattern: /(?<=^|[\s\b])(?:char|4|چار)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 4000 },
-  { pattern: /(?<=^|[\s\b])(?:teen|3|تین)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 3000 },
-  { pattern: /(?<=^|[\s\b])(?:do|2|دو)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 2000 },
-  { pattern: /(?<=^|[\s\b])(?:ek|aik|1|ایک)\s*(?:hazar|hazaron|ہزار)(?=[\s\b]|$)|(?<=^|[\s\b])(?:hazar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 1000 },
+  { pattern: /(?<=^|[\s\b])(?:pachas|50)\s*(?:hazar|hazaar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 50000 },
+  { pattern: /(?<=^|[\s\b])(?:chalees|40)\s*(?:hazar|hazaar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 40000 },
+  { pattern: /(?<=^|[\s\b])(?:tees|30)\s*(?:hazar|hazaar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 30000 },
+  { pattern: /(?<=^|[\s\b])(?:pachees|25)\s*(?:hazar|hazaar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 25000 },
+  { pattern: /(?<=^|[\s\b])(?:bees|20)\s*(?:hazar|hazaar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 20000 },
+  { pattern: /(?<=^|[\s\b])(?:pandrah|15)\s*(?:hazar|hazaar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 15000 },
+  { pattern: /(?<=^|[\s\b])(?:das|10)\s*(?:hazar|hazaar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 10000 },
+  { pattern: /(?<=^|[\s\b])(?:panch|paanch|5|پانچ)\s*(?:hazar|hazaar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 5000 },
+  { pattern: /(?<=^|[\s\b])(?:char|4|چار)\s*(?:hazar|hazaar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 4000 },
+  { pattern: /(?<=^|[\s\b])(?:teen|3|تین)\s*(?:hazar|hazaar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 3000 },
+  { pattern: /(?<=^|[\s\b])(?:do|2|دو)\s*(?:hazar|hazaar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 2000 },
+  { pattern: /(?<=^|[\s\b])(?:ek|aik|1|ایک)\s*(?:hazar|hazaar|hazaron|ہزار)(?=[\s\b]|$)|(?<=^|[\s\b])(?:hazar|hazaar|hazaron|ہزار)(?=[\s\b]|$)/gi, value: 1000 },
   // Hundreds
   { pattern: /(?<=^|[\s\b])(?:pachees\s*sau|25\s*sau|پچیس\s*سو)(?=[\s\b]|$)/gi, value: 2500 },
   { pattern: /(?<=^|[\s\b])(?:bees\s*sau|20\s*sau|بیس\s*سو)(?=[\s\b]|$)/gi, value: 2000 },
@@ -793,7 +793,7 @@ const COMPOUND_NUMBER_WORDS = [
   { pattern: /(?<=^|[\s\b])(?:aath\s*sau|8\s*sau|آٹھ\s*سو)(?=[\s\b]|$)/gi, value: 800 },
   { pattern: /(?<=^|[\s\b])(?:saat\s*sau|7\s*sau|سات\s*سو)(?=[\s\b]|$)/gi, value: 700 },
   { pattern: /(?<=^|[\s\b])(?:che\s*sau|chhe\s*sau|6\s*sau|چھ\s*سو)(?=[\s\b]|$)/gi, value: 600 },
-  { pattern: /(?<=^|[\s\b])(?:panch\s*sau|5\s*sau|پانچ\s*سو)(?=[\s\b]|$)/gi, value: 500 },
+  { pattern: /(?<=^|[\s\b])(?:panch\s*sau|paanch\s*sau|5\s*sau|پانچ\s*سو)(?=[\s\b]|$)/gi, value: 500 },
   { pattern: /(?<=^|[\s\b])(?:char\s*sau|4\s*sau|چار\s*سو)(?=[\s\b]|$)/gi, value: 400 },
   { pattern: /(?<=^|[\s\b])(?:teen\s*sau|3\s*sau|تین\s*سو)(?=[\s\b]|$)/gi, value: 300 },
   { pattern: /(?<=^|[\s\b])(?:dhai\s*sau|ڈھائی\s*سو)(?=[\s\b]|$)/gi, value: 250 },
@@ -829,6 +829,17 @@ const KHATA_PAYMENT_WITH_DEBT_REGEX = new RegExp(
   'i'
 );
 
+// "gave / paid back" in the many ways voice transcripts spell it: "wapis kr diya", "krdiya", "de diye hain",
+// "jama karwa diye", "ada kar diye", "lauta diye", "واپس کر دیے". Up to four helper words, then the verb.
+const SETTLE_VERB_HELPER = '(?:wapis|wapas|واپس|jama|جمع|ada|ادا|bhar|lauta|lota|chuka|لوٹا|چکا|karwa|krwa|karva|kar|kr|کروا|کر|de|dey|دے)';
+const SETTLE_VERB_FINAL = '(?:diye|diya|dia|diay|di|dye|deye|dee|kiye|kiya|kie|karwaye|krwaye|karaye|lautaye|lotaye|chukaye|bhare|paid|دیے|دیا|دی|دئے|کیے|کیا|کروائے|کرائے|لوٹائے|چکائے|بھرے)';
+const SETTLE_AUX = '(?:\\s+(?:hai|hain|hy|he|hen|hyn|ہے|ہیں))?';
+const SETTLE_CURRENCY = '(?:rupay|rupaye|rupee|rupees|rupy|rs|roopay|pkr|روپے|روپیہ)';
+const KHATA_PAYMENT_GENERAL_REGEX = new RegExp(
+  `^([a-zA-Z\\s\\u0600-\\u06FF-]+?)\\s+(?:ne|nay|نے)\\s+(?:${DEBT_PHRASE})?(\\d+(?:\\.\\d+)?)\\s*(${SETTLE_CURRENCY})?\\s*(?:${DEBT_PHRASE})?(?:${SETTLE_VERB_HELPER}\\s*){0,4}${SETTLE_VERB_FINAL}(?:\\s+(?:${DEBT_PHRASE}))?${SETTLE_AUX}$`,
+  'iu'
+);
+
 /**
  * Fast-path heuristic parser for Khata (debt / ledger) cash settlements.
  * Detects phrases like "Ali ne 500 diye", "Ali se 500 wasool hue", "settle 1000 usman", "علی نے 500 دیے",
@@ -841,6 +852,18 @@ export function parseKhataSettleHeuristic(text) {
   if (/(?:maal\s*a[y|i]a|restock|report|stock\s*check|check\s*stock)/i.test(text)) {
     return null;
   }
+  // "<name> ne <amount> [rupay] wapis kr diya hai": money paid back. Checked before the returns
+  // exclusion below — "wapis" with only an amount between "ne" and the verb (no item) is a payment.
+  const general = normalizeNumberWords(text).toLowerCase().trim().replace(/[.!?،۔]+$/, '').trim().match(KHATA_PAYMENT_GENERAL_REGEX);
+  if (general) {
+    const amount = parseFloat(general[2]);
+    const name = general[1].trim();
+    // A bare small number ("ali ne 2 wapis kiye") may be 2 items: then it needs rupees or a khata word.
+    if (amount > 0 && !/\d/.test(name) && (general[3] || amount >= 10 || hasKhataDebtWord(text))) {
+      return { type: 'settle_khata', customerName: name, amount, rawText: text };
+    }
+  }
+
   // Returns/exchanges share words with "udhaar wapis kiye" (debt paid back), so only
   // treat them as returns when no khata/udhaar word is present.
   if (!hasKhataDebtWord(text) && /(?:wapis|wapas|return|exchange|badal)/i.test(text)) {
@@ -1590,10 +1613,10 @@ async function resolveIntent(text, merchant, trace) {
     return khataReportHeuristic;
   }
 
-  if (hasKhataDebtWord(text)) {
-    const debtPayment = parseKhataSettleHeuristic(text);
-    if (debtPayment) return debtPayment;
-  }
+  // Money paid toward a khata goes before returns: "ali ne 500 wapis kr diya" is a payment,
+  // and the return parser would otherwise read "wapis" as goods coming back.
+  const debtPayment = parseKhataSettleHeuristic(text);
+  if (debtPayment) return debtPayment;
 
   // Check return/exchange and money-first heuristics first
   const returnOrExchangeHeuristic = parseReturnOrExchangeHeuristic(text);
