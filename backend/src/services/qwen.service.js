@@ -9,6 +9,8 @@
  *   keys (sk-ws-...) only work on dashscope-intl.aliyuncs.com.
  */
 import axios from 'axios';
+import mongoose from 'mongoose';
+import Customer from '../models/Customer.js';
 import { normalizePaymentMethod } from '../constants/paymentMethods.js';
 
 // Alibaba Cloud DashScope — Qwen chat completions. China (dashscope.aliyuncs.com)
@@ -464,6 +466,15 @@ export function extractPackagedVariant(str) {
  * Fast-path heuristic parser for stock restocks and stock inquiries.
  * Ensures zero-latency handling and serves as a reliable safety net.
  */
+// "stock main", "inventory mein", "اسٹاک میں" — where the goods go.
+const STOCK_PLACE_SRC = '(?:stock|inventory|اسٹاک|انوینٹری)\\s*(?:mein|me|main|men|میں)';
+const STOCK_PLACE_REGEX = new RegExp(`(?<![\\p{L}\\p{N}])${STOCK_PLACE_SRC}(?![\\p{L}\\p{N}])`, 'iu');
+const STOCK_PLACE_REGEX_G = new RegExp(STOCK_PLACE_REGEX.source, 'giu');
+// "add kro", "add karo", "shamil kar do", "daal do" (Roman Urdu spellings vary a lot in voice notes).
+const RESTOCK_ADD_VERB_SRC = '(?:add|shamil|jama|update)\\s*(?:kro|karo|kar\\s*do|kardo|krdo|kr\\s*do|kar\\s*dein|karein|krein|kren|krna|karna|kar|kr)|شامل\\s*(?:کرو|کریں|کر\\s*دو|کر\\s*دیں)|ایڈ\\s*(?:کرو|کریں|کر\\s*دو)';
+const RESTOCK_ADD_VERB_REGEX = new RegExp(`(?<![\\p{L}\\p{N}])(?:${RESTOCK_ADD_VERB_SRC})(?![\\p{L}\\p{N}])`, 'iu');
+const RESTOCK_ADD_VERB_REGEX_G = new RegExp(RESTOCK_ADD_VERB_REGEX.source, 'giu');
+
 export function parseStockHeuristic(text) {
   if (!text || typeof text !== 'string') return null;
   const normalizedDigits = text.replace(/[۰-۹]/g, (d) => URDU_DIGITS_MAP[d] || d);
@@ -510,7 +521,10 @@ export function parseStockHeuristic(text) {
   const isRestock = RESTOCK_PATTERN.test(lower) ||
                     /^add\s+(?:stock\s+(?:of\s+)?)?\d+/i.test(lower) ||
                     /^add\s+[a-zA-Z\u0600-\u06FF\s]+\s+\d+/i.test(lower) ||
-                    /^(شامل|اضافہ|نیا\s*مال)\b/.test(lower);
+                    /^(شامل|اضافہ|نیا\s*مال)\b/.test(lower) ||
+                    // "stock main 100 kg haldi add kro", "500 kg chawal add kro" — but never a khata sale
+                    // ("ali ke khate mein 2 chawal add kro").
+                    ((STOCK_PLACE_REGEX.test(lower) || RESTOCK_ADD_VERB_REGEX.test(lower)) && /\d|[\u0600-\u06FF]/.test(lower) && !hasKhataDebtWord(lower));
 
   function parseSingleRestockChunk(textChunk) {
     const { processed, pkgVariant } = extractPackagedVariant(textChunk);
@@ -525,24 +539,20 @@ export function parseStockHeuristic(text) {
       unit = unitMatch[1].trim();
     }
 
-    const explicitPriceMatch = workingText.match(/(?:price|rate|rs|rupay|rupees|قیمت|روپے)\s*[:=]?\s*(\d+)/i) ||
-                               workingText.match(/(\d+)\s*(?:rs|rupay|rupees|روپے)/i);
+    const explicitPriceMatch = workingText.match(/(?:price|rate|rs|rupees|rupee|rupaye|rupay|qeemat|@|قیمت|روپے)\s*[:=]?\s*(\d+(?:\.\d+)?)/i) ||
+                               workingText.match(/(\d+(?:\.\d+)?)\s*(?:rs|rupees|rupee|rupaye|rupay|روپے)/i);
     if (explicitPriceMatch) {
-      price = parseInt(explicitPriceMatch[1], 10);
+      price = parseFloat(explicitPriceMatch[1]);
     }
 
-    const nums = workingText.match(/\d+/g);
+    // Quantity comes from the numbers left once the price phrase is removed — comparing values
+    // would lose the quantity in "230 kg chawal price 230".
+    const withoutPrice = explicitPriceMatch ? workingText.replace(explicitPriceMatch[0], ' ') : workingText;
+    const nums = withoutPrice.match(/\d+(?:\.\d+)?/g);
     if (nums && nums.length > 0) {
-      if (price !== null) {
-        const otherNums = nums.map((n) => parseInt(n, 10)).filter((n) => n !== price);
-        if (otherNums.length > 0) {
-          quantity = otherNums[0];
-        }
-      } else if (nums.length >= 2) {
-        quantity = parseInt(nums[0], 10);
-        price = parseInt(nums[1], 10);
-      } else {
-        quantity = parseInt(nums[0], 10);
+      quantity = parseFloat(nums[0]);
+      if (price === null && nums.length >= 2) {
+        price = parseFloat(nums[1]);
       }
     } else {
       // Look for word-based numbers e.g. "bees", "بیس", "panch", "پانچ"
@@ -560,13 +570,13 @@ export function parseStockHeuristic(text) {
       .replace(/(?:add|new|update|incoming)\s*(?:to\s+)?(?:stock|inventory)/gi, ' ')
       .replace(/(?:to|in|into)\s+(?:stock|inventory)/gi, ' ')
       .replace(/(?:stock|inventory)\s*(?:mein|me|main)\s*(?:add|shamil|daal|dal|ڈال)?/gi, ' ')
-      .replace(/\b(?:restock|stock|inventory|add|new|naya|item|please|plz|for|of|ki|ka|ke|ko|mein|me|main|bhai|janab|karo|kar\s*do|kar\s*dein)\b/gi, ' ')
+      .replace(/\b(?:restock|stock|inventory|add|new|naya|item|please|plz|for|of|ki|ka|ke|ko|mein|me|main|bhai|janab|karo|kar\s*do|kar\s*dein|kro|krdo|kr\s*do|kardo|karein|krein|kren|krna|karna|kar|kr|update)\b/gi, ' ')
       .replace(/(?:مال\s*(?:آیا|پہنچ|آئے\s*ہیں|آیا\s*ہے)?|آئے\s*ہیں|اسٹاک\s*میں\s*(?:شامل|ڈال)?|نیا\s*مال|شامل\s*(?:کرو|کریں|کر\s*دو|کر\s*دیں)?|شامل|اضافہ|ایڈ\s*اسٹاک|ایڈ\s*انوینٹری|ایڈ|اسٹاک|انوینٹری|ڈال\s*(?:دیں|دو)?|کرو|کریں|آیا|آئے)/gi, ' ')
       .replace(/\b(?:aa\s*gaya|aagya|gaya|gaye|aya|aaya)\b/gi, ' ')
-      .replace(/(?:روپے|روپیہ|روپئے|rs|rupay|rupees|roopay|pkr|price|rate)\s*[:=]?\s*\d*(?:\s*(?:\/|per|فی)\s*[a-zA-Z\u0600-\u06FF]+)?/gi, ' ')
+      .replace(/(?:روپے|روپیہ|روپئے|rs|rupees|rupee|rupaye|rupay|roopay|pkr|price|rate|qeemat|@)\s*[:=]?\s*[\d.]*(?:\s*(?:\/|per|fi|فی)\s*[a-zA-Z\u0600-\u06FF]+)?/gi, ' ')
       .replace(/(?:(?:\/|per|فی)\s*[a-zA-Z\u0600-\u06FF]+)/gi, ' ')
-      .replace(/[/\\]/g, ' ')
-      .replace(/\d+/g, ' ')
+      .replace(/[/\\,.]/g, ' ')
+      .replace(/\d+(?:\.\d+)?/g, ' ')
       .replace(UNIT_REGEX, ' ')
       .replace(NUMBER_WORDS_REGEX, ' ')
       .replace(/\s+/g, ' ')
@@ -581,12 +591,16 @@ export function parseStockHeuristic(text) {
   }
 
   if (isRestock) {
-    // Check for multi-item restock separated by comma, "aur", "and", "اور"
+    // Command words can sit anywhere ("stock main 100 kg haldi add kro, 500 kg chawal add kro"),
+    // so strip them everywhere, then split items the same way sales are split.
     const content = lower
       .replace(/^(?:(?:maal|mal)\s*(?:a+y*a+\s*hai|a+y*a+|a+\s*g+a+y*a+|aagaya)|restock|add\s*(?:new\s*)?(?:stock|inventory)|stock\s*update|stock\s*add|inventory\s*add|add|مال\s*آیا\s*ہے|مال\s*آیا|نیا\s*مال|اسٹاک\s*میں\s*شامل\s*کریں|ایڈ\s*اسٹاک)\s+/i, '')
+      .replace(STOCK_PLACE_REGEX_G, ' ')
+      .replace(RESTOCK_ADD_VERB_REGEX_G, ' ')
+      .replace(/\s+/g, ' ')
       .trim();
 
-    const parts = content.split(/(?:,\s*|\s+aur\s+|\s+and\s+|\s+اور\s+)/i).filter(Boolean);
+    const parts = splitSaleItems(content);
     if (parts.length > 1) {
       const items = [];
       for (const part of parts) {
@@ -1161,7 +1175,7 @@ export function parseKhataInquiryHeuristic(text) {
  * Fast-path heuristic parser for routine Kiryana sales (e.g. "10 kg chawal", "2 doodh cash", "5 lipton cash", "3 panadol 150", "2 chawal udhaar ali").
  * Resolves standard store sales in 0ms without hitting external LLM rate limits.
  */
-export function parseStandardSaleHeuristic(text) {
+export function parseStandardSaleHeuristic(text, { knownCustomers = [] } = {}) {
   if (!text || typeof text !== 'string') return null;
 
   // Strict check: if this text is a Khata settlement or inquiry, never process as sale!
@@ -1192,7 +1206,7 @@ export function parseStandardSaleHeuristic(text) {
 
   // Customer and payment method apply to the whole message, so pull them out before splitting —
   // otherwise "Ali ko udhaar" ends up inside the first item's name.
-  const { text: withoutCustomer, isUdhaar, customerName } = extractUdhaarCustomer(lower);
+  const { text: withoutCustomer, isUdhaar, customerName } = extractUdhaarCustomer(lower, knownCustomers);
   const { text: itemsText, paymentMethod } = extractSalePaymentMethod(withoutCustomer);
 
   const chunks = splitSaleItems(itemsText);
@@ -1237,7 +1251,7 @@ const LEADING_CONNECTOR = /^(?:aur|and|or|phir|plus|اور|پھر)\s+/iu;
 
 const SALE_DEBT_WORDS = 'udhaari|udhari|udhaar|udhar|udaar|adhaar|khaata|khaate|khata|khate|ادھار|کھاتے|کھاتا|کھاتہ';
 const SALE_PARTICLE = 'ko|ke|ka|ki|کو|کے|کا|کی';
-const SALE_POSTPOSITION = 'mein|me|main|men|may|pe|par|per|میں|پر|پہ';
+const SALE_POSTPOSITION = 'mein|me|main|men|may|pe|par|per|pr|py|میں|پر|پہ';
 const SALE_HONORIFIC = 'bhai|bhae|sahab|sahib|saheb|sb|ji|بھائی|صاحب|جی';
 const SALE_NAME = `([\\p{L}\\p{M}]+(?:\\s+(?:${SALE_HONORIFIC}))?)`;
 
@@ -1251,6 +1265,8 @@ const DEBT_THEN_NAME_REGEX = new RegExp(
   `${U_START}(?:${SALE_DEBT_WORDS})(?:\\s+(?:to|for|${SALE_PARTICLE}|${SALE_POSTPOSITION}))?\\s+${SALE_NAME}${U_END}`,
   'giu'
 );
+// "talal ko 2 namak udhaar pr": the name opens the message, the debt word comes later.
+const NAME_KO_AT_START_REGEX = new RegExp(`^${SALE_NAME}\\s+(?:ko|کو)${U_END}`, 'giu');
 const BARE_DEBT_REGEX = new RegExp(`${U_START}(?:${SALE_DEBT_WORDS})(?:\\s+(?:${SALE_POSTPOSITION}))?${U_END}`, 'giu');
 // "... udhaar pe de diya", "... likh do". "daal do" is only stripped when it can't be the lentil
 // ("2 kilo daal do" keeps its daal).
@@ -1268,6 +1284,7 @@ const SALE_FILLER_REGEX = unicodeWord(SALE_FILLER_WORDS.join('|'), 'giu');
 const NOT_AN_ITEM_WORD = new Set([
   ...SALE_FILLER_WORDS,
   'waali', 'wali', 'wala', 'walay', 'waalay', 'pack', 'packet', 'dabba', 'box', 'sachet', 'والی', 'والا', 'والے', 'پیکٹ', 'ڈبہ', 'ساشے',
+  'rupee', 'rupaye', 'per', 'fi', 'فی',
 ]);
 // Words that can sit right next to "udhaar" but are never a customer's name.
 const NOT_A_CUSTOMER_NAME = new Set([
@@ -1281,20 +1298,87 @@ const NOT_A_CUSTOMER_NAME = new Set([
   'سے', 'دے', 'دیا', 'دیے', 'دو', 'ڈال', 'لکھ', 'کر', 'ہے', 'اور', 'پھر',
 ]);
 
+// "talal pwd waaly", "ali dukan wala": a descriptor that ends a customer reference.
+const WALA_DESCRIPTOR = /^(?:wala|waala|waly|waaly|wale|waale|waley|walay|waalay|wali|waali|والا|والے|والی)$/iu;
+// The debt phrase that may follow a customer's name: "ko udhaar pr", "ke khate mein".
+const DEBT_PHRASE_AFTER_NAME = new RegExp(
+  `^((?:\\s+[\\p{L}\\p{M}]+){0,3}?)\\s+(?:${SALE_PARTICLE})\\s+(?:(?:${SALE_DEBT_WORDS})\\s+(?:${SALE_PARTICLE})\\s+)?(?:${SALE_DEBT_WORDS})(?:\\s+(?:${SALE_POSTPOSITION}))?${U_END}`,
+  'iu'
+);
+
+/**
+ * Finds one of the merchant's existing khata names in the message. Grammar alone can't split
+ * "10 haldi talal pwd waaly ko udhaar" ("haldi talal"? "talal pwd waaly"?) but the khata list can.
+ * Returns { name, start, end } where [start, end) also covers a trailing descriptor and the debt
+ * phrase ("talal| pwd waaly ko udhaar pr"), or null.
+ */
+function matchKnownCustomer(text, knownCustomers) {
+  let best = null;
+  for (const stored of knownCustomers || []) {
+    const full = String(stored || '').toLowerCase().trim();
+    if (full.length < 2) continue;
+    const base = full.replace(new RegExp(`${U_START}(?:${SALE_HONORIFIC})${U_END}`, 'giu'), ' ').replace(/\s+/g, ' ').trim();
+    for (const variant of new Set([full, base])) {
+      if (variant.length < 2 || NOT_A_CUSTOMER_NAME.has(variant)) continue;
+      const re = new RegExp(`${U_START}${variant.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${U_END}`, 'giu');
+      for (const m of text.matchAll(re)) {
+        const candidate = { name: full, start: m.index, end: m.index + m[0].length, length: m[0].length };
+        // Prefer the longest name, then the occurrence nearest the end (where "ko udhaar" usually is).
+        if (!best || candidate.length > best.length || (candidate.length === best.length && candidate.start > best.start)) {
+          best = candidate;
+        }
+      }
+    }
+  }
+  if (!best) return null;
+  const tail = text.slice(best.end).match(DEBT_PHRASE_AFTER_NAME);
+  if (tail) best.end += tail[0].length;
+  return best;
+}
+
 /**
  * Pulls the udhaar marker and the customer's name out of a whole sale message.
  * Returns the remaining text (items only), whether it is an udhaar sale, and the name (or null).
+ * knownCustomers (the merchant's khata names) is tried first; grammar patterns are the fallback.
  */
-export function extractUdhaarCustomer(text) {
+export function extractUdhaarCustomer(text, knownCustomers = []) {
   let rest = String(text || '');
   let customerName = null;
 
-  for (const regex of [NAME_THEN_DEBT_REGEX, DEBT_THEN_NAME_REGEX]) {
+  if (knownCustomers.length && unicodeWord(SALE_DEBT_WORDS).test(rest)) {
+    const known = matchKnownCustomer(rest, knownCustomers);
+    if (known) {
+      customerName = known.name;
+      rest = `${rest.slice(0, known.start)} ${rest.slice(known.end)}`;
+    }
+  }
+
+  const hasDebtWord = unicodeWord(SALE_DEBT_WORDS).test(rest);
+  for (const regex of customerName ? [] : [NAME_THEN_DEBT_REGEX, DEBT_THEN_NAME_REGEX, ...(hasDebtWord ? [NAME_KO_AT_START_REGEX] : [])]) {
     for (const m of rest.matchAll(regex)) {
       const firstWord = m[1].split(/\s+/)[0];
       if (NOT_A_CUSTOMER_NAME.has(firstWord) || /\d/.test(firstWord)) continue;
+      let start = m.index;
       customerName = m[1].replace(/\s+/g, ' ').trim();
-      rest = `${rest.slice(0, m.index)} ${rest.slice(m.index + m[0].length)}`;
+      // "talal pwd waaly ko udhaar": the word before "ko" only describes the customer. Take up to
+      // 3 words before it, but leave the item its quantity, unit and first word ("10 haldi").
+      if (regex === NAME_THEN_DEBT_REGEX && WALA_DESCRIPTOR.test(firstWord)) {
+        const before = rest.slice(0, m.index);
+        const segStart = Math.max(...[',', '،', ';', '\n'].map((sep) => before.lastIndexOf(sep))) + 1;
+        const words = [...before.slice(segStart).matchAll(/\S+/g)];
+        let keep = 0;
+        if (words.length && isQuantityToken(words[0][0])) {
+          keep = 1;
+          while (keep < words.length && isUnitToken(words[keep][0])) keep++;
+          keep++; // the item's first word
+        }
+        const nameWords = words.slice(Math.max(keep, words.length - 3));
+        if (nameWords.length) {
+          customerName = `${nameWords.map((w) => w[0]).join(' ')} ${customerName}`;
+          start = segStart + nameWords[0].index;
+        }
+      }
+      rest = `${rest.slice(0, start)} ${rest.slice(m.index + m[0].length)}`;
       break;
     }
     if (customerName) break;
@@ -1319,6 +1403,9 @@ function extractSalePaymentMethod(text) {
   const paymentMethod = found === 'kash' || found === 'کیش' ? 'cash' : normalizePaymentMethod(found) || found;
   return { text: text.replace(SALE_PAYMENT_REGEX, ' ').replace(/\s+/g, ' ').trim(), paymentMethod };
 }
+
+const PRICE_KEYWORD_REGEX = /^(?:price|rate|qeemat|@|rs|قیمت)$/iu;
+const MONEY_WORD_REGEX = /^(?:ki|ka|ke|کی|کا|کے|rupay|rupaye|rupee|rupees|rs|pkr|per|fi|har|روپے|فی)$/iu;
 
 function isQuantityToken(t) {
   return /^\d+(?:\.\d+)?$/.test(t) || NUMBER_WORDS_MAP[t] !== undefined;
@@ -1346,10 +1433,11 @@ export function splitImplicitSaleItems(chunk) {
   let segmentHasName = false;
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
-    if (segmentHasName && isQuantityToken(t)) {
+    // A number right after "price"/"rate"/"@" is that item's price, never a new item.
+    if (segmentHasName && isQuantityToken(t) && !PRICE_KEYWORD_REGEX.test(tokens[i - 1] || '')) {
       let j = i + 1;
-      // Skip units and money-first particles ("1 kilo chini", "100 ki chini").
-      while (j < tokens.length && (isUnitToken(tokens[j]) || /^(?:ki|ka|ke|کی|کا|کے|rupay|rs|روپے)$/iu.test(tokens[j]))) j++;
+      // Skip units, money words and money-first particles ("1 kilo chini", "230 rupee per kg", "100 ki chini").
+      while (j < tokens.length && (isUnitToken(tokens[j]) || MONEY_WORD_REGEX.test(tokens[j]))) j++;
       if (j < tokens.length && isItemNameToken(tokens[j])) {
         segments.push([]);
         segmentHasName = false;
@@ -1457,6 +1545,17 @@ export async function parseIntent(text, merchant = null) {
   return intent;
 }
 
+/** The merchant's khata (customer) names, lowercase. Empty when the DB isn't connected. */
+async function loadKhataCustomerNames(merchantId) {
+  if (mongoose.connection?.readyState !== 1) return [];
+  try {
+    const customers = await Customer.find({ merchantId }).select('name').limit(1000).lean();
+    return customers.map((c) => c.name).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 async function resolveIntent(text, merchant, trace) {
   if (!text || typeof text !== 'string') {
     return { type: 'unknown', rawText: '' };
@@ -1512,8 +1611,10 @@ async function resolveIntent(text, merchant, trace) {
     return stockHeuristic;
   }
 
-  // Check fast-path standard sale heuristic
-  const saleHeuristic = parseStandardSaleHeuristic(text);
+  // Check fast-path standard sale heuristic. An udhaar sale is matched against the merchant's own
+  // khata names, which is the only reliable way to tell the customer from the last item.
+  const knownCustomers = merchant?._id && hasKhataDebtWord(text) ? await loadKhataCustomerNames(merchant._id) : [];
+  const saleHeuristic = parseStandardSaleHeuristic(text, { knownCustomers });
   if (saleHeuristic) {
     return saleHeuristic;
   }

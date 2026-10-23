@@ -1,6 +1,6 @@
 import PDFDocument from 'pdfkit-table';
 import InventoryItem from '../models/InventoryItem.js';
-import Order from '../models/Order.js';
+import Order, { SALE_STATUSES } from '../models/Order.js';
 import { getKhataStatement } from './khata.service.js';
 
 function createPdfBuffer(doc) {
@@ -189,7 +189,7 @@ export async function generateTopSellingReport(merchant) {
   drawHeader(doc, merchant, 'Top Selling Items Report', '#4F46E5');
 
   const pipeline = [
-    { $match: { merchantId: merchant._id } },
+    { $match: { merchantId: merchant._id, status: { $in: SALE_STATUSES } } },
     { $unwind: '$items' },
     {
       $group: {
@@ -622,7 +622,7 @@ export async function generateExpiringReport(merchant) {
 export async function generateSalesReport(merchant) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  let orders = await Order.find({ merchantId: merchant._id, createdAt: { $gte: today } }).sort({ createdAt: -1 });
+  let orders = await Order.find({ merchantId: merchant._id, createdAt: { $gte: today }, status: { $in: SALE_STATUSES } }).sort({ createdAt: -1 });
   if (orders && typeof orders.limit === 'function') orders = await orders.limit();
   if (!Array.isArray(orders)) orders = [];
 

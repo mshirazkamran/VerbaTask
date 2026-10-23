@@ -2,8 +2,9 @@ import Approval from '../models/Approval.js';
 import Order from '../models/Order.js';
 import Merchant from '../models/Merchant.js';
 import InventoryItem from '../models/InventoryItem.js';
+import Customer from '../models/Customer.js';
 import { evaluateThresholdWorkflows } from '../workflows/workflow.service.js';
-import { sendInteractiveButtons } from '../services/whatsapp.service.js';
+import { sendInteractiveButtons, sendTextMessage } from '../services/whatsapp.service.js';
 import { emitDashboardUpdate } from '../socket.js';
 
 /** High-value threshold — orders at or above this amount require approval. */
@@ -47,6 +48,97 @@ export const createApproval = async ({ merchantId, orderId, summary, amount }) =
 };
 
 /**
+ * Approving a deferred order makes it a real sale: deduct each line's stock (atomically, only if
+ * enough is still there) and add the total to the customer's khata. Orders created before the
+ * deferral (stockApplied undefined/true) were applied at creation and are left alone.
+ */
+async function applyApprovedOrder(order) {
+    if (order.stockApplied !== false) return;
+
+    const applied = [];
+    for (const line of order.items || []) {
+        const updated = await InventoryItem.findOneAndUpdate(
+            { _id: line.inventoryItemId, merchantId: order.merchantId, quantity: { $gte: line.quantity } },
+            { $inc: { quantity: -line.quantity } },
+            { new: true }
+        );
+        if (!updated) {
+            for (const a of applied) {
+                await InventoryItem.updateOne({ _id: a.doc._id }, { $inc: { quantity: a.quantity } });
+            }
+            const current = await InventoryItem.findById(line.inventoryItemId).lean();
+            throw new Error(`INSUFFICIENT_STOCK: ${line.name} Tried to deduct ${line.quantity}, but only ${current?.quantity ?? 0} left.`);
+        }
+        applied.push({ doc: updated, quantity: line.quantity });
+    }
+
+    if (order.paymentMethod === 'udhaar' && order.customerId) {
+        const customer = await Customer.findOneAndUpdate(
+            { _id: order.customerId, merchantId: order.merchantId },
+            { $inc: { balance: order.total || 0 } },
+            { new: true }
+        );
+        if (customer) {
+            emitDashboardUpdate(order.merchantId, { type: 'customer', action: 'update', customerId: customer._id, customerName: customer.name, balance: customer.balance });
+        }
+    }
+
+    order.stockApplied = true;
+    for (const { doc } of applied) {
+        await evaluateThresholdWorkflows(order.merchantId, doc).catch(() => {});
+    }
+}
+
+/**
+ * Rejecting a deferred order needs no undo — nothing was applied. An older order that deducted
+ * stock and charged the khata at creation gets both reversed.
+ */
+async function reverseRejectedOrder(order) {
+    if (order.stockApplied === false) return;
+
+    if (order.items?.length) {
+        await InventoryItem.bulkWrite(
+            order.items.map((i) => ({
+                updateOne: {
+                    filter: { _id: i.inventoryItemId },
+                    update: { $inc: { quantity: i.quantity } },
+                },
+            }))
+        );
+
+        // Returned stock may lift items back above their alert limit.
+        const restored = await InventoryItem.find({ _id: { $in: order.items.map((i) => i.inventoryItemId) } });
+        for (const item of restored) {
+            await evaluateThresholdWorkflows(order.merchantId, item).catch(() => {});
+        }
+    }
+
+    if (order.paymentMethod === 'udhaar' && order.customerId) {
+        const customer = await Customer.findOneAndUpdate(
+            { _id: order.customerId, merchantId: order.merchantId },
+            { $inc: { balance: -(order.total || 0) } },
+            { new: true }
+        );
+        if (customer) {
+            emitDashboardUpdate(order.merchantId, { type: 'customer', action: 'update', customerId: customer._id, customerName: customer.name, balance: customer.balance });
+        }
+    }
+
+    order.stockApplied = false;
+}
+
+/** Tells the salesperson who logged the order what the owner decided. Best-effort. */
+async function notifyStaffOfDecision(order, decision) {
+    if (!order.staffPhone) return;
+    const text = decision === 'approved'
+        ? `✅ Order #${order.orderNumber} (Rs. ${Number(order.total || 0).toLocaleString()}) was approved by the owner and has been logged.`
+        : `❌ Order #${order.orderNumber} (Rs. ${Number(order.total || 0).toLocaleString()}) was rejected by the owner. Nothing was logged.`;
+    await sendTextMessage(order.staffPhone, text).catch((err) =>
+        console.error('Failed to notify staff of approval decision:', err.message)
+    );
+}
+
+/**
  * Respond to a pending approval.
  *
  * @param {String|ObjectId} id         - Approval document _id
@@ -62,6 +154,7 @@ export const respond = async (id, decision, merchantId) => {
     const query = { _id: id, status: 'pending' };
     if (merchantId) query.merchantId = merchantId;
 
+    // Claimed atomically, so a double tap (WhatsApp + dashboard) can't apply an order twice.
     const approval = await Approval.findOneAndUpdate(
         query,
         { status: decision, respondedAt: new Date() },
@@ -70,33 +163,25 @@ export const respond = async (id, decision, merchantId) => {
 
     if (!approval) throw new Error('APPROVAL_NOT_FOUND');
 
-    // Propagate the decision to the referenced order
     if (approval.type === 'order') {
-        await Order.findByIdAndUpdate(approval.refId, { status: decision });
-
-        // Revert stock when rejected — stock was deducted at order creation time.
-        if (decision === 'rejected') {
-            const order = await Order.findById(approval.refId).lean();
-            if (order?.items?.length) {
-                await InventoryItem.bulkWrite(
-                    order.items.map((i) => ({
-                        updateOne: {
-                            filter: { _id: i.inventoryItemId },
-                            update: { $inc: { quantity: i.quantity } },
-                        },
-                    }))
-                );
-
-                // Returned stock may lift items back above their alert limit.
-                const restored = await InventoryItem.find({ _id: { $in: order.items.map((i) => i.inventoryItemId) } });
-                for (const item of restored) {
-                    await evaluateThresholdWorkflows(approval.merchantId, item).catch(() => {});
-                }
+        const order = await Order.findById(approval.refId);
+        if (order) {
+            try {
+                if (decision === 'approved') await applyApprovedOrder(order);
+                else await reverseRejectedOrder(order);
+            } catch (err) {
+                // e.g. the stock was sold in the meantime: keep the approval open so the owner
+                // can restock and approve again, or reject.
+                await Approval.updateOne({ _id: approval._id }, { $set: { status: 'pending' }, $unset: { respondedAt: 1 } });
+                throw err;
             }
+            order.status = decision;
+            await order.save();
+            await notifyStaffOfDecision(order, decision);
         }
     }
 
-    emitDashboardUpdate(approval.merchantId);
+    emitDashboardUpdate(approval.merchantId, { type: 'order', action: decision });
 
     return approval;
 };

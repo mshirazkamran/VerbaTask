@@ -125,6 +125,13 @@ async function resolveInventoryDoc(merchantId, lineItem) {
   return null;
 }
 
+/** A pending or rejected order never left the shop: returning it would add stock that was never deducted. */
+function assertOrderWasSold(order) {
+  if (order.status === 'pending_approval' || order.status === 'rejected') {
+    throw new Error(`ORDER_NOT_SOLD: Order ${order.orderNumber || ''} is ${order.status.replace('_', ' ')}, so it can't be returned or exchanged.`);
+  }
+}
+
 /**
  * Processes an order return. Restocks items, calculates refund, and updates Khata balance if udhaar.
  */
@@ -137,6 +144,7 @@ export async function processOrderReturn(merchantId, { orderId, orderNumber, con
   if (order.status === 'returned') {
     throw new Error('ORDER_ALREADY_RETURNED: This order has already been fully returned.');
   }
+  assertOrderWasSold(order);
 
   const returnedLines = [];
   let totalRefund = 0;
@@ -256,6 +264,7 @@ export async function processOrderExchange(merchantId, { orderId, orderNumber, c
   if (!order) {
     throw new Error('ORDER_NOT_FOUND: Could not find the specified order to exchange.');
   }
+  assertOrderWasSold(order);
 
   if (!returnItem || !returnItem.name) {
     throw new Error('INVALID_EXCHANGE: Must specify an item to return.');

@@ -56,6 +56,9 @@ const orderSchema = new mongoose.Schema({
     priceDifference: Number,
     reason: String,
   }],
+  // false while a high-value order waits for approval: its stock and khata charge are applied
+  // only on approval. Older orders (no field) were always applied at creation.
+  stockApplied: { type: Boolean, default: true },
   incomingMessageId: { type: String, index: true, sparse: true },
   confirmationMessageId: { type: String, index: true, sparse: true },
   staffName: { type: String, trim: true },
@@ -67,5 +70,8 @@ const orderSchema = new mongoose.Schema({
 orderSchema.index({ merchantId: 1, orderNumber: 1 }, { unique: true });
 orderSchema.index({ merchantId: 1, incomingMessageId: 1 }, { sparse: true });
 orderSchema.index({ merchantId: 1, confirmationMessageId: 1 }, { sparse: true });
+
+/** Order statuses that count as a sale (not waiting for approval, not rejected, not fully returned). */
+export const SALE_STATUSES = ['completed', 'approved', 'partially_returned', 'exchanged'];
 
 export default mongoose.model('Order', orderSchema);

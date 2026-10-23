@@ -187,7 +187,7 @@ export const translations = {
         'Everything your store needs to log daily sales, manage inventory, and track customer Khata purely through WhatsApp voice notes.',
       included: [
         'Unlimited sales by voice note or text',
-        'Multi-staff WhatsApp linking (Shop Code for 3–5 assistants)',
+        'Multi-staff WhatsApp linking (3–5 assistants)',
         'Live stock with low-stock alerts',
         'Customer Khata ledger & payment reminders',
         'Cash, Easypaisa, JazzCash, bank and udhaar',
@@ -753,7 +753,7 @@ export const translations = {
         'آپ کی دکان کو روزانہ کی فروخت درج کرنے، انوینٹری سنبھالنے اور کسٹمر کھاتہ ٹریک کرنے کے لیے درکار تمام سہولیات، صرف واٹس ایپ وائس نوٹس کے ذریعے۔',
       included: [
         'وائس نوٹ یا میسج کے ذریعے لامحدود سیلز',
-        'متعدد عملے کا واٹس ایپ لنک (3 سے 5 ملازمین کے لیے شاپ کوڈ)',
+        'متعدد عملے کا واٹس ایپ لنک (3 سے 5 ملازمین)',
         'کم اسٹاک کے فوری الرٹس کے ساتھ لائیو انوینٹری',
         'کسٹمر کھاتہ لیجر اور ادھار کی وصولی کے پیغامات',
         'کیش، ایزی پیسہ، جاز کیش، بینک اور ادھار کی سپورٹ',

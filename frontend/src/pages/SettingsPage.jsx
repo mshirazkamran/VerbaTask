@@ -14,7 +14,6 @@ import {
   ArrowRight,
   Zap,
   Users,
-  Copy,
   UserPlus,
   Trash2,
   ShieldCheck,
@@ -44,7 +43,6 @@ import {
   useStaffMembers,
   useAddStaffMember,
   useRemoveStaffMember,
-  useRegenerateShopCode,
 } from '../hooks/useMerchantSettings';
 import { useUiStore } from '../lib/store';
 import { formatPhone, normalizePhone, formatBusinessName } from '../lib/format';
@@ -96,27 +94,10 @@ export function SettingsPage({ initialTab }) {
   const { data: staffData, isLoading: staffLoading } = useStaffMembers();
   const addStaffMutation = useAddStaffMember();
   const removeStaffMutation = useRemoveStaffMember();
-  const regenerateCodeMutation = useRegenerateShopCode();
 
   const [staffNameInput, setStaffNameInput] = useState('');
   const [staffPhoneInput, setStaffPhoneInput] = useState('');
   const [isAddingStaff, setIsAddingStaff] = useState(false);
-
-  const handleCopyCode = (code) => {
-    if (!code) return;
-    navigator.clipboard.writeText(code);
-    toast.success(`Shop code ${code} copied to clipboard!`);
-  };
-
-  const handleCopyInviteMessage = (code) => {
-    if (!code) return;
-    const cleanStore = (profile?.businessName || 'Dukaan').split(',')[0].trim();
-    const msg = isUrdu
-      ? `Assalam-o-Alaikum! ${cleanStore} کے وربا ٹاسک کھاتے میں شامل ہونے کے لیے واٹس ایپ بوٹ کو یہ میسج بھیجیں:\njoin ${code} علی`
-      : `Assalam-o-Alaikum! To join ${cleanStore}'s shop ledger on VerbaTask, send this message to the bot:\njoin ${code} Ali`;
-    navigator.clipboard.writeText(msg);
-    toast.success(isUrdu ? 'دعوتی پیغام کاپی ہو گیا!' : 'Invitation message copied to clipboard!');
-  };
 
   const handleAddStaff = async (e) => {
     e.preventDefault();
@@ -164,18 +145,6 @@ export function SettingsPage({ initialTab }) {
       toast.success(`${name} removed from store team`);
     } catch (err) {
       toast.error(err.message || 'Failed to remove staff member');
-    }
-  };
-
-  const handleRegenerateCode = async () => {
-    if (!window.confirm('Regenerate Shop Code? Existing staff remain connected, but new staff will need to use the new code.')) {
-      return;
-    }
-    try {
-      const res = await regenerateCodeMutation.mutateAsync();
-      toast.success(`New Shop Code generated: ${res.shopCode}`);
-    } catch (err) {
-      toast.error(err.message || 'Failed to regenerate code');
     }
   };
 
@@ -769,7 +738,7 @@ export function SettingsPage({ initialTab }) {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h2 className={`font-display text-lg font-semibold tracking-tight text-ink ${isUrdu ? 'font-urdu text-xl' : ''}`}>
-                        {isUrdu ? 'دکان کا ریفرنس کوڈ اور ٹیم' : 'Shop Reference Code & Team'}
+                        {isUrdu ? 'دکان کی ٹیم' : 'Shop Team'}
                       </h2>
                       <Badge variant="success">
                         {isUrdu ? 'سب کے لیے فعال' : 'ALL ACCESS PREVIEW'}
@@ -793,108 +762,40 @@ export function SettingsPage({ initialTab }) {
                 </div>
               </div>
 
-              {/* Shop Code Display & Sharing Box */}
-              {(() => {
-                const effectiveShopCode =
-                  staffData?.shopCode ||
-                  profile?.shopCode ||
-                  `VT-${(profile?._id || profile?.id || '1098').slice(-4).toUpperCase()}`;
-
-                return (
-                  <div className="rounded-xl border border-hairline bg-paper-2/50 p-5 sm:p-6 mb-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="space-y-1.5">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-                          {isUrdu ? 'آپ کی دکان کا ریفرنس کوڈ' : 'Your Shop Reference Code'}
-                        </span>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <span className="font-mono text-3xl font-bold tracking-wider text-primary-deep dark:text-primary">
-                            {effectiveShopCode}
-                          </span>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleCopyCode(effectiveShopCode)}
-                            leftIcon={<Copy className="w-3.5 h-3.5" />}
-                          >
-                            {isUrdu ? 'کوڈ کاپی کریں' : 'Copy Code'}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleRegenerateCode}
-                            loading={regenerateCodeMutation.isPending}
-                            className="text-xs text-muted hover:text-ink"
-                            title={isUrdu ? 'نیا ریفرنس کوڈ بنائیں' : 'Generate a new reference code'}
-                          >
-                            <RefreshCw className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="flex shrink-0 items-center">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => handleCopyInviteMessage(effectiveShopCode)}
-                          leftIcon={<Copy className="w-4 h-4" />}
-                          className="whitespace-nowrap"
-                        >
-                          {isUrdu ? 'دعوتی پیغام کاپی کریں' : 'Copy Invite Message'}
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex items-center gap-2 rounded-lg bg-surface/80 border border-hairline/80 px-3.5 py-2.5 text-xs text-muted">
-                      <span className="shrink-0 text-base">💡</span>
-                      <span>
-                        {isUrdu
-                          ? 'یا نیچے ملازم کا نمبر براہ راست درج کریں — وربا ٹاسک بوٹ خودکار طور پر انہیں واٹس ایپ پر دعوتی پیغام بھیج دے گا۔'
-                          : 'Or enter their phone number below — VerbaTask bot automatically sends them the invite on WhatsApp.'}
-                      </span>
-                    </div>
-
-                    {/* Instructions banner */}
-                    <div className="mt-5 pt-4 border-t border-hairline/70 grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
-                      <div className="flex items-start gap-3 rounded-lg bg-paper-2/40 dark:bg-paper-2/20 border border-hairline/60 p-3">
-                        <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary-tint font-mono font-bold text-xs text-primary-deep dark:text-primary">
-                          1
-                        </div>
-                        <div className="space-y-1 min-w-0 flex-1">
-                          <div className="font-semibold text-ink">
-                            {isUrdu ? 'ملازم کو کیسے شامل کریں' : 'How assistants join'}
-                          </div>
-                          <p className="text-muted leading-relaxed">
-                            {isUrdu ? (
-                              <>نیچے براہ راست ان کا واٹس ایپ نمبر درج کریں (وربا ٹاسک خودکار واٹس ایپ بھیج دے گا)، یا دعوتی میسج کاپی کر کے انہیں بھیجیں تاکہ وہ <code className="inline-block font-mono bg-paper px-1.5 py-0.5 rounded border border-hairline text-ink font-semibold text-[11px]">join {effectiveShopCode} Ali</code> بھیجیں۔</>
-                            ) : (
-                              <>Add their number below (VerbaTask sends the WhatsApp invite automatically), or copy the invite message so they can text <code className="inline-block font-mono bg-paper px-1.5 py-0.5 rounded border border-hairline text-ink font-semibold text-[11px]">join {effectiveShopCode} Ali</code> to the bot.</>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-3 rounded-lg bg-paper-2/40 dark:bg-paper-2/20 border border-hairline/60 p-3">
-                        <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary-tint font-mono font-bold text-xs text-primary-deep dark:text-primary">
-                          2
-                        </div>
-                        <div className="space-y-1 min-w-0 flex-1">
-                          <div className="font-semibold text-ink">
-                            {isUrdu ? 'سیلز اور کھاتہ کا عمل' : 'How staff sales work'}
-                          </div>
-                          <p className="text-muted leading-relaxed">
-                            {isUrdu
-                              ? 'ان کا بھیجا گیا کوئی بھی وائس نوٹ یا میسج آپ کی دکان کے کھاتے میں ان کے نام کے ساتھ خودکار درج ہو جائے گا۔'
-                              : 'Any voice note or text they send records an order under your shop with their name tagged.'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+              {/* How staff access works — assistants are added only by the owner, from here */}
+              <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
+                <div className="flex items-start gap-3 rounded-lg bg-paper-2/40 dark:bg-paper-2/20 border border-hairline/60 p-3">
+                  <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary-tint font-mono font-bold text-xs text-primary-deep dark:text-primary">
+                    1
                   </div>
-                );
-              })()}
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="font-semibold text-ink">
+                      {isUrdu ? 'ملازم کو کیسے شامل کریں' : 'How assistants are added'}
+                    </div>
+                    <p className="text-muted leading-relaxed">
+                      {isUrdu
+                        ? 'نیچے ان کا نام اور واٹس ایپ نمبر درج کریں۔ ملازم صرف یہیں سے شامل ہو سکتے ہیں — وربا ٹاسک انہیں خودکار طور پر واٹس ایپ پر اطلاع بھیج دے گا۔'
+                        : 'Enter their name and WhatsApp number below. Assistants can only be added here — VerbaTask notifies them on WhatsApp automatically.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 rounded-lg bg-paper-2/40 dark:bg-paper-2/20 border border-hairline/60 p-3">
+                  <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary-tint font-mono font-bold text-xs text-primary-deep dark:text-primary">
+                    2
+                  </div>
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="font-semibold text-ink">
+                      {isUrdu ? 'سیلز اور کھاتہ کا عمل' : 'How staff sales work'}
+                    </div>
+                    <p className="text-muted leading-relaxed">
+                      {isUrdu
+                        ? 'ان کا بھیجا گیا کوئی بھی وائس نوٹ یا میسج آپ کی دکان کے کھاتے میں ان کے نام کے ساتھ خودکار درج ہو جائے گا۔'
+                        : 'Any voice note or text they send records an order under your shop with their name tagged.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
 
               {/* Quick Add Form */}
               <form onSubmit={handleAddStaff} className="rounded-xl border border-hairline bg-paper p-4 sm:p-5 mb-6">
@@ -960,9 +861,9 @@ export function SettingsPage({ initialTab }) {
                     <p className="text-sm font-medium text-ink">{isUrdu ? 'ابھی کوئی ملازم منسلک نہیں ہے' : 'No staff assistants linked yet'}</p>
                     <p className="text-xs text-muted max-w-sm mx-auto mt-1">
                       {isUrdu ? (
-                        <>اپنی دکان کا کوڈ <strong className="text-ink">{staffData?.shopCode || profile?.shopCode}</strong> ملازمین کے ساتھ شیئر کریں یا اوپر ان کا نمبر درج کریں۔</>
+                        <>اوپر ملازم کا نام اور واٹس ایپ نمبر درج کر کے انہیں شامل کریں۔</>
                       ) : (
-                        <>Share your shop code <strong className="text-ink">{staffData?.shopCode || profile?.shopCode}</strong> with your shop boys or enter their phone number above to get started.</>
+                        <>Add an assistant by entering their name and WhatsApp number above.</>
                       )}
                     </p>
                   </div>

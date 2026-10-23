@@ -808,34 +808,6 @@ export async function removeStaffMember(req, res) {
 }
 
 /**
- * POST /api/merchant/shop-code/regenerate
- * Generates a new unique shop code.
- */
-export async function regenerateShopCode(req, res) {
-  try {
-    const merchant = await Merchant.findById(req.merchantId);
-    if (!merchant) {
-      return res.status(404).json({ success: false, error: { message: 'Merchant not found.' } });
-    }
-
-    merchant.shopCode = `VT-${Math.floor(1000 + Math.random() * 9000)}`;
-    await merchant.save();
-
-    emitDashboardUpdate(merchant._id, { type: 'shop_code', action: 'regenerated', shopCode: merchant.shopCode });
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        shopCode: merchant.shopCode,
-      },
-    });
-  } catch (error) {
-    console.error('regenerateShopCode error:', error);
-    return res.status(500).json({ success: false, error: { message: 'Server error regenerating shop code.' } });
-  }
-}
-
-/**
  * POST /api/merchant/disable-shop
  * Soft-disables a store without deleting database history/records,
  * unlinks WhatsApp number and email, deactivates staff, and clears session cookies.

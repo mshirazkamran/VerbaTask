@@ -309,3 +309,16 @@ export async function findSimilarInventoryItems(merchantId, saidName, { limit = 
     .sort((x, y) => y.score - x.score)
     .slice(0, limit);
 }
+
+/**
+ * Stricter than similarity(): true only when every word the merchant said is accounted for in
+ * the item's name. "chawal" -> "Rice", "riece" -> "Rice" and "lipton" -> "Lipton Yellow Label"
+ * are the same item; "steam chawal" -> "Rice" is not (the extra word names a different product).
+ * Used for restocks, where a wrong match silently adds stock to the wrong item.
+ */
+export function isSameItemName(saidName, itemName) {
+  const said = normalizeName(saidName).split(' ').filter(Boolean);
+  const item = normalizeName(itemName).split(' ').filter(Boolean);
+  if (!said.length || !item.length) return false;
+  return said.every((t) => item.some((it) => it === t || similarity(t, it) >= 0.85));
+}

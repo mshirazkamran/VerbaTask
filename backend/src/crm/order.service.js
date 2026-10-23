@@ -216,26 +216,6 @@ export const createOrder = async (command) => {
     }
   }
 
-  // Phase 2: Execute stock deductions (atomic rollback on unexpected DB failure)
-  const originalQuantities = new Map();
-  try {
-    for (const [, { doc, totalQuantity }] of demandByItem) {
-      originalQuantities.set(doc._id.toString(), doc.quantity);
-      doc.quantity = Math.max(0, Math.round((doc.quantity - totalQuantity) * 1000) / 1000);
-      await doc.save();
-      updatedInventoryDocs.push(doc);
-    }
-  } catch (saveErr) {
-    for (const doc of updatedInventoryDocs) {
-      const origQty = originalQuantities.get(doc._id.toString());
-      if (origQty != null) {
-        doc.quantity = origQty;
-        await doc.save().catch(() => {});
-      }
-    }
-    throw saveErr;
-  }
-
   for (const line of resolvedLines) {
     orderItems.push({
       inventoryItemId: line.inventoryItem._id,
@@ -245,23 +225,14 @@ export const createOrder = async (command) => {
     });
   }
 
-  // 2. Evaluate threshold workflows after stock deduction (non-blocking)
-  try {
-    for (const item of updatedInventoryDocs) {
-      await evaluateThresholdWorkflows(merchantId, item);
-    }
-  } catch (err) {
-    console.error('Threshold workflow evaluation failed:', err.message);
-  }
-
-  // 3. Compute order total
+  // 2. Compute order total
   const computedTotal = orderItems.reduce(
     (sum, i) => sum + i.quantity * i.price,
     0
   );
   const total = command.total ?? command.amount ?? Math.round(computedTotal);
 
-  // 4. Determine order status — approval is OFF by default; only trigger if merchant explicitly opted in
+  // 3. Determine order status — approval is OFF by default; only trigger if merchant explicitly opted in
   let status = 'completed';
   try {
     const merchantDoc = await Merchant.findById(merchantId).lean();
@@ -275,14 +246,52 @@ export const createOrder = async (command) => {
     console.warn('Failed to check merchant approval setting:', err.message);
   }
 
+  // An order waiting for approval is NOT a sale yet: stock and the khata are only touched once
+  // it is approved (see applyApprovedOrder). Stock was validated above so the merchant hears now.
+  const isPending = status === 'pending_approval';
+
+  if (!isPending) {
+    // 4. Execute stock deductions (atomic rollback on unexpected DB failure)
+    const originalQuantities = new Map();
+    try {
+      for (const [, { doc, totalQuantity }] of demandByItem) {
+        originalQuantities.set(doc._id.toString(), doc.quantity);
+        doc.quantity = Math.max(0, Math.round((doc.quantity - totalQuantity) * 1000) / 1000);
+        await doc.save();
+        updatedInventoryDocs.push(doc);
+      }
+    } catch (saveErr) {
+      for (const doc of updatedInventoryDocs) {
+        const origQty = originalQuantities.get(doc._id.toString());
+        if (origQty != null) {
+          doc.quantity = origQty;
+          await doc.save().catch(() => {});
+        }
+      }
+      throw saveErr;
+    }
+
+    // Evaluate threshold workflows after stock deduction (non-blocking)
+    try {
+      for (const item of updatedInventoryDocs) {
+        await evaluateThresholdWorkflows(merchantId, item);
+      }
+    } catch (err) {
+      console.error('Threshold workflow evaluation failed:', err.message);
+    }
+  }
+
   let customerId = null;
   let finalCustomerName = null;
 
   if (khataCustomer) {
-    khataCustomer.balance = (Number(khataCustomer.balance) || 0) + total;
-    await khataCustomer.save();
     customerId = khataCustomer._id;
     finalCustomerName = khataCustomer.name; // Keep canonical customer name
+  }
+
+  if (khataCustomer && !isPending) {
+    khataCustomer.balance = (Number(khataCustomer.balance) || 0) + total;
+    await khataCustomer.save();
 
     emitDashboardUpdate(merchantId, {
       type: 'customer',
@@ -313,12 +322,15 @@ export const createOrder = async (command) => {
     staffName,
     staffPhone,
     incomingMessageId,
+    stockApplied: !isPending,
   });
 
   // 6. If pending approval, create the approval record and notify the merchant
   if (status === 'pending_approval') {
     try {
-      const summary = orderItems.map((i) => `${i.quantity}x ${i.name}`).join(', ');
+      const items = orderItems.map((i) => `${i.quantity}x ${i.name}`).join(', ');
+      const who = [staffName ? `by ${staffName}` : null, finalCustomerName ? `khata: ${finalCustomerName}` : null].filter(Boolean).join(', ');
+      const summary = who ? `${items} (${who})` : items;
       await createApproval({ merchantId, orderId: order._id, summary, amount: total });
     } catch (err) {
       console.error('Failed to create approval:', err.message);

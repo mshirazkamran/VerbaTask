@@ -230,25 +230,3 @@ export function useRemoveStaffMember() {
     },
   });
 }
-
-export function useRegenerateShopCode() {
-  const queryClient = useQueryClient();
-  const merchant = useAuthStore((state) => state.merchant);
-
-  return useMutation({
-    mutationFn: async () => {
-      const newCode = `VT-${Math.floor(1000 + Math.random() * 9000)}`;
-      try {
-        const res = await api.post('/api/merchant/shop-code/regenerate');
-        return res || { shopCode: newCode };
-      } catch (err) {
-        console.warn('[Staff] Remote regenerate failed, generated locally:', err.message);
-        return { shopCode: newCode };
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.staff() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
-    },
-  });
-}

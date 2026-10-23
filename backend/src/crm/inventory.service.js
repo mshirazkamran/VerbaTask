@@ -1,5 +1,5 @@
 import InventoryItem from '../models/InventoryItem.js';
-import { findSimilarInventoryItems, cleanAndStandardizeItemName } from './item-matching.js';
+import { findSimilarInventoryItems, cleanAndStandardizeItemName, isSameItemName } from './item-matching.js';
 import { emitDashboardUpdate } from '../socket.js';
 import { spokenPhrases } from '../services/localization.service.js';
 import { invalidateMerchantCatalog } from '../services/catalogCache.service.js';
@@ -8,230 +8,113 @@ import { evaluateThresholdWorkflows } from '../workflows/workflow.service.js';
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * Restocks an existing inventory item or creates a new one if not found.
+ * Finds the inventory item a restock line refers to: exact name, the standardized name
+ * ("chawal" -> "Rice"), a learned alias, then a fuzzy match that must name the SAME product
+ * ("steam chawal" never lands on "Rice"). Returns null for a genuinely new item.
+ */
+async function findRestockTarget(merchantId, rawName) {
+  const standardized = cleanAndStandardizeItemName(rawName);
+  for (const name of new Set([rawName, standardized])) {
+    const exact = await InventoryItem.findOne({ merchantId, name: new RegExp(`^${escapeRegex(name)}$`, 'i') });
+    if (exact) return exact;
+  }
+  const ranked = await findSimilarInventoryItems(merchantId, rawName, { limit: 5, minScore: 0.65 });
+  const same = ranked.find((r) => r.score === 1 || isSameItemName(rawName, r.item.name));
+  return same ? same.item : null;
+}
+
+/** Restock line -> { rawName, name, quantity, price, unit } with numbers and units cleaned up. */
+function normalizeRestockLine(line) {
+  const rawName = line?.name?.trim() || 'Item';
+  const quantity = Number(line?.quantity) > 0 ? Number(line.quantity) : 1;
+  const price = line?.price != null && Number(line.price) > 0 ? Number(line.price) : null;
+  const unit = typeof line?.unit === 'string' && line.unit.trim() ? line.unit.trim() : null;
+  return { rawName, name: cleanAndStandardizeItemName(rawName), quantity, price, unit };
+}
+
+/**
+ * Restocks existing inventory items and creates new ones. A new item needs a price and a unit:
+ * when one is missing, nothing is guessed — the item goes into `pendingItems` and the merchant is
+ * asked for it (one item at a time; the controller keeps the rest of the queue).
  * Emits real-time WebSocket events to synchronize the web dashboard.
  */
 export async function restockItemViaCrm(merchant, command) {
   const language = command.language || merchant.language || 'ur';
-  const incomingItems = Array.isArray(command.items) && command.items.length > 0
-    ? command.items
-    : [command.item || {}];
+  const isUrdu = language === 'ur';
+  const lines = (Array.isArray(command.items) && command.items.length > 0 ? command.items : [command.item || {}])
+    .map(normalizeRestockLine);
 
-  // Single item path preserves exact phrasing for unit assertions
-  if (incomingItems.length === 1) {
-    const rawName = incomingItems[0]?.name?.trim() || 'Item';
-    const quantity = Math.max(1, parseInt(incomingItems[0]?.quantity, 10) || 1);
-    const price = incomingItems[0]?.price != null ? Number(incomingItems[0].price) : null;
-    const unit = incomingItems[0]?.unit || null;
+  const results = [];
+  const pendingItems = [];
 
-    let item = await InventoryItem.findOne({
-      merchantId: merchant._id,
-      name: new RegExp(`^${escapeRegex(rawName)}$`, 'i'),
-    });
-
-    if (!item) {
-      const ranked = await findSimilarInventoryItems(merchant._id, rawName, { limit: 1, minScore: 0.65 });
-      if (ranked.length > 0) {
-        item = ranked[0].item;
-      }
-    }
+  for (const line of lines) {
+    let item = await findRestockTarget(merchant._id, line.rawName);
 
     if (item) {
-      item.quantity = (item.quantity || 0) + quantity;
-      if (price != null) item.price = price;
-      if (unit) item.unit = unit;
+      item.quantity = Math.round(((item.quantity || 0) + line.quantity) * 1000) / 1000;
+      if (line.price != null) item.price = line.price;
+      if (line.unit) item.unit = line.unit;
       await item.save();
-
-      invalidateMerchantCatalog(merchant._id);
-      emitDashboardUpdate(merchant._id, {
-        type: 'inventory',
-        action: 'update',
-        itemId: item._id,
-        itemName: item.name,
-        quantity: item.quantity,
+      emitDashboardUpdate(merchant._id, { type: 'inventory', action: 'update', itemId: item._id, itemName: item.name, quantity: item.quantity });
+    } else if (line.price == null || !line.unit) {
+      pendingItems.push({
+        name: line.name,
+        rawName: line.rawName,
+        quantity: line.quantity,
+        price: line.price,
+        unit: line.unit,
+        missing: { price: line.price == null, unit: !line.unit },
       });
-
-      return spokenPhrases.stockUpdated(language, {
-        itemName: item.name,
-        addedQuantity: quantity,
-        totalQuantity: item.quantity,
-        price: item.price,
-        unit: item.unit,
-      });
+      continue;
+    } else {
+      item = await InventoryItem.create({ merchantId: merchant._id, name: line.name, quantity: line.quantity, price: line.price, unit: line.unit });
+      emitDashboardUpdate(merchant._id, { type: 'inventory', action: 'create', itemId: item._id, itemName: item.name, quantity: item.quantity, price: item.price, unit: item.unit });
     }
-
-    const standardizedName = cleanAndStandardizeItemName(rawName);
-    const hasPrice = price != null && Number(price) > 0;
-    const hasUnit = Boolean(unit && typeof unit === 'string' && unit.trim());
-
-    // If new item is missing price or unit, restrain and require details
-    if (!hasPrice || !hasUnit) {
-      const prompt = spokenPhrases.newItemDetailsRequired(language, {
-        itemName: standardizedName,
-        missingPrice: !hasPrice,
-        missingUnit: !hasUnit,
-        unit: hasUnit ? unit.trim() : null,
-      });
-
-      return {
-        requiresDetails: true,
-        item: {
-          name: standardizedName,
-          rawName,
-          quantity,
-          price: hasPrice ? Number(price) : null,
-          unit: hasUnit ? unit.trim() : null,
-        },
-        missing: {
-          price: !hasPrice,
-          unit: !hasUnit,
-        },
-        spoken: prompt.spoken,
-        text: prompt.text,
-      };
-    }
-
-    item = await InventoryItem.create({
-      merchantId: merchant._id,
-      name: standardizedName,
-      quantity,
-      price: Number(price),
-      unit: unit.trim(),
-    });
 
     // Restock re-arms any low-stock alert that already fired for this item.
     evaluateThresholdWorkflows(merchant._id, item).catch((err) =>
       console.error('Threshold workflow evaluation failed:', err.message)
     );
-
-    invalidateMerchantCatalog(merchant._id);
-    emitDashboardUpdate(merchant._id, {
-      type: 'inventory',
-      action: 'create',
-      itemId: item._id,
-      itemName: item.name,
-      quantity: item.quantity,
-      price: item.price,
-      unit: item.unit,
-    });
-
-    return spokenPhrases.stockUpdated(language, {
-      itemName: item.name,
-      addedQuantity: quantity,
-      totalQuantity: item.quantity,
-      price: item.price,
-      unit: item.unit,
-    });
+    results.push({ name: item.name, added: line.quantity, total: item.quantity, price: item.price, unit: item.unit });
   }
 
-  // Multi-item restock processing
-  const results = [];
-  const itemsRequiringDetails = [];
+  if (results.length) invalidateMerchantCatalog(merchant._id);
 
-  for (const itm of incomingItems) {
-    const rawName = itm?.name?.trim() || 'Item';
-    const quantity = Math.max(1, parseInt(itm?.quantity, 10) || 1);
-    const price = itm?.price != null && Number(itm.price) > 0 ? Number(itm.price) : null;
-    const unit = itm?.unit && typeof itm.unit === 'string' && itm.unit.trim() ? itm.unit.trim() : null;
+  // One line, nothing pending: the classic single-item confirmation.
+  if (results.length === 1 && !pendingItems.length) {
+    const r = results[0];
+    return spokenPhrases.stockUpdated(language, { itemName: r.name, addedQuantity: r.added, totalQuantity: r.total, price: r.price, unit: r.unit });
+  }
 
-    let item = await InventoryItem.findOne({
-      merchantId: merchant._id,
-      name: new RegExp(`^${escapeRegex(rawName)}$`, 'i'),
-    });
-
-    if (!item) {
-      const ranked = await findSimilarInventoryItems(merchant._id, rawName, { limit: 1, minScore: 0.65 });
-      if (ranked.length > 0) item = ranked[0].item;
-    }
-
-    if (item) {
-      item.quantity = (item.quantity || 0) + quantity;
-      if (price != null) {
-        item.price = price;
-      }
-      if (unit) item.unit = unit;
-      await item.save();
-
-      results.push({ name: item.name, added: quantity, total: item.quantity, price: item.price, unit: item.unit });
-      emitDashboardUpdate(merchant._id, {
-        type: 'inventory',
-        action: 'update',
-        itemId: item._id,
-        itemName: item.name,
-        quantity: item.quantity,
-      });
-    } else {
-      const standardizedName = cleanAndStandardizeItemName(rawName);
-      if (!price || !unit) {
-        itemsRequiringDetails.push({
-          name: standardizedName,
-          rawName,
-          quantity,
-          price,
-          unit,
-          missing: { price: !price, unit: !unit },
-        });
-      } else {
-        item = await InventoryItem.create({
-          merchantId: merchant._id,
-          name: standardizedName,
-          quantity,
-          price,
-          unit,
-        });
-
-        results.push({ name: standardizedName, added: quantity, total: quantity, price, unit });
-        emitDashboardUpdate(merchant._id, {
-          type: 'inventory',
-          action: 'create',
-          itemId: item._id,
-          itemName: item.name,
-          quantity: item.quantity,
-        });
-      }
+  let text = '';
+  let spoken = '';
+  if (results.length) {
+    text = isUrdu ? '📦 *مال اسٹاک میں شامل کر دیا گیا:*' : '📦 *Stock added successfully:*';
+    spoken = isUrdu ? 'نیا مال اسٹاک میں شامل کر دیا گیا ہے۔' : 'New stock has been added to inventory.';
+    for (const r of results) {
+      const unitStr = r.unit ? ` ${r.unit}` : '';
+      const priceStr = r.price ? ` (Rs. ${r.price})` : '';
+      text += `\n• +${r.added}${unitStr} *${r.name}* (${isUrdu ? 'کل' : 'total'}: ${r.total})${priceStr}`;
     }
   }
 
-  if (itemsRequiringDetails.length > 0) {
-    const firstMissing = itemsRequiringDetails[0];
-    const prompt = spokenPhrases.newItemDetailsRequired(language, {
-      itemName: firstMissing.name,
-      missingPrice: firstMissing.missing.price,
-      missingUnit: firstMissing.missing.unit,
-      unit: firstMissing.unit,
-    });
-    return {
-      requiresDetails: true,
-      item: firstMissing,
-      missing: firstMissing.missing,
-      spoken: prompt.spoken,
-      text: prompt.text,
-    };
-  }
+  if (!pendingItems.length) return { spoken, text };
 
-  invalidateMerchantCatalog(merchant._id);
-
-  const isUrdu = language === 'ur';
-  let text = isUrdu ? '📦 *مال اسٹاک میں شامل کر دیا گیا:*' : '📦 *Stock added successfully:*';
-  let spoken = isUrdu ? 'نیا مال اسٹاک میں شامل کر دیا گیا ہے۔' : 'New stock has been added to inventory.';
-
-  for (const r of results) {
-    const unitStr = r.unit ? ` ${r.unit}` : '';
-    const priceStr = r.price ? ` (Rs. ${r.price})` : '';
-    text += `\n• +${r.added}${unitStr} *${r.name}* (کل: ${r.total})${priceStr}`;
-  }
-
-  if (missingPrices.length > 0) {
-    if (isUrdu) {
-      text += `\n\n⚠️ *درج ذیل اشیاء کی قیمت درج نہیں ہے:*\n${missingPrices.map((m) => `• ${m}`).join('\n')}\nبرائے مہربانی ان کی قیمت بتائیں (مثلاً: "${missingPrices[0]} 150")۔`;
-      spoken += ` لیکن ${missingPrices.join(' اور ')} کی قیمت درج نہیں ہے، برائے مہربانی قیمت بتائیں۔`;
-    } else {
-      text += `\n\n⚠️ *Missing prices for:*\n${missingPrices.map((m) => `• ${m}`).join('\n')}\nPlease reply with their prices (e.g. "${missingPrices[0]} 150").`;
-      spoken += ` Please provide the price for ${missingPrices.join(' and ')}.`;
-    }
-  }
-
-  return { spoken, text, missingPriceItems: missingPrices };
+  const [first, ...queue] = pendingItems;
+  const prompt = spokenPhrases.newItemDetailsRequired(language, {
+    itemName: first.name,
+    missingPrice: first.missing.price,
+    missingUnit: first.missing.unit,
+    unit: first.unit,
+  });
+  return {
+    requiresDetails: true,
+    item: first,
+    missing: first.missing,
+    queue,
+    spoken: [spoken, prompt.spoken].filter(Boolean).join(' '),
+    text: [text, prompt.text].filter(Boolean).join('\n\n'),
+  };
 }
 
 /**

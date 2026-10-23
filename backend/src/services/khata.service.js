@@ -29,6 +29,8 @@ export function buildKhataStatement({ customer, orders = [], payments = [] }) {
   const entries = [];
 
   for (const order of orders) {
+    // Waiting for approval or rejected: never charged to the khata, so not a purchase.
+    if (order.status === 'pending_approval' || order.status === 'rejected') continue;
     const items = (order.items || []).map((i) => `${i.quantity}x ${i.name}`).join(', ');
     const tag = ['rejected', 'returned', 'partially_returned'].includes(order.status) ? ` (${order.status.replace('_', ' ')})` : '';
     entries.push({

@@ -11,7 +11,6 @@ import {
   getStaffMembers,
   addStaffMember,
   removeStaffMember,
-  regenerateShopCode,
   disableShop,
 } from '../controllers/merchant.controller.js';
 
@@ -33,7 +32,6 @@ router.post('/disable-shop', disableShop);
 router.get('/staff', getStaffMembers);
 router.post('/staff', addStaffMember);
 router.delete('/staff/:staffId', removeStaffMember);
-router.post('/shop-code/regenerate', regenerateShopCode);
 
 // Phone change verification routes
 router.post('/phone/request-change', requestPhoneChange);

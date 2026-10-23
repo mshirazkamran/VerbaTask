@@ -181,7 +181,7 @@ export const returnOrder = async (req, res) => {
         });
         res.status(200).json({ success: true, data: result });
     } catch (error) {
-        const status = error.message.includes('ORDER_NOT_FOUND') || error.message.includes('NO_VALID_ITEMS') ? 400 : 500;
+        const status = error.message.includes('ORDER_NOT_FOUND') || error.message.includes('ORDER_NOT_SOLD') || error.message.includes('NO_VALID_ITEMS') ? 400 : 500;
         res.status(status).json({ success: false, error: { message: error.message } });
     }
 };
@@ -202,7 +202,8 @@ export const exchangeOrder = async (req, res) => {
         const status = error.message.includes('ORDER_NOT_FOUND') || 
                        error.message.includes('ITEM_NOT_FOUND') || 
                        error.message.includes('INSUFFICIENT_STOCK') ||
-                       error.message.includes('INVALID_EXCHANGE') ? 400 : 500;
+                       error.message.includes('INVALID_EXCHANGE') ||
+                       error.message.includes('ORDER_NOT_SOLD') ? 400 : 500;
         res.status(status).json({ success: false, error: { message: error.message } });
     }
 };

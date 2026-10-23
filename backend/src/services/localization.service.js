@@ -214,13 +214,27 @@ export const spokenPhrases = {
   approvalReply(language = 'ur', isApprove = true) {
     if (language === 'ur') {
       return {
-        spoken: isApprove ? 'جی محترم، آرڈر منظور کر لیا گیا ہے اور مکمل ہو گیا ہے۔ بہت شکریہ!' : 'جی محترم، آرڈر مسترد کر دیا گیا ہے اور اسٹاک بحال کر دیا گیا ہے۔',
-        text: isApprove ? '✅ Order approved and marked as completed.' : '❌ Order rejected. Stock has been restored.',
+        spoken: isApprove ? 'جی محترم، آرڈر منظور کر لیا گیا ہے اور سیل درج ہو گئی ہے۔ بہت شکریہ!' : 'جی محترم، آرڈر مسترد کر دیا گیا ہے۔ کوئی سیل درج نہیں ہوئی۔',
+        text: isApprove ? '✅ آرڈر منظور — سیل درج اور اسٹاک اپڈیٹ ہو گیا۔' : '❌ آرڈر مسترد — نہ سیل درج ہوئی، نہ اسٹاک یا کھاتہ بدلا۔',
       };
     }
     return {
-      spoken: isApprove ? 'Certainly! Order approved and marked as completed. Thank you!' : 'Order has been rejected and stock restored.',
-      text: isApprove ? '✅ Order approved and marked as completed.' : '❌ Order rejected. Stock has been restored.',
+      spoken: isApprove ? 'Certainly! Order approved and the sale has been logged. Thank you!' : 'Order rejected. Nothing was logged.',
+      text: isApprove ? '✅ Order approved — sale logged and stock updated.' : '❌ Order rejected — no sale logged; stock and khata unchanged.',
+    };
+  },
+
+  orderPendingApproval(language = 'ur', { orderNo, total } = {}) {
+    const amount = `Rs. ${Number(total || 0).toLocaleString()}`;
+    if (language === 'ur') {
+      return {
+        spoken: `یہ بڑا آرڈر، ${Number(total || 0)} روپے کا، مالک کی منظوری کے لیے بھیج دیا گیا ہے۔ منظوری کے بعد ہی سیل درج ہوگی۔`,
+        text: `⏳ آرڈر #${orderNo} (${amount}) مالک کی منظوری کا منتظر ہے۔\nمنظوری سے پہلے نہ سیل درج ہوگی، نہ اسٹاک یا کھاتہ بدلے گا۔`,
+      };
+    }
+    return {
+      spoken: `This large order of ${Number(total || 0)} rupees has been sent to the owner for approval. It will be logged once approved.`,
+      text: `⏳ Order #${orderNo} (${amount}) is waiting for the owner's approval.\nNo sale is logged and stock/khata stay unchanged until it is approved.`,
     };
   },
 

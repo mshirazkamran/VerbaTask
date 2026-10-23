@@ -1,8 +1,8 @@
 import mongoose from 'mongoose';
-import Order from '../models/Order.js';
+import Order, { SALE_STATUSES } from '../models/Order.js';
 
 // Orders that count as revenue. Fully returned, rejected and pending orders do not.
-const SALE_STATUSES = ['completed', 'approved', 'partially_returned', 'exchanged'];
+
 
 const RANGE_DAYS = { '7d': 7, '30d': 30, '90d': 90, '12m': 365 };
 const DEFAULT_RANGE = '30d';

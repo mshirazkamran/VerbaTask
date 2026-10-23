@@ -10,7 +10,6 @@ import {
   getStaffMembers,
   addStaffMember,
   removeStaffMember,
-  regenerateShopCode,
   disableShop,
 } from '../src/controllers/merchant.controller.js';
 import { handleIncomingMessage } from '../src/controllers/whatsapp.controller.js';
@@ -202,7 +201,7 @@ describe('Multi-Staff Shop Reference Code System Tests', () => {
     assert.equal(order.staffPhone, '923001234567');
   });
 
-  test('WhatsApp handleIncomingMessage allows assistant to join via shop code', async () => {
+  test('WhatsApp handleIncomingMessage does NOT let an unknown number join via shop code', async () => {
     const origFindOne = Merchant.findOne;
     const origFindOneState = ConversationState.findOne;
     let saved = false;
@@ -250,11 +249,9 @@ describe('Multi-Staff Shop Reference Code System Tests', () => {
       const res = { sendStatus: () => {} };
 
       await handleIncomingMessage(req, res);
-      assert.equal(saved, true);
-      assert.equal(mockMerchant.staffMembers.length, 1);
-      assert.equal(mockMerchant.staffMembers[0].name, 'Tariq');
-      assert.equal(mockMerchant.staffMembers[0].whatsappNumber, '923456789012');
-      assert.equal(mockMerchant.staffMembers[0].addedBy, 'whatsapp_code');
+      // Staff are added only by the owner from the dashboard.
+      assert.equal(saved, false);
+      assert.equal(mockMerchant.staffMembers.length, 0);
     } finally {
       Merchant.findOne = origFindOne;
       ConversationState.findOne = origFindOneState;
