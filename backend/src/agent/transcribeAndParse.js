@@ -1,6 +1,7 @@
 import FormData from 'form-data';
 import axios from 'axios';
 import { parseIntent } from '../services/qwen.service.js';
+import { logger, errorSummary } from '../services/logger.service.js';
 
 // Groq runs OpenAI-compatible Whisper endpoints for free (2,000 req/day on
 // the free tier, no credit card) — get a key at console.groq.com. This is
@@ -57,41 +58,45 @@ export async function transcribeAndParse(buffer, mimeType, language = 'ur', merc
   const transcript = await transcribeWithRetry(buffer, cleanMimeType, language, prompt);
 
   if (!transcript?.trim()) {
-    console.warn('[voice] Empty transcription received');
+    logger.warn('stt.empty_transcript', { audioBytes: buffer.length });
     return { type: 'unknown', rawText: '' };
   }
 
   const detectedLanguage = /[\u0600-\u06FF]/.test(transcript) ? 'ur' : (language || 'ur');
-  console.log(`[voice] transcript (${detectedLanguage}): "${transcript}"`);
+  logger.info('stt.transcript', { language: detectedLanguage, transcript });
   const intent = await parseIntent(transcript, merchant);
   return { ...intent, transcript, detectedLanguage };
 }
 
+const GEMINI_STT_MODEL = 'gemini-3.8-flash';
+
+/**
+ * Groq whisper-large-v3 -> Groq whisper-large-v3-turbo -> Gemini. Every attempt logs an
+ * stt.call event with the provider and model, so the logs show which one produced the transcript.
+ */
 async function transcribeWithRetry(buffer, cleanMimeType, language, prompt = '') {
-  const primaryModel = 'whisper-large-v3';
-  const fallbackModel = 'whisper-large-v3-turbo';
+  const attempts = [
+    { provider: 'groq', model: 'whisper-large-v3', run: () => transcribe(buffer, cleanMimeType, language, 'whisper-large-v3', prompt) },
+    { provider: 'groq', model: 'whisper-large-v3-turbo', run: () => transcribe(buffer, cleanMimeType, language, 'whisper-large-v3-turbo', prompt) },
+    ...(process.env.GEMINI_API_KEY
+      ? [{ provider: 'gemini', model: GEMINI_STT_MODEL, run: () => transcribeWithGemini(buffer, cleanMimeType, prompt) }]
+      : []),
+  ];
 
-  try {
-    return await transcribe(buffer, cleanMimeType, language, primaryModel, prompt);
-  } catch (err1) {
-    const status1 = err1.response?.status;
-    console.warn(`[voice] ${primaryModel} failed (${status1 || err1.message}). Retrying with ${fallbackModel}...`);
-
+  let groqError = null;
+  for (const { provider, model, run } of attempts) {
+    const startedAt = Date.now();
     try {
-      return await transcribe(buffer, cleanMimeType, language, fallbackModel, prompt);
-    } catch (err2) {
-      const status2 = err2.response?.status;
-      console.warn(`[voice] ${fallbackModel} failed (${status2 || err2.message}). Falling back to Gemini...`);
-      if (process.env.GEMINI_API_KEY) {
-        try {
-          return await transcribeWithGemini(buffer, cleanMimeType, prompt);
-        } catch (geminiErr) {
-          console.warn(`[voice] Gemini audio transcription fallback also failed (${geminiErr.message})`);
-        }
-      }
-      throw err2;
+      const text = await run();
+      logger.info('stt.call', { provider, model, outcome: 'success', latencyMs: Date.now() - startedAt, audioBytes: buffer.length, mimeType: cleanMimeType, transcriptChars: text?.length ?? 0 });
+      return text;
+    } catch (err) {
+      if (provider === 'groq') groqError = err;
+      logger.warn('stt.call', { provider, model, outcome: 'error', latencyMs: Date.now() - startedAt, audioBytes: buffer.length, mimeType: cleanMimeType, error: errorSummary(err) });
     }
   }
+  // Surface the Groq error (as before): it is the one that explains a misconfigured key.
+  throw groqError;
 }
 
 /**
@@ -133,7 +138,7 @@ async function transcribeWithGemini(buffer, mimeType, prompt = '') {
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
 
   const { data } = await axios.post(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_STT_MODEL}:generateContent`,
     {
       contents: [
         {
@@ -152,7 +157,8 @@ async function transcribeWithGemini(buffer, mimeType, prompt = '') {
         },
       ],
     },
-    { timeout: 20_000 }
+    // Key in a header, not the URL: axios errors carry the URL, and errors get logged.
+    { headers: { 'x-goog-api-key': apiKey }, timeout: 20_000 }
   );
 
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';

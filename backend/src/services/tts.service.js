@@ -14,6 +14,7 @@ import dotenv from 'dotenv';
 import lamejs from '@breezystack/lamejs';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import * as googleTTS from 'google-tts-api';
+import { logger, errorSummary } from './logger.service.js';
 
 dotenv.config();
 
@@ -164,7 +165,6 @@ export async function synthesizeWithElevenLabs(text, language = 'ur', voiceId = 
   }
 
   const selectedVoice = voiceId || DEFAULT_ELEVENLABS_VOICE;
-  console.log(`[tts] ElevenLabs: Requesting speech synthesis (voice: ${selectedVoice}, lang: ${language})...`);
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoice}`;
 
   const response = await axios.post(
@@ -188,7 +188,6 @@ export async function synthesizeWithElevenLabs(text, language = 'ur', voiceId = 
   );
 
   const buffer = Buffer.from(response.data);
-  console.log(`[tts] ElevenLabs: Speech synthesis successful (${buffer.length} bytes, voice: ${selectedVoice})`);
 
   return {
     buffer,
@@ -196,6 +195,7 @@ export async function synthesizeWithElevenLabs(text, language = 'ur', voiceId = 
     format: 'mp3',
     voice: selectedVoice,
     provider: 'elevenlabs',
+    model: 'eleven_multilingual_v2',
   };
 }
 
@@ -220,8 +220,7 @@ export async function synthesizeWithGemini(text, language = 'ur', voice = null) 
 
   for (const model of modelsToTry) {
     try {
-      console.log(`[tts] Gemini: Requesting speech synthesis (model: ${model}, voice: ${selectedVoice}, lang: ${language})...`);
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
       const response = await axios.post(
         url,
         {
@@ -238,7 +237,8 @@ export async function synthesizeWithGemini(text, language = 'ur', voice = null) 
           },
         },
         {
-          headers: { 'Content-Type': 'application/json' },
+          // Key in a header, not the URL: axios errors carry the URL, and errors get logged.
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
           timeout: 25_000,
         }
       );
@@ -255,19 +255,17 @@ export async function synthesizeWithGemini(text, language = 'ur', voice = null) 
       const pcmData = inlineData.mimeType?.includes('wav') ? rawBuffer.slice(44) : rawBuffer;
       const mp3Buffer = pcmToMp3(pcmData, 24000, 1);
 
-      console.log(`[tts] Gemini: Speech synthesis successful (${mp3Buffer.length} bytes, model: ${model}, voice: ${selectedVoice})`);
-
       return {
         buffer: mp3Buffer,
         mimeType: 'audio/mpeg',
         format: 'mp3',
         voice: selectedVoice,
         provider: 'gemini',
+        model,
       };
     } catch (err) {
       lastError = err;
-      const details = err.response?.data?.error?.message || err.message;
-      console.warn(`[tts] Gemini model ${model} failed: ${details}`);
+      logger.warn('tts.model_failed', { provider: 'gemini', model, voice: selectedVoice, error: errorSummary(err) });
     }
   }
 
@@ -279,7 +277,6 @@ export async function synthesizeWithGemini(text, language = 'ur', voice = null) 
  */
 export async function synthesizeWithEdge(text, language = 'ur', voice = null) {
   const selectedVoice = voice || getDefaultVoice(language);
-  console.log(`[tts] Edge TTS: Requesting speech synthesis (voice: ${selectedVoice}, lang: ${language})...`);
   const tts = new MsEdgeTTS();
 
   return new Promise(async (resolve, reject) => {
@@ -311,13 +308,13 @@ export async function synthesizeWithEdge(text, language = 'ur', voice = null) {
         if (!buffer.length) {
           return reject(new Error('Edge TTS returned empty audio buffer'));
         }
-        console.log(`[tts] Edge TTS: Speech synthesis successful (${buffer.length} bytes, voice: ${selectedVoice})`);
         resolve({
           buffer,
           mimeType: 'audio/mpeg',
           format: 'mp3',
           voice: selectedVoice,
           provider: 'edge',
+          model: 'msedge-neural',
         });
       });
 
@@ -339,7 +336,6 @@ export async function synthesizeWithGoogle(text, language = 'ur') {
   const langCode = language === 'en' ? 'en' : 'ur';
   const safeText = text.slice(0, 200);
 
-  console.log(`[tts] Google Translate: Requesting speech synthesis (lang: ${langCode})...`);
   const base64 = await googleTTS.getAudioBase64(safeText, {
     lang: langCode,
     slow: false,
@@ -348,13 +344,13 @@ export async function synthesizeWithGoogle(text, language = 'ur') {
   });
 
   const buffer = Buffer.from(base64, 'base64');
-  console.log(`[tts] Google Translate: Speech synthesis successful (${buffer.length} bytes)`);
   return {
     buffer,
     mimeType: 'audio/mpeg',
     format: 'mp3',
     voice: `google-${langCode}`,
     provider: 'google',
+    model: 'google-translate-tts',
   };
 }
 
@@ -386,11 +382,33 @@ export async function synthesizeSpeech(rawText, options = {}) {
     return getVoiceForGender(voiceGender, language, provider);
   };
 
+  // Every provider attempt logs one tts.call event: provider, model, voice, latency, outcome.
+  const attempt = async (provider, run) => {
+    const startedAt = Date.now();
+    try {
+      const result = await run();
+      logger.info('tts.call', {
+        provider: result.provider,
+        model: result.model,
+        voice: result.voice,
+        language,
+        outcome: 'success',
+        latencyMs: Date.now() - startedAt,
+        audioBytes: result.buffer?.length,
+        textChars: text.length,
+      });
+      return result;
+    } catch (err) {
+      logger.warn('tts.call', { provider, language, outcome: 'error', latencyMs: Date.now() - startedAt, error: errorSummary(err) });
+      throw err;
+    }
+  };
+
   // Explicit provider routing if caller directly demanded one
-  if (explicitProvider === 'google') return synthesizeWithGoogle(text, language);
-  if (explicitProvider === 'edge') return synthesizeWithEdge(text, language, resolveVoice('edge'));
-  if (explicitProvider === 'gemini') return synthesizeWithGemini(text, language, resolveVoice('gemini'));
-  if (explicitProvider === 'elevenlabs') return synthesizeWithElevenLabs(text, language, resolveVoice('elevenlabs'));
+  if (explicitProvider === 'google') return attempt('google', () => synthesizeWithGoogle(text, language));
+  if (explicitProvider === 'edge') return attempt('edge', () => synthesizeWithEdge(text, language, resolveVoice('edge')));
+  if (explicitProvider === 'gemini') return attempt('gemini', () => synthesizeWithGemini(text, language, resolveVoice('gemini')));
+  if (explicitProvider === 'elevenlabs') return attempt('elevenlabs', () => synthesizeWithElevenLabs(text, language, resolveVoice('elevenlabs')));
 
   // Build the prioritized order of neural providers
   const configuredProvider = getActiveProvider();
@@ -405,7 +423,7 @@ export async function synthesizeSpeech(rawText, options = {}) {
     neuralProviders.unshift(configuredProvider);
   }
 
-  console.log(`[tts] Provider cascade priority: [${neuralProviders.join(' -> ')}] for language="${language}" voiceGender="${voiceGender}"`);
+  logger.debug('tts.cascade', { providers: neuralProviders, language, voiceGender });
 
   // Try each neural voice provider in sequence
   for (const prov of neuralProviders) {
@@ -414,21 +432,21 @@ export async function synthesizeSpeech(rawText, options = {}) {
         if (!process.env.GEMINI_API_KEY) {
           continue; // skip if no key configured
         }
-        return await synthesizeWithGemini(text, language, resolveVoice('gemini'));
+        return await attempt('gemini', () => synthesizeWithGemini(text, language, resolveVoice('gemini')));
       }
 
       if (prov === 'elevenlabs') {
         if (!process.env.ELEVENLABS_API_KEY) {
           continue; // skip if no key configured
         }
-        return await synthesizeWithElevenLabs(text, language, resolveVoice('elevenlabs'));
+        return await attempt('elevenlabs', () => synthesizeWithElevenLabs(text, language, resolveVoice('elevenlabs')));
       }
 
       if (prov === 'edge') {
-        return await synthesizeWithEdge(text, language, resolveVoice('edge'));
+        return await attempt('edge', () => synthesizeWithEdge(text, language, resolveVoice('edge')));
       }
-    } catch (err) {
-      console.warn(`[tts] Provider "${prov}" failed (${err.message}), trying next neural provider...`);
+    } catch {
+      // already logged by attempt(); try the next neural provider
     }
   }
 
@@ -436,16 +454,15 @@ export async function synthesizeSpeech(rawText, options = {}) {
   const strictNeuralOnly = options.strictNeuralOnly ?? (process.env.STRICT_NEURAL_TTS === 'true');
 
   if (strictNeuralOnly) {
-    console.warn('[tts] All neural TTS providers (Gemini, ElevenLabs, Edge) failed or unavailable. Aborting audio to preserve quality.');
+    logger.warn('tts.all_failed', { language, strictNeuralOnly: true });
     throw new Error('All neural TTS providers failed (Gemini, ElevenLabs, Edge)');
   }
 
   // Final fallback (used in unit test or if basic TTS is explicitly permitted)
-  console.log('[tts] Falling back to Google Translate TTS...');
   try {
-    return await synthesizeWithGoogle(text, language);
+    return await attempt('google', () => synthesizeWithGoogle(text, language));
   } catch (googleErr) {
-    console.error('[tts] All TTS providers failed');
+    logger.error('tts.all_failed', { language, strictNeuralOnly: false });
     throw new Error(`TTS synthesis failed on all available engines: ${googleErr.message}`);
   }
 }

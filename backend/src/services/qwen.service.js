@@ -17,6 +17,7 @@ import { normalizePaymentMethod } from '../constants/paymentMethods.js';
 // Our key is from Model Studio (International), hence the intl default.
 
 import { getMerchantCatalog } from './catalogCache.service.js';
+import { logger, errorSummary } from './logger.service.js';
 
 const SYSTEM_PROMPT = `You convert a Pakistani merchant's WhatsApp message (which may be in
 English, Urdu script, or Roman Urdu) for ANY retail trade (general store, grocery/kiryana, medical/pharmacy, clothing/boutique, auto parts, electronics, restaurant/bakery, hardware) into exactly one JSON object — no prose, no markdown fences, JSON only. Pick ONE of these shapes:
@@ -24,7 +25,8 @@ English, Urdu script, or Roman Urdu) for ANY retail trade (general store, grocer
 1. Logging a sale (customer purchased goods, selling items):
 {"type":"log_sale","items":[{"name":"<item name as the merchant referred to it>","quantity":<number>}],"paymentMethod":"cash"|"easypaisa"|"jazzcash"|"sadapay"|"nayapay"|"raast"|"meezan"|"hbl"|"ubl"|"alfalah"|"mcb"|"faysal"|"allied"|"askari"|"bank"|"udhaar","customerName":"<person name or null>","amount":<number or null>,"isIncomplete":<boolean>}
 - Used when items are SOLD (e.g. "2 panadol cash", "1 lawn suit 3500", "3 spark plug udhaar to ali", "2 chawal usman ke khate mein", "becha", "sold", "furokht", "bechi", "beche", "دیے", "سیل").
-- Can contain one or multiple items.
+- Can contain one or multiple items. List EVERY item as its own entry — never merge two items into one name and never drop one, even when the message (often a voice transcript) has no commas: "Ali ko udhaar 2 kilo chawal 1 kilo chini 3 doodh" -> {"type":"log_sale","items":[{"name":"chawal","quantity":2},{"name":"chini","quantity":1},{"name":"doodh","quantity":3}],"paymentMethod":"udhaar","customerName":"ali","amount":null,"isIncomplete":false}.
+- The customer's name and words like udhaar/khata/cash are never part of an item name. "amount" is the total money for the whole sale, or null if not every item's money was said.
 - Set isIncomplete: true if the message appears cut-off or trailing (e.g. ends with "aur...", "and...", "phir...", trailing numbers, or ellipsis "..."). Otherwise false.
 - If the merchant mentions ANY product name without restock words, it is a sale.
 - If quantity is not explicitly stated, default quantity to 1.
@@ -149,7 +151,7 @@ function llmConfigured() {
  * Direct call to Google Gemini API (Free tier from Google AI Studio).
  * Serves as resilient secondary provider when Groq rate limits (429) hit.
  */
-async function chatCompletionWithGemini(systemPrompt, userText, models = null) {
+async function chatCompletionWithGemini(systemPrompt, userText, models = null, purpose = 'intent') {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
 
@@ -164,9 +166,10 @@ async function chatCompletionWithGemini(systemPrompt, userText, models = null) {
   let lastError = null;
   for (const rawModel of modelsToTry) {
     const model = rawModel.replace(/^models\//, ''); // accept ids with or without the "models/" prefix
+    const startedAt = Date.now();
     try {
       const { data } = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {
           contents: [
             {
@@ -178,13 +181,15 @@ async function chatCompletionWithGemini(systemPrompt, userText, models = null) {
             temperature: 0,
           },
         },
-        { timeout: 18_000 }
+        // Key in a header, not the URL: axios errors carry the URL, and errors get logged.
+        { headers: { 'x-goog-api-key': apiKey }, timeout: 18_000 }
       );
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      logger.info('llm.call', { purpose, provider: 'gemini', model, outcome: text ? 'success' : 'empty', latencyMs: Date.now() - startedAt });
       if (text) return text;
     } catch (err) {
       lastError = err;
-      console.warn(`[qwen.service] Gemini model ${model} failed (${err.message}), trying next...`);
+      logger.warn('llm.call', { purpose, provider: 'gemini', model, outcome: 'error', latencyMs: Date.now() - startedAt, error: errorSummary(err) });
     }
   }
   throw lastError || new Error('All Gemini chat models failed');
@@ -238,39 +243,47 @@ export function extractJson(raw) {
  * Includes cascading multi-provider fallback (Groq -> Gemini -> DashScope)
  * to prevent single-point-of-failure errors and handle rate limiting seamlessly.
  */
-async function chatCompletion(systemPrompt, userText) {
+async function chatCompletion(systemPrompt, userText, purpose = 'intent') {
   const provider = llmProvider();
 
-  // If explicitly configured for Gemini
+  // If explicitly configured for Gemini (each model attempt is logged inside)
   if (provider === 'gemini') {
     try {
-      return await chatCompletionWithGemini(systemPrompt, userText);
-    } catch (geminiErr) {
-      console.warn(`[qwen.service] Gemini primary failed (${geminiErr.message}), falling back to other providers...`);
+      return await chatCompletionWithGemini(systemPrompt, userText, null, purpose);
+    } catch {
+      // fall through to the other providers
     }
   }
 
   // Ordered fallback cascade: Groq Qwen -> Gemma -> Groq gpt-oss -> Gemini flash-lite.
   // Steps whose API key / model isn't configured are skipped.
   const groq = (model) => async () => {
-    const { data } = await axios.post(
-      'https://api.groq.com/openai/v1/chat/completions',
-      {
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userText },
-        ],
-        temperature: 0,
-      },
-      {
-        headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-        timeout: 10_000,
-      }
-    );
-    return data?.choices?.[0]?.message?.content;
+    const startedAt = Date.now();
+    try {
+      const { data } = await axios.post(
+        'https://api.groq.com/openai/v1/chat/completions',
+        {
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userText },
+          ],
+          temperature: 0,
+        },
+        {
+          headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+          timeout: 10_000,
+        }
+      );
+      const content = data?.choices?.[0]?.message?.content;
+      logger.info('llm.call', { purpose, provider: 'groq', model, outcome: content ? 'success' : 'empty', latencyMs: Date.now() - startedAt });
+      return content;
+    } catch (err) {
+      logger.warn('llm.call', { purpose, provider: 'groq', model, outcome: 'error', latencyMs: Date.now() - startedAt, error: errorSummary(err) });
+      throw err;
+    }
   };
-  const gemini = (...models) => () => chatCompletionWithGemini(systemPrompt, userText, models);
+  const gemini = (...models) => () => chatCompletionWithGemini(systemPrompt, userText, models, purpose);
 
   const hasGroq = !!process.env.GROQ_API_KEY;
   const hasGemini = !!process.env.GEMINI_API_KEY;
@@ -287,17 +300,14 @@ async function chatCompletion(systemPrompt, userText) {
     ...(hasGemini ? [['Gemini gemini-3.5-flash-lite', gemini('gemini-3.5-flash-lite')]] : []),
   ];
 
+  // Each step logs its own llm.call event (provider, model, latency, outcome).
   let lastError = null;
-  for (const [label, run] of steps) {
+  for (const [, run] of steps) {
     try {
       const content = await run();
-      if (content) {
-        console.log(`[qwen.service] LLM answered via ${label}`);
-        return content;
-      }
+      if (content) return content;
     } catch (err) {
       lastError = err;
-      console.warn(`[qwen.service] ${label} failed (${err.message}), trying next...`);
     }
   }
 
@@ -307,12 +317,14 @@ async function chatCompletion(systemPrompt, userText) {
 
   // Secondary or fallback: Alibaba Cloud DashScope
   if (process.env.DASHSCOPE_API_KEY) {
+    const model = process.env.QWEN_MODEL || 'qwen2.5-72b-instruct';
+    const startedAt = Date.now();
     try {
       const baseUrl = process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl.aliyuncs.com';
       const { data } = await axios.post(
         `${baseUrl}/api/v1/services/aigc/text-generation/generation`,
         {
-          model: process.env.QWEN_MODEL || 'qwen2.5-72b-instruct',
+          model,
           input: {
             messages: [
               { role: 'system', content: systemPrompt },
@@ -327,9 +339,11 @@ async function chatCompletion(systemPrompt, userText) {
         }
       );
 
-      return data?.output?.choices?.[0]?.message?.content ?? data?.output?.text ?? '';
+      const content = data?.output?.choices?.[0]?.message?.content ?? data?.output?.text ?? '';
+      logger.info('llm.call', { purpose, provider: 'dashscope', model, outcome: content ? 'success' : 'empty', latencyMs: Date.now() - startedAt });
+      return content;
     } catch (dashErr) {
-      console.warn(`[qwen.service] DashScope failed (${dashErr.message})`);
+      logger.warn('llm.call', { purpose, provider: 'dashscope', model, outcome: 'error', latencyMs: Date.now() - startedAt, error: errorSummary(dashErr) });
     }
   }
 
@@ -686,6 +700,12 @@ export function parseMoneyFirstSaleHeuristic(text) {
 
   // Exclude restock, reports, greetings
   if (/\b(?:maal\s*a[y|i]a|restock|report|salam|hello|hi|wapis|wapas|return)\b/i.test(lower)) {
+    return null;
+  }
+
+  // Lists ("100 ki chini aur 2 doodh") and udhaar sales need the customer and every item, which
+  // only the standard sale parser extracts — this one would keep the first item and drop the rest.
+  if (splitSaleItems(lower).length > 1 || hasKhataDebtWord(lower)) {
     return null;
   }
 
@@ -1081,14 +1101,16 @@ export function parseKhataSaleHeuristic(text) {
   if (/^\s*\d+\s*(?:rupay|rs|روپے|rupees?)?\s*$/i.test(itemsText)) return null;
 
   const items = [];
-  let amount = null;
-  for (const chunk of itemsText.split(/(?:,\s*|\s+aur\s+|\s+and\s+|\s+اور\s+)/i).filter(Boolean)) {
+  const lineAmounts = [];
+  for (const chunk of splitSaleItems(itemsText)) {
     const parsed = parseStandardSaleHeuristic(chunk) || parseStandardSaleHeuristic(`1 ${chunk}`);
     if (!parsed?.items?.length) return null;
     items.push(...parsed.items);
-    if (!amount && parsed.amount) amount = parsed.amount;
+    lineAmounts.push(parsed.amount ?? null);
   }
   if (!items.length) return null;
+  // Sum of the spoken line totals, only when every line had one (else the order service prices it).
+  const amount = lineAmounts.every((a) => a != null) ? lineAmounts.reduce((s, a) => s + a, 0) : null;
 
   return {
     type: 'log_sale',
@@ -1168,106 +1190,274 @@ export function parseStandardSaleHeuristic(text) {
     return null;
   }
 
-  const chunks = lower.split(/(?:,\s*|\s+aur\s+|\s+and\s+|\s+اور\s+)/i).filter(Boolean);
+  // Customer and payment method apply to the whole message, so pull them out before splitting —
+  // otherwise "Ali ko udhaar" ends up inside the first item's name.
+  const { text: withoutCustomer, isUdhaar, customerName } = extractUdhaarCustomer(lower);
+  const { text: itemsText, paymentMethod } = extractSalePaymentMethod(withoutCustomer);
+
+  const chunks = splitSaleItems(itemsText);
   if (!chunks.length) return null;
 
   const items = [];
-  let detectedPaymentMethod = 'cash';
-  let detectedCustomerName = null;
-  let detectedAmount = null;
-
   for (const chunk of chunks) {
-    let piece = chunk.trim();
-    if (!piece) continue;
+    const item = parseSaleItemChunk(chunk);
+    if (item === SKIP_CHUNK) continue;
+    // One unreadable chunk means the whole list is unreliable: return null so the LLM parses it,
+    // instead of silently dropping an item from the sale.
+    if (!item) return null;
+    items.push(item);
+  }
+  if (!items.length) return null;
 
-    // Check udhaar / khata customer match first
-    const udhaarMatch = piece.match(/\b(?:udhaar|khata|ادھار|کھاتہ)\s*(?:to|for|ka|ki|ko)?\s+([a-zA-Z\u0600-\u06FF]+)/i);
-    if (udhaarMatch) {
-      detectedPaymentMethod = 'udhaar';
-      detectedCustomerName = udhaarMatch[1].trim();
-      piece = piece.replace(/\b(?:udhaar|khata|ادھار|کھاتہ)\s*(?:to|for|ka|ki|ko)?\s+[a-zA-Z\u0600-\u06FF]+/i, ' ');
-    } else {
-      const pmMatch = piece.match(/\b(cash|kash|easypaisa|jazzcash|sadapay|nayapay|raast|bank|udhaar|khata|کیش|ادھار)\b/i);
-      if (pmMatch) {
-        const found = pmMatch[1].toLowerCase();
-        detectedPaymentMethod = (found === 'khata' || found === 'ادھار') ? 'udhaar' : (found === 'kash' || found === 'کیش') ? 'cash' : found;
-        piece = piece.replace(new RegExp(`\\b${pmMatch[1]}\\b`, 'i'), ' ');
+  // A spoken amount is the line total for that item. Only use the sum when every line has one;
+  // otherwise let the order service compute the total from inventory prices.
+  const lineAmounts = items.map((i) => i.price ?? i.targetAmount ?? null);
+  const amount = lineAmounts.every((a) => a != null) ? lineAmounts.reduce((s, a) => s + a, 0) : null;
+
+  return {
+    type: 'log_sale',
+    items,
+    paymentMethod: isUdhaar ? 'udhaar' : paymentMethod,
+    customerName: isUdhaar ? customerName : null,
+    amount,
+    isIncomplete: false,
+  };
+}
+
+// JS `\b` only knows ASCII letters, so `\bادھار\b` can never match Urdu script. These lookarounds
+// treat any Unicode letter, combining mark or digit as part of a word.
+const U_START = '(?<![\\p{L}\\p{M}\\p{N}])';
+const U_END = '(?![\\p{L}\\p{M}\\p{N}])';
+const unicodeWord = (alternation, flags = 'iu') => new RegExp(`${U_START}(?:${alternation})${U_END}`, flags);
+
+// Item separators inside one sale. Whisper writes Urdu commas and full stops, and spells "aur" as "or".
+// A dot between digits ("1.5 kg") or after "rs" ("Rs. 300") is not a separator.
+const SALE_ITEM_SEPARATOR = /\s*[,،;\n]\s*|\s*(?<!\d|rs)[.۔](?!\d)\s*|\s+(?:aur|and|or|phir|plus|اور|پھر)\s+/iu;
+const LEADING_CONNECTOR = /^(?:aur|and|or|phir|plus|اور|پھر)\s+/iu;
+
+const SALE_DEBT_WORDS = 'udhaari|udhari|udhaar|udhar|udaar|adhaar|khaata|khaate|khata|khate|ادھار|کھاتے|کھاتا|کھاتہ';
+const SALE_PARTICLE = 'ko|ke|ka|ki|کو|کے|کا|کی';
+const SALE_POSTPOSITION = 'mein|me|main|men|may|pe|par|per|میں|پر|پہ';
+const SALE_HONORIFIC = 'bhai|bhae|sahab|sahib|saheb|sb|ji|بھائی|صاحب|جی';
+const SALE_NAME = `([\\p{L}\\p{M}]+(?:\\s+(?:${SALE_HONORIFIC}))?)`;
+
+// "Ali ko udhaar", "Ali ke khate mein", "soban bhai ke udhaar ke khate me", "علی کے ادھار میں"
+const NAME_THEN_DEBT_REGEX = new RegExp(
+  `${U_START}${SALE_NAME}\\s+(?:${SALE_PARTICLE})\\s+(?:(?:${SALE_DEBT_WORDS})\\s+(?:${SALE_PARTICLE})\\s+)?(?:${SALE_DEBT_WORDS})(?:\\s+(?:${SALE_POSTPOSITION}))?${U_END}`,
+  'giu'
+);
+// "udhaar ali", "udhar to Ali", "khata osama", "ادھار علی"
+const DEBT_THEN_NAME_REGEX = new RegExp(
+  `${U_START}(?:${SALE_DEBT_WORDS})(?:\\s+(?:to|for|${SALE_PARTICLE}|${SALE_POSTPOSITION}))?\\s+${SALE_NAME}${U_END}`,
+  'giu'
+);
+const BARE_DEBT_REGEX = new RegExp(`${U_START}(?:${SALE_DEBT_WORDS})(?:\\s+(?:${SALE_POSTPOSITION}))?${U_END}`, 'giu');
+// "... udhaar pe de diya", "... likh do". "daal do" is only stripped when it can't be the lentil
+// ("2 kilo daal do" keeps its daal).
+const SALE_CLOSING_VERB_REGEX = new RegExp(
+  `(?:\\s+(?:pe|par|per|پر|پہ))?\\s+(?:de\\s*diya|de\\s*diye|de\\s*dia|de\\s*di|de\\s*do|de\\s*dein|dey\\s*diya|likh\\s*do|likh\\s*dein|(?<!(?:\\d|kilo|kg|kilos|pao|aadha|adha|gram|gm|dedh|dhai|packet|کلو|پاؤ|آدھا)\\s+)(?:daal|dal)\\s*(?:do|dein|den|de)|دے\\s*دیا|دے\\s*دیے|دے\\s*دو|لکھ\\s*دو|ڈال\\s*دو)\\s*$`,
+  'iu'
+);
+
+const SALE_FILLER_WORDS = [
+  'becha', 'bechi', 'beche', 'sold', 'furokht', 'diye', 'diya', 'de', 'do', 'dy', 'le', 'lo', 'ko', 'ka', 'ki', 'ke',
+  'rupay', 'rs', 'rupees', 'roopay', 'pkr', 'روپے', 'روپیہ', 'بیچا', 'بیچی', 'دیے', 'دیا',
+];
+const SALE_FILLER_REGEX = unicodeWord(SALE_FILLER_WORDS.join('|'), 'giu');
+// Words that can follow a quantity without being an item name (packaging and money words).
+const NOT_AN_ITEM_WORD = new Set([
+  ...SALE_FILLER_WORDS,
+  'waali', 'wali', 'wala', 'walay', 'waalay', 'pack', 'packet', 'dabba', 'box', 'sachet', 'والی', 'والا', 'والے', 'پیکٹ', 'ڈبہ', 'ساشے',
+]);
+// Words that can sit right next to "udhaar" but are never a customer's name.
+const NOT_A_CUSTOMER_NAME = new Set([
+  ...Object.keys(NUMBER_WORDS_MAP),
+  ...Object.keys(UNIT_CANONICAL_MAP),
+  ...SALE_DEBT_WORDS.split('|'),
+  ...SALE_PARTICLE.split('|'),
+  ...SALE_POSTPOSITION.split('|'),
+  'to', 'for', 'se', 'de', 'di', 'dia', 'diya', 'diye', 'do', 'dein', 'den', 'dena', 'daal', 'dal', 'dalo', 'likh', 'likho',
+  'kar', 'karo', 'kardo', 'hai', 'hain', 'aur', 'and', 'or', 'phir', 'plus', 'cash', 'sale', 'becha', 'pay',
+  'سے', 'دے', 'دیا', 'دیے', 'دو', 'ڈال', 'لکھ', 'کر', 'ہے', 'اور', 'پھر',
+]);
+
+/**
+ * Pulls the udhaar marker and the customer's name out of a whole sale message.
+ * Returns the remaining text (items only), whether it is an udhaar sale, and the name (or null).
+ */
+export function extractUdhaarCustomer(text) {
+  let rest = String(text || '');
+  let customerName = null;
+
+  for (const regex of [NAME_THEN_DEBT_REGEX, DEBT_THEN_NAME_REGEX]) {
+    for (const m of rest.matchAll(regex)) {
+      const firstWord = m[1].split(/\s+/)[0];
+      if (NOT_A_CUSTOMER_NAME.has(firstWord) || /\d/.test(firstWord)) continue;
+      customerName = m[1].replace(/\s+/g, ' ').trim();
+      rest = `${rest.slice(0, m.index)} ${rest.slice(m.index + m[0].length)}`;
+      break;
+    }
+    if (customerName) break;
+  }
+
+  const isUdhaar = !!customerName || unicodeWord(SALE_DEBT_WORDS).test(rest);
+  if (isUdhaar) {
+    rest = rest.replace(BARE_DEBT_REGEX, ' ').trim().replace(/[.!?،۔]+$/, '').trim();
+    rest = rest.replace(SALE_CLOSING_VERB_REGEX, ' ');
+  }
+
+  return { text: rest.replace(/\s+/g, ' ').trim(), isUdhaar, customerName };
+}
+
+const SALE_PAYMENT_REGEX = unicodeWord('cash|kash|easypaisa|easy\\s*paisa|jazzcash|jazz\\s*cash|sadapay|nayapay|raast|bank|کیش');
+
+/** Pulls a non-udhaar payment method out of a sale message. Defaults to cash. */
+function extractSalePaymentMethod(text) {
+  const m = text.match(SALE_PAYMENT_REGEX);
+  if (!m) return { text, paymentMethod: 'cash' };
+  const found = m[0].toLowerCase().replace(/\s+/g, '');
+  const paymentMethod = found === 'kash' || found === 'کیش' ? 'cash' : normalizePaymentMethod(found) || found;
+  return { text: text.replace(SALE_PAYMENT_REGEX, ' ').replace(/\s+/g, ' ').trim(), paymentMethod };
+}
+
+function isQuantityToken(t) {
+  return /^\d+(?:\.\d+)?$/.test(t) || NUMBER_WORDS_MAP[t] !== undefined;
+}
+
+function isUnitToken(t) {
+  return UNIT_CANONICAL_MAP[t] !== undefined || UNIT_REGEX.test(` ${t} `);
+}
+
+function isItemNameToken(t) {
+  return /\p{L}/u.test(t) && !isQuantityToken(t) && !isUnitToken(t) && !NOT_AN_ITEM_WORD.has(t);
+}
+
+/**
+ * Splits "2 kilo chawal 1 kilo chini 3 doodh" (no separators, typical of voice notes) into one
+ * chunk per item. Only quantity-first chunks are split: a new item starts at a quantity that
+ * follows an item name and is itself followed (after any unit) by another item name.
+ * "2 chawal 300 3 doodh 450" -> ["2 chawal 300", "3 doodh 450"]; "2 lipton 300 gm waali" stays whole.
+ */
+export function splitImplicitSaleItems(chunk) {
+  const tokens = chunk.split(/\s+/).filter(Boolean);
+  if (!tokens.length || !isQuantityToken(tokens[0])) return [chunk];
+
+  const segments = [[]];
+  let segmentHasName = false;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (segmentHasName && isQuantityToken(t)) {
+      let j = i + 1;
+      // Skip units and money-first particles ("1 kilo chini", "100 ki chini").
+      while (j < tokens.length && (isUnitToken(tokens[j]) || /^(?:ki|ka|ke|کی|کا|کے|rupay|rs|روپے)$/iu.test(tokens[j]))) j++;
+      if (j < tokens.length && isItemNameToken(tokens[j])) {
+        segments.push([]);
+        segmentHasName = false;
       }
     }
+    segments[segments.length - 1].push(t);
+    if (isItemNameToken(t)) segmentHasName = true;
+  }
+  return segments.map((s) => s.join(' ')).filter(Boolean);
+}
 
-    // Check if chunk has a packaged size variant (e.g. "lipton 300gm waali")
-    const { processed, pkgVariant } = extractPackagedVariant(piece);
-    piece = processed;
+/** Splits a sale message into one text chunk per item (explicit separators, then implicit). */
+export function splitSaleItems(text) {
+  return String(text || '')
+    .split(SALE_ITEM_SEPARATOR)
+    .map((c) => (c || '').replace(LEADING_CONNECTOR, '').trim())
+    .filter(Boolean)
+    .flatMap(splitImplicitSaleItems);
+}
 
-    // Check unit
-    let unit = pkgVariant ? 'packet' : null;
-    const uMatch = piece.match(UNIT_REGEX);
-    if (uMatch) {
-      unit = uMatch[1].trim();
-      piece = piece.replace(UNIT_REGEX, ' ');
-    }
+const SKIP_CHUNK = Symbol('skip');
 
-    // Check quantity and amount
-    let quantity = pkgVariant ? 1 : null;
-    let priceOrAmount = null;
-    const nums = piece.match(/\d+(?:\.\d+)?/g);
-    if (nums && nums.length > 0) {
-      quantity = parseFloat(nums[0]);
-      if (nums.length >= 2) {
-        priceOrAmount = parseFloat(nums[1]);
-        if (!detectedAmount) detectedAmount = priceOrAmount;
+/**
+ * Parses one item chunk ("2 kg chawal", "3 panadol 150", "100 ki chini", "lipton 300gm waali").
+ * Returns the item, SKIP_CHUNK for a chunk with nothing in it, or null when it can't be read.
+ */
+function parseSaleItemChunk(chunk) {
+  // Strip sentence punctuation, but keep the decimal point in "1.5 kg".
+  let piece = chunk.replace(/(?<!\d)\.|\.(?!\d)|[!?،۔;:]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!piece || !/[\p{L}\d]/u.test(piece.replace(SALE_FILLER_REGEX, ''))) return SKIP_CHUNK;
+
+  // Money-first: "100 ki chini", "70 rupay ka doodh"
+  const moneyFirst = piece.match(/^(\d+)\s*(?:rupay|rupees|rs|روپے)?\s*(?:ki|ka|ke|کی|کا|کے)\s+(.+)$/iu);
+  if (moneyFirst) {
+    const name = moneyFirst[2].replace(SALE_FILLER_REGEX, ' ').replace(/\s+/g, ' ').trim();
+    const targetAmount = parseInt(moneyFirst[1], 10);
+    if (!name || /\d/.test(name) || !(targetAmount > 0)) return null;
+    return { name, quantity: 1, targetAmount };
+  }
+
+  // Packaged size variant (e.g. "lipton 300gm waali")
+  const { processed, pkgVariant } = extractPackagedVariant(piece);
+  piece = processed;
+
+  let unit = pkgVariant ? 'packet' : null;
+  const uMatch = piece.match(UNIT_REGEX);
+  if (uMatch) {
+    unit = uMatch[1].trim();
+    piece = piece.replace(UNIT_REGEX, ' ');
+  }
+
+  let quantity = pkgVariant ? 1 : null;
+  let priceOrAmount = null;
+  const nums = piece.match(/\d+(?:\.\d+)?/g);
+  if (nums && nums.length > 2) return null; // more numbers than quantity + price: can't tell them apart
+  if (nums && nums.length > 0) {
+    quantity = parseFloat(nums[0]);
+    if (nums.length === 2) priceOrAmount = parseFloat(nums[1]);
+    piece = piece.replace(/\d+(?:\.\d+)?/g, ' ');
+  } else {
+    for (const w of piece.split(/\s+/)) {
+      if (NUMBER_WORDS_MAP[w]) {
+        quantity = NUMBER_WORDS_MAP[w];
+        piece = piece.replace(unicodeWord(w), ' ');
+        break;
       }
-      piece = piece.replace(/\d+(?:\.\d+)?/g, ' ');
-    } else {
-      const words = piece.split(/\s+/);
-      for (const w of words) {
-        if (NUMBER_WORDS_MAP[w]) {
-          quantity = NUMBER_WORDS_MAP[w];
-          piece = piece.replace(new RegExp(`\\b${w}\\b`, 'i'), ' ');
-          break;
-        }
-      }
-    }
-
-    let cleanedName = piece
-      .replace(/\b(?:becha|bechi|beche|sold|furokht|diye|diya|de|do|dy|le|lo|ko|ka|ki|ke|rupay|rs|rupees|roopay|pkr|روپے|روپیہ|بیچا|بیچی|دیے|دیا)\b/gi, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (pkgVariant) {
-      cleanedName = cleanedName.replace('__PKG_SIZE__', pkgVariant).replace(/\s+/g, ' ').trim();
-    }
-
-    if (cleanedName && quantity && quantity > 0) {
-      items.push({
-        name: cleanedName,
-        quantity,
-        ...(unit ? { unit } : {}),
-        ...(priceOrAmount ? { price: priceOrAmount } : {}),
-      });
     }
   }
 
-  if (items.length > 0) {
-    return {
-      type: 'log_sale',
-      items,
-      paymentMethod: detectedPaymentMethod,
-      customerName: detectedCustomerName,
-      amount: detectedAmount,
-      isIncomplete: false,
-    };
+  let name = piece.replace(SALE_FILLER_REGEX, ' ').replace(/\s+/g, ' ').trim();
+  if (pkgVariant) {
+    name = name.replace('__PKG_SIZE__', pkgVariant).replace(/\s+/g, ' ').trim();
   }
 
-  return null;
+  if (!name || !(quantity > 0) || name.includes('__PKG_SIZE__') || name.split(' ').length > 5) return null;
+  if (/\d/.test(name) && !pkgVariant) return null;
+
+  return {
+    name,
+    quantity,
+    ...(unit ? { unit } : {}),
+    ...(priceOrAmount ? { price: priceOrAmount } : {}),
+  };
 }
 
 /**
  * Returns one of the command-contract shapes. Shared by the
  * typed-text path and (via the agent module) the voice-transcript path.
  * Injects dynamic merchant catalog context when available.
+ * Logs one intent.parsed event saying whether the rules or the LLM produced the result.
  */
 export async function parseIntent(text, merchant = null) {
+  const startedAt = Date.now();
+  const trace = { llm: 'not_called' };
+  const intent = await resolveIntent(text, merchant, trace);
+  logger.info('intent.parsed', {
+    parsedBy: trace.llm === 'answered' ? 'llm' : trace.llm === 'not_called' ? 'rules' : `rules_after_llm_${trace.llm}`,
+    type: intent?.type,
+    itemCount: Array.isArray(intent?.items) ? intent.items.length : undefined,
+    paymentMethod: intent?.paymentMethod,
+    hasCustomer: intent?.customerName ? true : undefined,
+    textChars: typeof text === 'string' ? text.length : 0,
+    latencyMs: Date.now() - startedAt,
+  });
+  return intent;
+}
+
+async function resolveIntent(text, merchant, trace) {
   if (!text || typeof text !== 'string') {
     return { type: 'unknown', rawText: '' };
   }
@@ -1329,7 +1519,7 @@ export async function parseIntent(text, merchant = null) {
   }
 
   if (!llmConfigured()) {
-    console.warn('No LLM provider key set — falling back to unknown intent');
+    logger.warn('intent.llm_unavailable', { reason: 'no LLM provider key set' });
     return { type: 'unknown', rawText: text };
   }
 
@@ -1346,10 +1536,13 @@ export async function parseIntent(text, merchant = null) {
   }
 
   try {
-    const raw = await chatCompletion(prompt, text);
+    trace.llm = 'failed';
+    const raw = await chatCompletion(prompt, text, 'intent');
     const parsed = extractJson(raw);
+    trace.llm = 'off_contract';
 
     if (parsed && ['log_sale', 'update_stock', 'check_stock', 'settle_khata', 'check_khata', 'create_khata', 'khata_report', 'create_workflow', 'unsupported_workflow', 'greeting', 'generate_report', 'return_order', 'exchange_order', 'unknown'].includes(parsed.type)) {
+      trace.llm = 'answered';
       // Guard: If model misclassified settlement as a sale, override it
       if (parsed.type === 'log_sale' && khataSettleHeuristic?.type === 'settle_khata') {
         return khataSettleHeuristic;
@@ -1421,9 +1614,9 @@ export async function parseIntent(text, merchant = null) {
       return parsed;
     }
 
-    console.warn('[qwen.service] Model returned non-contract JSON:', raw);
+    logger.warn('intent.llm_off_contract', { raw: String(raw).slice(0, 300) });
   } catch (err) {
-    console.warn('[qwen.service] chatCompletion failed during parseIntent:', err.message);
+    logger.warn('intent.llm_failed', { error: errorSummary(err) });
   }
 
   // Safety net heuristic fallbacks: never falsely say 'unknown' to standard greetings, reports, or stock
@@ -1457,7 +1650,7 @@ export async function extractBusinessDetails(text) {
   const VALID_TYPES = ['general', 'kiryana', 'medical', 'clothing', 'restaurant', 'electronics', 'services', 'auto', 'salon'];
 
   try {
-    const raw = await chatCompletion(BUSINESS_DETAILS_PROMPT, text);
+    const raw = await chatCompletion(BUSINESS_DETAILS_PROMPT, text, 'business_details');
     const parsed = extractJson(raw);
     if (!parsed) return null;
 
@@ -1485,7 +1678,7 @@ export async function extractInventoryItems(text) {
   if (!llmConfigured()) return null;
 
   try {
-    const raw = await chatCompletion(INVENTORY_PROMPT, text);
+    const raw = await chatCompletion(INVENTORY_PROMPT, text, 'inventory_list');
     const parsed = extractJson(raw);
     if (!parsed || !Array.isArray(parsed.items)) return null;
 
@@ -1519,7 +1712,8 @@ export async function resolveItemName(saidName, inventoryNames) {
   try {
     const raw = await chatCompletion(
       ITEM_RESOLVE_PROMPT,
-      `Inventory: ${inventoryNames.join(', ')}\nItem said: ${saidName}`
+      `Inventory: ${inventoryNames.join(', ')}\nItem said: ${saidName}`,
+      'item_resolve'
     );
     const cleaned = raw
       .trim()

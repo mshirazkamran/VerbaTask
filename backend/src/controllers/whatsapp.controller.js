@@ -32,6 +32,7 @@ import {
   paginateRows,
 } from '../services/whatsapp.service.js';
 import { spokenPhrases, formatPaymentMethod } from '../services/localization.service.js';
+import { logger } from '../services/logger.service.js';
 import {
   getAllPaymentMethods,
   isValidPaymentMethod,
@@ -909,7 +910,11 @@ async function handleOnboarding(merchant, message) {
  * (voice-note pipeline), image (OCR placeholder).
  */
 async function handleOnboardedMerchant(merchant, message) {
-  console.log('RECEIVED MESSAGE:', JSON.stringify(message, null, 2));
+  // The full webhook payload is noisy (and contains customer data), so it is off unless asked for.
+  if (process.env.LOG_WHATSAPP_PAYLOADS === 'true') {
+    console.log('RECEIVED MESSAGE:', JSON.stringify(message, null, 2));
+  }
+  logger.debug('whatsapp.message_received', { id: message?.id, type: message?.type, staff: !!merchant?._staffMember });
   try {
     // Check approval button taps first — before the guided-order state check so
     // an approve/reject tap mid-guided-order isn't swallowed by that flow.

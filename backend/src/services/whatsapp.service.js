@@ -5,6 +5,7 @@
 import axios from 'axios';
 import { synthesizeSpeech } from './tts.service.js';
 import { uploadMedia } from './media.service.js';
+import { logger, errorSummary } from './logger.service.js';
 
 const GRAPH_VERSION = 'v20.0';
 const DEFAULT_COMPANION_TEXT = process.env.VOICE_REPLY_SEND_COMPANION_TEXT === 'true';
@@ -27,8 +28,7 @@ async function send(payload) {
     });
     return data;
   } catch (err) {
-    const details = err.response?.data ?? err.message;
-    console.error('WhatsApp send failed:', JSON.stringify(details));
+    logger.error('whatsapp.send_failed', { type: payload?.type, error: errorSummary(err) });
     throw err;
   }
 }
@@ -70,17 +70,16 @@ export async function sendDocumentMessage(to, mediaId, filename, caption = '') {
  */
 export async function sendVoiceReply(to, { spokenText, textReceipt = null, language = 'ur', alsoSendText = DEFAULT_COMPANION_TEXT, voice = null, voiceGender = null }) {
   try {
-    const { buffer, mimeType, provider, voice: usedVoice } = await synthesizeSpeech(spokenText, {
+    const { buffer, mimeType, provider, model, voice: usedVoice } = await synthesizeSpeech(spokenText, {
       language,
       voice,
       voiceGender,
       strictNeuralOnly: true,
     });
-    console.log(`[voice-out] Generated audio for ${to} using provider="${provider}" voice="${usedVoice}" gender="${voiceGender || 'default'}"`);
 
     const { id: mediaId } = await uploadMedia(buffer, mimeType, 'voice_reply.mp3');
     const audioRes = await sendAudioMessage(to, mediaId);
-    console.log(`[voice-out] Voice reply successfully delivered to ${to} (mediaId: ${mediaId})`);
+    logger.info('whatsapp.voice_reply', { to, ttsProvider: provider, ttsModel: model, voice: usedVoice, voiceGender: voiceGender || 'default', mediaId, outcome: 'sent' });
 
     if (alsoSendText && textReceipt) {
       await sendTextMessage(to, textReceipt).catch((err) => {
@@ -90,7 +89,7 @@ export async function sendVoiceReply(to, { spokenText, textReceipt = null, langu
 
     return audioRes;
   } catch (err) {
-    console.warn(`[voice-out] Voice reply failed for ${to} (${err.message}), falling back to text`);
+    logger.warn('whatsapp.voice_reply', { to, outcome: 'fell_back_to_text', error: errorSummary(err) });
     const fallbackText = textReceipt || spokenText;
     return sendTextMessage(to, fallbackText);
   }

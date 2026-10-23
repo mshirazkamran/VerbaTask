@@ -1,4 +1,5 @@
 import { Server } from 'socket.io';
+import { logger } from './services/logger.service.js';
 
 
 let io;
@@ -65,5 +66,5 @@ export function emitDashboardUpdate(merchantId, meta = {}) {
   // as an additional safety net against room join desync
   io.emit('merchant_update', payload);
 
-  console.log(`[Socket.io] Emitted update for merchant ${idStr}:`, meta);
+  logger.debug('socket.emit', { merchantId: idStr, ...meta });
 }
