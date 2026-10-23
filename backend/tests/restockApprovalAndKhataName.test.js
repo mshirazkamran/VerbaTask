@@ -108,9 +108,10 @@ describe('Udhaar customer name', () => {
     assert.deepEqual(r.items.map((i) => [i.name, i.quantity]), [['namak', 2], ['lipton yellow label', 4], ['haldi', 10]]);
   });
 
-  it('resolves the name against the merchant\'s existing khatas', () => {
+  it('uses the merchant\'s khata names to find where the name starts, and keeps it as said', () => {
+    // The khata itself is picked (or confirmed with the merchant) later, by rankKhataCustomers.
     const r = parseStandardSaleHeuristic(text, { knownCustomers: ['talal', 'ali'] });
-    assert.equal(r.customerName, 'talal');
+    assert.equal(r.customerName, 'talal pwd waaly');
     assert.equal(r.paymentMethod, 'udhaar');
     assert.deepEqual(r.items.map((i) => i.name), ['namak', 'lipton yellow label', 'haldi']);
   });

@@ -23,7 +23,7 @@ import { transcribeAndParse } from '../agent/transcribeAndParse.js';
 import { downloadMedia } from '../services/media.service.js';
 import { invalidateMerchantCatalog } from '../services/catalogCache.service.js';
 import { deliverReport, deliverKhataReport } from '../services/reportDelivery.service.js';
-import { recordKhataPayment } from '../services/khata.service.js';
+import { recordKhataPayment, rankKhataCustomers, pickKhataCandidate } from '../services/khata.service.js';
 import {
   sendTextMessage as sendTextMessageRaw,
   sendInteractiveButtons as sendInteractiveButtonsRaw,
@@ -815,8 +815,9 @@ async function handleOnboardedMerchant(merchant, message) {
       }
 
       // Customer disambiguation replies
-      if (buttonId?.startsWith('cust_same_') || buttonId === 'cust_new') {
-        return await handleCustomerDisambiguationReply(merchant, buttonId);
+      const khataPick = buttonId || message.interactive?.list_reply?.id;
+      if (khataPick?.startsWith('custpick_') || khataPick?.startsWith('cust_same_') || khataPick === 'cust_new') {
+        return await handleCustomerDisambiguationReply(merchant, khataPick);
       }
 
       if (buttonId === 'wf_save' || buttonId === 'wf_cancel') {
@@ -1075,7 +1076,11 @@ export async function handlePendingNewItemReply(merchant, text, source, pendingS
 async function handleTextMessage(merchant, text, rawMessage = null) {
   const normalized = text.trim().toLowerCase();
 
-  // 0. Active Pending New Item flow check
+  // 0. Answer to "which khata?" typed instead of tapped ("2", "Ali sheikhy bhai")
+  const khataChoice = await handleTypedKhataChoice(merchant, text);
+  if (khataChoice !== null) return khataChoice;
+
+  // 0b. Active Pending New Item flow check
   const pendingNewItem = await ConversationState.findOne({
     whatsappNumber: getSenderRecipient(merchant),
     flow: 'pending_new_item',
@@ -1382,7 +1387,11 @@ async function handleVoiceNote(merchant, mediaId, rawMessage = null) {
       return sendTextMessage(getSenderRecipient(merchant), msg);
     }
 
-    // 0. Active Pending New Item reply from VN
+    // 0. Answer to "which khata?" spoken instead of tapped
+    const khataChoice = await handleTypedKhataChoice(merchant, transcript);
+    if (khataChoice !== null) return khataChoice;
+
+    // 0b. Active Pending New Item reply from VN
     const pendingNewItem = await ConversationState.findOne({
       whatsappNumber: getSenderRecipient(merchant),
       flow: 'pending_new_item',
@@ -1995,27 +2004,12 @@ export async function createOrderViaCrm(merchant, command) {
     }
 
     if (!command._skipCustomerDisambiguation) {
-      const match = await findCustomerByFuzzyName(merchant._id, rawName, { strict: true });
-      if (match) {
-        command.customerName = match.name; // canonical stored name, so the order lookup can't miss
-      } else {
-        // No exact khata. If a similar one exists ("soban" vs "soban khan"), let the merchant confirm.
-        const cleanName = rawName.toLowerCase();
-        const normalizedBase = cleanName.replace(/\b(bhai|sahab|sahib|sb|khan|ji|janab)\b/gi, '').trim();
-        if (normalizedBase.length >= 3) {
-          const allCust = await Customer.find({ merchantId: merchant._id });
-          const candidate = allCust.find((c) => {
-            const cClean = c.name.toLowerCase().replace(/\b(bhai|sahab|sahib|sb|khan|ji|janab)\b/gi, '').trim();
-            return cClean === normalizedBase || cClean.includes(normalizedBase) || normalizedBase.includes(cClean);
-          });
-
-          if (candidate) {
-            return await offerCustomerDisambiguation(merchant, command, candidate);
-          }
-        }
-
+      const { customer, asked } = await resolveKhataOrAsk(merchant, rawName, { action: 'sale', command, source, language });
+      if (asked) return asked;
+      if (!customer) {
         return replyToMerchant(merchant, spokenPhrases.khataNotFound(language, { customerName: rawName }), source);
       }
+      command.customerName = customer.name; // canonical stored name, so the order lookup can't miss
     }
   }
 
@@ -2026,7 +2020,7 @@ export async function createOrderViaCrm(merchant, command) {
       return replyToMerchant(merchant, spokenPhrases.orderPendingApproval(language, { orderNo, total: order.total }), source);
     }
     const phrases = spokenPhrases.orderLogged(language, {
-      items: command.items,
+      items: order?.items?.length ? order.items : command.items,
       paymentMethod: command.paymentMethod,
       customerName: command.customerName,
       orderNo,
@@ -2177,12 +2171,21 @@ async function handleDisambiguationReply(merchant, buttonId) {
 }
 
 /**
- * Prompts the merchant via WhatsApp interactive buttons to confirm whether a customer
- * is the existing customer with matching name or a new distinct customer.
+ * Finds the khata a spoken name refers to. When exactly one khata fits, returns { customer }.
+ * When several could ("ali" -> "ali bhai" / "ali sheikhy town wala") or the spelling isn't exact,
+ * asks the merchant which one and returns { asked } — nothing touches a khata until they answer.
+ * Returns {} when no khata resembles the name.
  */
-async function offerCustomerDisambiguation(merchant, command, candidate) {
-  const source = command.source || 'text';
-  const language = command.language || merchant.language || 'ur';
+async function resolveKhataOrAsk(merchant, rawName, { action, command, source, language }) {
+  const customers = await Customer.find({ merchantId: merchant._id }).limit(1000);
+  const { match, candidates } = rankKhataCustomers(customers || [], rawName);
+  if (match) return { customer: match };
+  if (!candidates.length) return {};
+  return { asked: await offerKhataChoice(merchant, { action, command, spokenName: rawName, candidates, source, language }) };
+}
+
+/** Asks "which khata?" with buttons (2 or fewer candidates) or a list, and remembers the pending action. */
+async function offerKhataChoice(merchant, { action, command, spokenName, candidates, source, language }) {
   const targetPhone = getSenderRecipient(merchant);
 
   await ConversationState.findOneAndUpdate(
@@ -2191,63 +2194,96 @@ async function offerCustomerDisambiguation(merchant, command, candidate) {
       merchantId: merchant._id,
       flow: 'customer_disambiguation',
       step: 'awaiting_customer_choice',
-      data: { command, candidateId: candidate._id.toString(), candidateName: candidate.name },
+      data: {
+        action,
+        command,
+        spokenName,
+        candidates: candidates.map((c) => ({ id: c._id.toString(), name: c.name })),
+      },
     },
     { upsert: true }
   );
 
-  const phrases = spokenPhrases.customerDisambiguationPrompt(language, {
-    candidateName: candidate.name,
-    currentBalance: candidate.balance,
+  const phrases = spokenPhrases.khataChoicePrompt(language, {
+    spokenName,
+    candidates: candidates.map((c) => ({ name: c.name, balance: c.balance })),
   });
-
-  const buttons = [
-    { id: `cust_same_${candidate._id}`, title: `وہی (${candidate.name})`.slice(0, 20) },
-    { id: 'cust_new', title: (language === 'ur' ? 'نیا گاہک' : 'New Customer').slice(0, 20) },
-  ];
 
   if (shouldReplyWithVoice(merchant, source)) {
-    await sendVoiceReply(targetPhone, {
-      spokenText: phrases.spoken,
-      language,
-      alsoSendText: false,
-    });
+    await sendVoiceReply(targetPhone, { spokenText: phrases.spoken, language, alsoSendText: false });
   }
 
-  return sendInteractiveButtons(targetPhone, phrases.text, buttons);
+  const noneTitle = language === 'ur' ? 'کوئی نہیں' : 'None of these';
+  if (candidates.length <= 2) {
+    // WhatsApp caps button titles at 20 characters; the message text lists the full names.
+    const buttons = candidates.map((c) => ({ id: `custpick_${c._id}`, title: c.name.length > 20 ? `${c.name.slice(0, 19)}…` : c.name }));
+    buttons.push({ id: 'custpick_none', title: noneTitle });
+    return sendInteractiveButtons(targetPhone, phrases.text, buttons);
+  }
+  return sendInteractiveList(targetPhone, phrases.text, language === 'ur' ? 'کھاتہ چنیں' : 'Choose khata', [{
+    title: language === 'ur' ? 'کھاتے' : 'Khatas',
+    rows: [
+      ...candidates.slice(0, 9).map((c, i) => ({ id: `custpick_${c._id}`, title: `${i + 1}. ${c.name}`, description: `Rs. ${(Number(c.balance) || 0).toLocaleString()}` })),
+      { id: 'custpick_none', title: noneTitle },
+    ],
+  }]);
 }
 
-/**
- * Handles button tap response for customer disambiguation.
- */
+/** Runs the action that was waiting on the merchant's khata choice. */
+async function completeKhataChoice(merchant, state, customerId) {
+  await ConversationState.deleteOne({ _id: state._id });
+  const { action, command = {}, spokenName } = state.data || {};
+  const source = command.source || 'text';
+  const language = command.language || merchant.language || 'ur';
+
+  const customer = customerId ? await Customer.findOne({ _id: customerId, merchantId: merchant._id }) : null;
+  if (!customer) {
+    return replyToMerchant(merchant, spokenPhrases.khataNotFound(language, { customerName: spokenName || command.customerName }), source);
+  }
+
+  if (action === 'settle') {
+    return handleKhataSettle(merchant, customer.name, command.amount, source, { customer });
+  }
+  return createOrderViaCrm(merchant, { ...command, customerName: customer.name, _skipCustomerDisambiguation: true });
+}
+
+/** Button/list tap on "which khata?" (also accepts the older cust_same_/cust_new buttons). */
 async function handleCustomerDisambiguationReply(merchant, buttonId) {
   const targetPhone = getSenderRecipient(merchant);
-  const state = await ConversationState.findOne({
-    whatsappNumber: targetPhone,
-    flow: 'customer_disambiguation',
-  });
+  const state = await ConversationState.findOne({ whatsappNumber: targetPhone, flow: 'customer_disambiguation' });
   if (!state) {
     return sendTextMessage(targetPhone, "Sorry, that choice expired — please send the sale again.");
   }
-  await ConversationState.deleteOne({ _id: state._id });
+  const picked = buttonId.replace(/^(?:custpick_|cust_same_)/, '');
+  const isNone = buttonId === 'custpick_none' || buttonId === 'cust_new';
+  const allowed = (state.data?.candidates || []).map((c) => c.id);
+  // Older states stored a single candidateId.
+  if (state.data?.candidateId) allowed.push(state.data.candidateId);
+  return completeKhataChoice(merchant, state, !isNone && allowed.includes(picked) ? picked : null);
+}
 
-  const command = state.data?.command ?? {};
-  const language = command.language || merchant.language || 'ur';
+/**
+ * A typed or spoken answer while "which khata?" is open: "2", "Ali sheikhy bhai", "cancel".
+ * Returns the reply when the answer was handled, or null when it should be treated as a new
+ * message (the pending question is then dropped).
+ */
+async function handleTypedKhataChoice(merchant, text) {
+  const targetPhone = getSenderRecipient(merchant);
+  const state = await ConversationState.findOne({ whatsappNumber: targetPhone, flow: 'customer_disambiguation' });
+  if (!state) return null;
 
-  // "New customer" no longer opens a khata on the spot — a khata needs a phone number, so
-  // tell the merchant how to create it instead of recording the sale against nobody.
-  if (buttonId === 'cust_new') {
-    return replyToMerchant(
-      merchant,
-      spokenPhrases.khataNotFound(language, { customerName: command.customerName }),
-      command.source || 'text'
-    );
+  const candidates = state.data?.candidates || [];
+  const answer = String(text || '').trim().replace(/[.!?،۔]+$/, '');
+  if (isCancelText(answer) || /^(?:none|koi\s*nahi|کوئی\s*نہیں)$/i.test(answer)) {
+    return completeKhataChoice(merchant, state, null);
   }
 
-  command._skipCustomerDisambiguation = true;
-  command.customerName = state.data?.candidateName || command.customerName;
+  const picked = pickKhataCandidate(candidates, answer);
+  if (picked) return completeKhataChoice(merchant, state, picked.id);
 
-  return createOrderViaCrm(merchant, command);
+  // Something else entirely (a new sale, a question): drop the pending choice and process it.
+  await ConversationState.deleteOne({ _id: state._id });
+  return null;
 }
 
 /**
@@ -2981,7 +3017,7 @@ export async function handleKhataInquiry(merchant, rawCustomerName, source = 'te
 /**
  * Handles settling/recording a cash payment towards a customer's Khata (ledger).
  */
-export async function handleKhataSettle(merchant, rawCustomerName, amount, source = 'text') {
+export async function handleKhataSettle(merchant, rawCustomerName, amount, source = 'text', { customer: chosen = null } = {}) {
   const isUrdu = merchant.language === 'ur';
   const amountNum = Number(amount);
 
@@ -2990,7 +3026,18 @@ export async function handleKhataSettle(merchant, rawCustomerName, amount, sourc
     return replyToMerchant(merchant, err, source);
   }
 
-  let customer = await findCustomerByFuzzyName(merchant._id, rawCustomerName);
+  // Money comes off a khata only when it's clear whose: ask when two khatas could match.
+  let customer = chosen;
+  if (!customer) {
+    const resolved = await resolveKhataOrAsk(merchant, rawCustomerName, {
+      action: 'settle',
+      command: { amount: amountNum, source, language: merchant.language },
+      source,
+      language: merchant.language,
+    });
+    if (resolved.asked) return resolved.asked;
+    customer = resolved.customer || null;
+  }
 
   if (!customer) {
     const notFound = isUrdu

@@ -1130,7 +1130,8 @@ export function parseKhataSaleHeuristic(text) {
     type: 'log_sale',
     items,
     paymentMethod: 'udhaar',
-    customerName: customerName.replace(/\s+/g, ' ').trim(),
+    // "soban bhai ke udhaar ke khate me ...": the first "ke udhaar" belongs to the khata phrase.
+    customerName: customerName.replace(/\s+(?:ke|ka|ki|کے|کا|کی)\s+(?:udhaar|udhar|khata|khate|ادھار|کھاتے)$/iu, '').replace(/\s+/g, ' ').trim(),
     amount,
     isIncomplete: false,
   };
@@ -1253,30 +1254,16 @@ const SALE_DEBT_WORDS = 'udhaari|udhari|udhaar|udhar|udaar|adhaar|khaata|khaate|
 const SALE_PARTICLE = 'ko|ke|ka|ki|کو|کے|کا|کی';
 const SALE_POSTPOSITION = 'mein|me|main|men|may|pe|par|per|pr|py|میں|پر|پہ';
 const SALE_HONORIFIC = 'bhai|bhae|sahab|sahib|saheb|sb|ji|بھائی|صاحب|جی';
-const SALE_NAME = `([\\p{L}\\p{M}]+(?:\\s+(?:${SALE_HONORIFIC}))?)`;
-
-// "Ali ko udhaar", "Ali ke khate mein", "soban bhai ke udhaar ke khate me", "علی کے ادھار میں"
-const NAME_THEN_DEBT_REGEX = new RegExp(
-  `${U_START}${SALE_NAME}\\s+(?:${SALE_PARTICLE})\\s+(?:(?:${SALE_DEBT_WORDS})\\s+(?:${SALE_PARTICLE})\\s+)?(?:${SALE_DEBT_WORDS})(?:\\s+(?:${SALE_POSTPOSITION}))?${U_END}`,
-  'giu'
-);
-// "udhaar ali", "udhar to Ali", "khata osama", "ادھار علی"
-const DEBT_THEN_NAME_REGEX = new RegExp(
-  `${U_START}(?:${SALE_DEBT_WORDS})(?:\\s+(?:to|for|${SALE_PARTICLE}|${SALE_POSTPOSITION}))?\\s+${SALE_NAME}${U_END}`,
-  'giu'
-);
-// "talal ko 2 namak udhaar pr": the name opens the message, the debt word comes later.
-const NAME_KO_AT_START_REGEX = new RegExp(`^${SALE_NAME}\\s+(?:ko|کو)${U_END}`, 'giu');
 const BARE_DEBT_REGEX = new RegExp(`${U_START}(?:${SALE_DEBT_WORDS})(?:\\s+(?:${SALE_POSTPOSITION}))?${U_END}`, 'giu');
 // "... udhaar pe de diya", "... likh do". "daal do" is only stripped when it can't be the lentil
 // ("2 kilo daal do" keeps its daal).
 const SALE_CLOSING_VERB_REGEX = new RegExp(
-  `(?:\\s+(?:pe|par|per|پر|پہ))?\\s+(?:de\\s*diya|de\\s*diye|de\\s*dia|de\\s*di|de\\s*do|de\\s*dein|dey\\s*diya|likh\\s*do|likh\\s*dein|(?<!(?:\\d|kilo|kg|kilos|pao|aadha|adha|gram|gm|dedh|dhai|packet|کلو|پاؤ|آدھا)\\s+)(?:daal|dal)\\s*(?:do|dein|den|de)|دے\\s*دیا|دے\\s*دیے|دے\\s*دو|لکھ\\s*دو|ڈال\\s*دو)\\s*$`,
+  `(?:\\s+(?:pe|par|per|pr|py|پر|پہ))?\\s+(?:de\\s*diya|de\\s*diye|de\\s*dia|de\\s*di|de\\s*do|diay|diye|diya|de\\s*dein|dey\\s*diya|likh\\s*do|likh\\s*dein|(?<!(?:\\d|kilo|kg|kilos|pao|aadha|adha|gram|gm|dedh|dhai|packet|کلو|پاؤ|آدھا)\\s+)(?:daal|dal)\\s*(?:do|dein|den|de)|دے\\s*دیا|دے\\s*دیے|دے\\s*دو|لکھ\\s*دو|ڈال\\s*دو)\\s*$`,
   'iu'
 );
 
 const SALE_FILLER_WORDS = [
-  'becha', 'bechi', 'beche', 'sold', 'furokht', 'diye', 'diya', 'de', 'do', 'dy', 'le', 'lo', 'ko', 'ka', 'ki', 'ke',
+  'becha', 'bechi', 'beche', 'sold', 'furokht', 'diye', 'diya', 'diay', 'dia', 'dye', 'de', 'do', 'dy', 'le', 'lo', 'ko', 'ka', 'ki', 'ke',
   'rupay', 'rs', 'rupees', 'roopay', 'pkr', 'روپے', 'روپیہ', 'بیچا', 'بیچی', 'دیے', 'دیا',
 ];
 const SALE_FILLER_REGEX = unicodeWord(SALE_FILLER_WORDS.join('|'), 'giu');
@@ -1293,104 +1280,134 @@ const NOT_A_CUSTOMER_NAME = new Set([
   ...SALE_DEBT_WORDS.split('|'),
   ...SALE_PARTICLE.split('|'),
   ...SALE_POSTPOSITION.split('|'),
-  'to', 'for', 'se', 'de', 'di', 'dia', 'diya', 'diye', 'do', 'dein', 'den', 'dena', 'daal', 'dal', 'dalo', 'likh', 'likho',
+  'to', 'for', 'se', 'de', 'di', 'dia', 'diya', 'diye', 'diay', 'dye', 'dey', 'do', 'dein', 'den', 'dena', 'dedo', 'dediya', 'daal', 'dal', 'dalo', 'likh', 'likho',
   'kar', 'karo', 'kardo', 'hai', 'hain', 'aur', 'and', 'or', 'phir', 'plus', 'cash', 'sale', 'becha', 'pay',
   'سے', 'دے', 'دیا', 'دیے', 'دو', 'ڈال', 'لکھ', 'کر', 'ہے', 'اور', 'پھر',
 ]);
 
 // "talal pwd waaly", "ali dukan wala": a descriptor that ends a customer reference.
 const WALA_DESCRIPTOR = /^(?:wala|waala|waly|waaly|wale|waale|waley|walay|waalay|wali|waali|والا|والے|والی)$/iu;
-// The debt phrase that may follow a customer's name: "ko udhaar pr", "ke khate mein".
-const DEBT_PHRASE_AFTER_NAME = new RegExp(
-  `^((?:\\s+[\\p{L}\\p{M}]+){0,3}?)\\s+(?:${SALE_PARTICLE})\\s+(?:(?:${SALE_DEBT_WORDS})\\s+(?:${SALE_PARTICLE})\\s+)?(?:${SALE_DEBT_WORDS})(?:\\s+(?:${SALE_POSTPOSITION}))?${U_END}`,
-  'iu'
-);
+const SALE_DEBT_SET = new Set(SALE_DEBT_WORDS.split('|'));
+const SALE_PARTICLE_SET = new Set(SALE_PARTICLE.split('|'));
+const SALE_POSTPOSITION_SET = new Set(SALE_POSTPOSITION.split('|'));
+const SALE_HONORIFIC_SET = new Set(SALE_HONORIFIC.split('|'));
+// Words allowed between "udhaar" and the name: "udhaar pe ali", "udhar to Ali".
+const BEFORE_NAME_SET = new Set(['to', 'for', ...SALE_POSTPOSITION_SET]);
+
+function isCustomerNameWord(w) {
+  return /^[\p{L}\p{M}]+$/u.test(w) && !isQuantityToken(w) && !isUnitToken(w)
+    && (!NOT_A_CUSTOMER_NAME.has(w) || SALE_HONORIFIC_SET.has(w));
+}
 
 /**
- * Finds one of the merchant's existing khata names in the message. Grammar alone can't split
- * "10 haldi talal pwd waaly ko udhaar" ("haldi talal"? "talal pwd waaly"?) but the khata list can.
- * Returns { name, start, end } where [start, end) also covers a trailing descriptor and the debt
- * phrase ("talal| pwd waaly ko udhaar pr"), or null.
+ * For "<items> <name> ko udhaar": where does the name start? tokens[nameEnd] is the last name word.
+ * A quantity-first segment keeps its quantity, unit and first item word ("10 haldi"). Then, in order:
+ * the first word of an existing khata name, a "... wala" descriptor (up to 4 words), a trailing
+ * honorific ("ali bhai"), else the single word before "ko".
  */
-function matchKnownCustomer(text, knownCustomers) {
-  let best = null;
-  for (const stored of knownCustomers || []) {
-    const full = String(stored || '').toLowerCase().trim();
-    if (full.length < 2) continue;
-    const base = full.replace(new RegExp(`${U_START}(?:${SALE_HONORIFIC})${U_END}`, 'giu'), ' ').replace(/\s+/g, ' ').trim();
-    for (const variant of new Set([full, base])) {
-      if (variant.length < 2 || NOT_A_CUSTOMER_NAME.has(variant)) continue;
-      const re = new RegExp(`${U_START}${variant.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${U_END}`, 'giu');
-      for (const m of text.matchAll(re)) {
-        const candidate = { name: full, start: m.index, end: m.index + m[0].length, length: m[0].length };
-        // Prefer the longest name, then the occurrence nearest the end (where "ko udhaar" usually is).
-        if (!best || candidate.length > best.length || (candidate.length === best.length && candidate.start > best.start)) {
-          best = candidate;
-        }
-      }
-    }
+function findCustomerNameStart(tokens, nameEnd, knownCustomers) {
+  let segStart = 0;
+  for (let t = nameEnd - 1; t >= 0; t--) {
+    if (tokens[t].breakAfter) { segStart = t + 1; break; }
   }
-  if (!best) return null;
-  const tail = text.slice(best.end).match(DEBT_PHRASE_AFTER_NAME);
-  if (tail) best.end += tail[0].length;
-  return best;
+  if (nameEnd < segStart) return null;
+
+  let min = segStart;
+  if (isQuantityToken(tokens[segStart].word)) {
+    min = segStart + 1;
+    while (min <= nameEnd && isUnitToken(tokens[min].word)) min++;
+    min++; // the item's first word
+  }
+  if (min > nameEnd) return null;
+
+  let start;
+  const knownFirstWords = new Set((knownCustomers || []).map((n) => String(n).toLowerCase().trim().split(/\s+/)[0]).filter(Boolean));
+  const known = tokens.slice(min, nameEnd + 1).findIndex((t) => knownFirstWords.has(t.word));
+  if (known !== -1) start = min + known;
+  else if (min === segStart) start = Math.max(segStart, nameEnd - 3); // nothing but the name before "ko"
+  else if (WALA_DESCRIPTOR.test(tokens[nameEnd].word)) start = Math.max(min, nameEnd - 3);
+  else if (SALE_HONORIFIC_SET.has(tokens[nameEnd].word)) start = Math.max(min, nameEnd - 1);
+  else start = nameEnd;
+
+  while (start <= nameEnd && !isCustomerNameWord(tokens[start].word)) start++;
+  for (let t = start; t <= nameEnd; t++) if (!isCustomerNameWord(tokens[t].word)) return null;
+  return start <= nameEnd ? start : null;
 }
 
 /**
  * Pulls the udhaar marker and the customer's name out of a whole sale message.
- * Returns the remaining text (items only), whether it is an udhaar sale, and the name (or null).
- * knownCustomers (the merchant's khata names) is tried first; grammar patterns are the fallback.
+ * Returns the remaining text (items only), whether it is an udhaar sale, and the name as said
+ * (or null). The name is matched to an actual khata later, which asks when it's ambiguous.
+ *   "<items> ali sheikhy bhai ke khate mein" / "<items> talal pwd waaly ko udhaar pr"
+ *   "<items> udhaar pe ali sheikhy bhai ko diay" / "udhar Ali, <items>"
+ *   "ali ko <items> udhaar pe de diya"
+ * knownCustomers (the merchant's khata names) only helps decide where the name starts.
  */
 export function extractUdhaarCustomer(text, knownCustomers = []) {
-  let rest = String(text || '');
-  let customerName = null;
+  const source = String(text || '');
+  const tokens = [...source.matchAll(/\S+/g)].map((m) => ({
+    word: m[0].replace(/[,،.!?۔;:]+$/u, ''),
+    start: m.index,
+    end: m.index + m[0].length,
+    breakAfter: /[,،;.۔]$/u.test(m[0]),
+  }));
 
-  if (knownCustomers.length && unicodeWord(SALE_DEBT_WORDS).test(rest)) {
-    const known = matchKnownCustomer(rest, knownCustomers);
-    if (known) {
-      customerName = known.name;
-      rest = `${rest.slice(0, known.start)} ${rest.slice(known.end)}`;
-    }
-  }
+  let span = null; // { i, j } name tokens; { ri, rj } tokens to remove
 
-  const hasDebtWord = unicodeWord(SALE_DEBT_WORDS).test(rest);
-  for (const regex of customerName ? [] : [NAME_THEN_DEBT_REGEX, DEBT_THEN_NAME_REGEX, ...(hasDebtWord ? [NAME_KO_AT_START_REGEX] : [])]) {
-    for (const m of rest.matchAll(regex)) {
-      const firstWord = m[1].split(/\s+/)[0];
-      if (NOT_A_CUSTOMER_NAME.has(firstWord) || /\d/.test(firstWord)) continue;
-      let start = m.index;
-      customerName = m[1].replace(/\s+/g, ' ').trim();
-      // "talal pwd waaly ko udhaar": the word before "ko" only describes the customer. Take up to
-      // 3 words before it, but leave the item its quantity, unit and first word ("10 haldi").
-      if (regex === NAME_THEN_DEBT_REGEX && WALA_DESCRIPTOR.test(firstWord)) {
-        const before = rest.slice(0, m.index);
-        const segStart = Math.max(...[',', '،', ';', '\n'].map((sep) => before.lastIndexOf(sep))) + 1;
-        const words = [...before.slice(segStart).matchAll(/\S+/g)];
-        let keep = 0;
-        if (words.length && isQuantityToken(words[0][0])) {
-          keep = 1;
-          while (keep < words.length && isUnitToken(words[keep][0])) keep++;
-          keep++; // the item's first word
-        }
-        const nameWords = words.slice(Math.max(keep, words.length - 3));
-        if (nameWords.length) {
-          customerName = `${nameWords.map((w) => w[0]).join(' ')} ${customerName}`;
-          start = segStart + nameWords[0].index;
-        }
+  for (let d = 0; d < tokens.length && !span; d++) {
+    if (!SALE_DEBT_SET.has(tokens[d].word)) continue;
+
+    // "<name> ko|ke [udhaar ke] udhaar|khate [mein|pe|pr]"
+    if (d >= 2 && SALE_PARTICLE_SET.has(tokens[d - 1].word) && !tokens[d - 2].breakAfter) {
+      const start = findCustomerNameStart(tokens, d - 2, knownCustomers);
+      if (start !== null) {
+        let rj = d;
+        while (rj + 2 < tokens.length && SALE_PARTICLE_SET.has(tokens[rj + 1].word) && SALE_DEBT_SET.has(tokens[rj + 2].word)) rj += 2;
+        if (rj + 1 < tokens.length && SALE_POSTPOSITION_SET.has(tokens[rj + 1].word)) rj++;
+        span = { i: start, j: d - 2, ri: start, rj };
+        break;
       }
-      rest = `${rest.slice(0, start)} ${rest.slice(m.index + m[0].length)}`;
-      break;
     }
-    if (customerName) break;
+
+    // "udhaar [pe|to] <name ...> [ko] [diay]"
+    if (tokens[d].breakAfter) continue;
+    let k = d + 1;
+    while (k < tokens.length && BEFORE_NAME_SET.has(tokens[k].word) && !tokens[k - 1].breakAfter) k++;
+    let e = k;
+    while (e < tokens.length && e - k < 5 && isCustomerNameWord(tokens[e].word) && (e === k || !tokens[e - 1].breakAfter)) e++;
+    if (e > k && !SALE_HONORIFIC_SET.has(tokens[k].word)) {
+      const rj = e < tokens.length && SALE_PARTICLE_SET.has(tokens[e].word) && !tokens[e - 1].breakAfter ? e : e - 1;
+      span = { i: k, j: e - 1, ri: d, rj };
+    }
   }
 
-  const isUdhaar = !!customerName || unicodeWord(SALE_DEBT_WORDS).test(rest);
+  const hasDebtWord = tokens.some((t) => SALE_DEBT_SET.has(t.word));
+
+  // "ali sheikhy ko <items> udhaar pe de diya": the name opens the message.
+  if (!span && hasDebtWord) {
+    let e = 0;
+    while (e < tokens.length && e < 4 && isCustomerNameWord(tokens[e].word) && (e === 0 || !tokens[e - 1].breakAfter)) e++;
+    if (e > 0 && e < tokens.length && (tokens[e].word === 'ko' || tokens[e].word === 'کو') && !SALE_HONORIFIC_SET.has(tokens[0].word)) {
+      span = { i: 0, j: e - 1, ri: 0, rj: e };
+    }
+  }
+
+  let rest = source;
+  let customerName = null;
+  if (span) {
+    customerName = tokens.slice(span.i, span.j + 1).map((t) => t.word).join(' ');
+    // Keep a separator that ended the removed phrase ("udhar ali, 2 chawal").
+    const tail = /[,،;]$/u.test(source.slice(tokens[span.rj].start, tokens[span.rj].end)) ? ',' : ' ';
+    rest = `${source.slice(0, tokens[span.ri].start)} ${tail} ${source.slice(tokens[span.rj].end)}`;
+  }
+
+  const isUdhaar = !!customerName || hasDebtWord;
   if (isUdhaar) {
     rest = rest.replace(BARE_DEBT_REGEX, ' ').trim().replace(/[.!?،۔]+$/, '').trim();
     rest = rest.replace(SALE_CLOSING_VERB_REGEX, ' ');
   }
 
-  return { text: rest.replace(/\s+/g, ' ').trim(), isUdhaar, customerName };
+  return { text: rest.replace(/\s+/g, ' ').replace(/^\s*,\s*/, '').trim(), isUdhaar, customerName };
 }
 
 const SALE_PAYMENT_REGEX = unicodeWord('cash|kash|easypaisa|easy\\s*paisa|jazzcash|jazz\\s*cash|sadapay|nayapay|raast|bank|کیش');

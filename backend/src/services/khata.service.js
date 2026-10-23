@@ -1,5 +1,6 @@
 import Order from '../models/Order.js';
 import KhataPayment from '../models/KhataPayment.js';
+import { levenshtein, simplifyPhonetic } from '../crm/item-matching.js';
 
 /**
  * Records one payment toward a customer's khata so reports can show when it came in.
@@ -106,4 +107,83 @@ export async function getKhataStatement(merchantId, customer) {
     KhataPayment.find({ merchantId, customerId: customer._id }).sort({ createdAt: 1 }),
   ]);
   return buildKhataStatement({ customer, orders, payments });
+}
+
+// Politeness words that don't tell two customers apart ("ali" and "ali bhai" are the same person).
+const KHATA_HONORIFICS = new Set(['bhai', 'bhae', 'bhaiya', 'bhaijan', 'bhaijaan', 'sahab', 'sahib', 'saheb', 'sb', 'ji', 'janab', 'بھائی', 'صاحب', 'جی']);
+
+const nameWords = (name) => String(name || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
+const withoutHonorifics = (words) => {
+  const core = words.filter((w) => !KHATA_HONORIFICS.has(w));
+  return core.length ? core : words;
+};
+
+/** Same word, allowing spelling slips in voice transcripts ("shikhy" ~ "sheikhy"). */
+function sameNameWord(a, b) {
+  if (a === b) return true;
+  if (a.length < 3 || b.length < 3) return false;
+  const pa = simplifyPhonetic(a);
+  if (pa && pa === simplifyPhonetic(b)) return true;
+  return a.length >= 4 && b.length >= 4 && 1 - levenshtein(a, b) / Math.max(a.length, b.length) >= 0.8;
+}
+
+// Exact spelling only: a typo'd name is never applied to a khata without the merchant confirming it.
+const sameWords = (a, b) => a.length === b.length && a.every((w, i) => w === b[i]);
+
+/**
+ * Decides which khata a spoken name refers to, from the merchant's customers.
+ *
+ * Returns { match } only when exactly one khata fits the name exactly AND no other khata also
+ * contains every word said — "ali bhai" is ali bhai, but plain "ali" could be "ali bhai" or
+ * "ali sheikhy town wala". Otherwise returns { candidates } (best first, max 9) so the merchant
+ * can confirm; an empty list means no khata resembles the name.
+ */
+export function rankKhataCustomers(customers, spokenName) {
+  const spokenFull = nameWords(spokenName);
+  if (!spokenFull.length) return { match: null, candidates: [] };
+  const spokenCore = withoutHonorifics(spokenFull);
+
+  const scored = (customers || []).filter((c) => c?.name).map((customer) => {
+    const full = nameWords(customer.name);
+    const core = withoutHonorifics(full);
+    const matched = spokenCore.filter((w) => core.some((cw) => sameNameWord(w, cw))).length;
+    return {
+      customer,
+      exact: sameWords(full, spokenFull) || sameWords(core, spokenCore),
+      // Every word said (honorifics included) appears in this name: a rival for the same words.
+      containsAllSaid: spokenFull.every((w) => full.some((cw) => sameNameWord(w, cw))),
+      matched,
+      coverage: matched / core.length,
+    };
+  });
+
+  const exact = scored.filter((s) => s.exact);
+  const rivals = scored.filter((s) => !s.exact && s.containsAllSaid);
+  if (exact.length === 1 && rivals.length === 0) return { match: exact[0].customer, candidates: [] };
+
+  const candidates = scored
+    .filter((s) => s.exact || s.matched > 0)
+    .sort((a, b) => Number(b.exact) - Number(a.exact) || b.matched - a.matched || b.coverage - a.coverage)
+    .slice(0, 9)
+    .map((s) => s.customer);
+  return { match: null, candidates };
+}
+
+/**
+ * Reads the merchant's answer to "which khata?" — a number ("2"), or a name typed/spoken
+ * ("Ali sheikhy bhai"). Returns the chosen candidate, or null when the answer doesn't pick one.
+ */
+export function pickKhataCandidate(candidates, answer) {
+  const text = String(answer || '').trim();
+  const index = text.match(/^(\d)\.?$/);
+  if (index) return candidates[Number(index[1]) - 1] || null;
+
+  const { match, candidates: ranked } = rankKhataCustomers(candidates, text);
+  if (match) return match;
+  if (!ranked.length) return null;
+  // A clear winner: strictly more of the said words than the runner-up.
+  const said = withoutHonorifics(nameWords(text));
+  const score = (c) => said.filter((w) => withoutHonorifics(nameWords(c.name)).some((cw) => sameNameWord(w, cw))).length;
+  if (ranked.length === 1) return score(ranked[0]) > 0 ? ranked[0] : null;
+  return score(ranked[0]) > score(ranked[1]) ? ranked[0] : null;
 }

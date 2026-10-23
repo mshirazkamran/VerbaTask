@@ -592,17 +592,24 @@ export const spokenPhrases = {
     };
   },
 
-  customerDisambiguationPrompt(language = 'ur', { candidateName, currentBalance } = {}) {
-    const formattedBal = `Rs. ${(currentBalance || 0).toLocaleString()}`;
+  khataChoicePrompt(language = 'ur', { spokenName, candidates = [] } = {}) {
+    const lines = candidates
+      .map((c, i) => `${i + 1}. *${String(c.name).toUpperCase()}* — Rs. ${(Number(c.balance) || 0).toLocaleString()}`)
+      .join('\n');
+    const single = candidates.length === 1;
     if (language === 'ur') {
       return {
-        spoken: `محترم، کیا یہ پرانے گاہک ${candidateName} کا کھاتہ ہے جن کا بقایا ${currentBalance} روپے ہے؟ برائے مہربانی تصدیق فرما دیں۔`,
-        text: `👥 *گاہک کی تصدیق:*\nآپ کے کھاتے میں پہلے سے *${candidateName?.toUpperCase()}* موجود ہیں (موجودہ بقایا: *${formattedBal}*)۔\nکیا یہ وہی گاہک ہیں یا کوئی نیا گاہک ہے؟`,
+        spoken: single
+          ? `محترم، کیا آپ کی مراد ${candidates[0].name} کا کھاتہ ہے؟ برائے مہربانی تصدیق کر دیں۔`
+          : `محترم، ${spokenName} سے ملتے جلتے ${candidates.length} کھاتے ہیں۔ برائے مہربانی بتائیں کس کا کھاتہ ہے۔`,
+        text: `👥 *کس کا کھاتہ؟*\n"${spokenName}" سے ملتے جلتے کھاتے:\n\n${lines}\n\nبٹن دبائیں، یا نام یا نمبر لکھ کر/بول کر بتائیں۔ جب تک آپ نہ بتائیں، کچھ درج نہیں ہوگا۔`,
       };
     }
     return {
-      spoken: `Pardon me, is this existing customer ${candidateName} who currently has a balance of Rs. ${currentBalance}? Please confirm. Thank you!`,
-      text: `👥 *Customer Confirmation:*\nExisting customer *${candidateName?.toUpperCase()}* found in ledger (Current balance: *${formattedBal}*).\nIs this the same customer or a new one?`,
+      spoken: single
+        ? `Just to confirm, do you mean ${candidates[0].name}'s khata?`
+        : `There are ${candidates.length} khatas that match ${spokenName}. Please tell me which one.`,
+      text: `👥 *Which khata?*\nKhatas matching "${spokenName}":\n\n${lines}\n\nTap one, or type or say the name or number. Nothing is recorded until you choose.`,
     };
   },
 };
