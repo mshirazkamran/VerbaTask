@@ -701,8 +701,17 @@ export function OrdersPage() {
   const columns = useMemo(
     () => [
       {
+        id: 'srNo',
+        header: isUrdu ? 'نمبر شمار' : 'Sr No.',
+        cell: ({ row }) => (
+          <span className="font-mono text-xs font-semibold text-muted">
+            {row.index + 1}
+          </span>
+        ),
+      },
+      {
         accessorKey: 'orderNumber',
-        header: '#',
+        header: isUrdu ? 'آرڈر #' : 'Order #',
         cell: ({ getValue, row }) => {
           const val = getValue() || row.original._id?.slice(-4);
           return (
@@ -753,8 +762,7 @@ export function OrdersPage() {
         cell: ({ getValue }) => {
           const key = (getValue() || 'cash').toLowerCase();
           return (
-            <span className="inline-flex items-center gap-2 text-xs font-medium capitalize text-ink-2">
-              <span className={`size-2 rounded-pill ${PAYMENT_DOTS[key] || 'bg-muted'}`} />
+            <span className="text-xs font-medium capitalize text-ink-2">
               {tDash[key] || key}
             </span>
           );

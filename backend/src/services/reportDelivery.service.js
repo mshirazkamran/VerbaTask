@@ -23,9 +23,10 @@ const GENERATORS = {
  */
 async function sendGeneratedReport(merchant, generate, language, { announce = true, caption } = {}) {
   const en = language === 'en';
+  const recipient = merchant?._replyToNumber || merchant?.whatsappNumber;
   const send = async (text) => {
     try {
-      await sendTextMessage(merchant.whatsappNumber, text);
+      await sendTextMessage(recipient, text);
     } catch (err) {
       console.error('deliverReport text send failed:', err.message);
     }
@@ -39,7 +40,7 @@ async function sendGeneratedReport(merchant, generate, language, { announce = tr
     const report = await generate(merchant);
     const { id: mediaId } = await uploadMedia(report.buffer, 'application/pdf', report.filename);
     await sendDocumentMessage(
-      merchant.whatsappNumber,
+      recipient,
       mediaId,
       report.filename,
       caption || (en ? 'Here is your requested report! 📄' : 'یہ رہی آپ کی رپورٹ! 📄')
