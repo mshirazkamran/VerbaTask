@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router';
+import { useSearchParams, useNavigate, useLocation } from 'react-router';
 import { toast } from 'sonner';
 import {
   Store,
@@ -17,11 +17,12 @@ import {
   Copy,
   UserPlus,
   Trash2,
-  Share2,
   ShieldCheck,
   UserCheck,
   Volume2,
   AlertTriangle,
+  Clock,
+  XCircle,
 } from 'lucide-react';
 import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { Card } from '../components/ui/Card';
@@ -46,7 +47,7 @@ import {
   useRegenerateShopCode,
 } from '../hooks/useMerchantSettings';
 import { useUiStore } from '../lib/store';
-import { formatPhone, normalizePhone } from '../lib/format';
+import { formatPhone, normalizePhone, formatBusinessName } from '../lib/format';
 
 const getBusinessTypes = (isUrdu) => [
   { value: 'kiryana', label: isUrdu ? 'کریانہ / جنرل اسٹور' : 'Kiryana / Grocery Store' },
@@ -64,17 +65,22 @@ export function SettingsPage({ initialTab }) {
   const uiLanguage = useUiStore((s) => s.language);
   const isUrdu = uiLanguage === 'ur';
 
-  const [searchParams, setSearchParams] = useSearchParams();
-  const queryTab = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(initialTab || queryTab || 'profile');
+  const routerLocation = useLocation();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    if (initialTab) {
-      setActiveTab(initialTab);
-    } else if (queryTab && ['profile', 'team', 'payments', 'voice'].includes(queryTab)) {
-      setActiveTab(queryTab);
+  const queryTab = searchParams.get('tab');
+  const activeTab = routerLocation.pathname.includes('/team')
+    ? 'team'
+    : (['profile', 'team', 'payments', 'voice'].includes(queryTab) ? queryTab : (initialTab || 'profile'));
+
+  const handleTabClick = (tabId) => {
+    if (tabId === 'team') {
+      navigate('/dashboard/team');
+    } else {
+      navigate(`/dashboard/settings?tab=${tabId}`);
     }
-  }, [initialTab, queryTab]);
+  };
 
   const { data: profile, isLoading: profileLoading } = useMerchantProfile();
   const updateProfileMutation = useUpdateMerchantProfile();
@@ -102,14 +108,14 @@ export function SettingsPage({ initialTab }) {
     toast.success(`Shop code ${code} copied to clipboard!`);
   };
 
-  const handleShareInvite = (code) => {
+  const handleCopyInviteMessage = (code) => {
     if (!code) return;
     const cleanStore = (profile?.businessName || 'Dukaan').split(',')[0].trim();
     const msg = isUrdu
       ? `Assalam-o-Alaikum! ${cleanStore} کے وربا ٹاسک کھاتے میں شامل ہونے کے لیے واٹس ایپ بوٹ کو یہ میسج بھیجیں:\njoin ${code} علی`
       : `Assalam-o-Alaikum! To join ${cleanStore}'s shop ledger on VerbaTask, send this message to the bot:\njoin ${code} Ali`;
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    window.open(whatsappUrl, '_blank');
+    navigator.clipboard.writeText(msg);
+    toast.success(isUrdu ? 'دعوتی پیغام کاپی ہو گیا!' : 'Invitation message copied to clipboard!');
   };
 
   const handleAddStaff = async (e) => {
@@ -131,11 +137,15 @@ export function SettingsPage({ initialTab }) {
 
     try {
       setIsAddingStaff(true);
-      await addStaffMutation.mutateAsync({
+      const res = await addStaffMutation.mutateAsync({
         name: staffNameInput.trim(),
         whatsappNumber: normalizedPhone,
       });
-      toast.success(`${staffNameInput.trim()} added to your shop staff!`);
+      if (res?.pendingApproval) {
+        toast.info(res.message || (isUrdu ? 'واٹس ایپ پر شمولیت کی درخواست بھیج دی گئی ہے۔' : 'Transfer invitation sent to assistant on WhatsApp!'));
+      } else {
+        toast.success(isUrdu ? `${staffNameInput.trim()} کو دکان میں شامل کر لیا گیا!` : `${staffNameInput.trim()} added to your shop staff!`);
+      }
       setStaffNameInput('');
       setStaffPhoneInput('');
     } catch (err) {
@@ -384,7 +394,7 @@ export function SettingsPage({ initialTab }) {
 
   if (profileLoading || paymentsLoading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -397,25 +407,26 @@ export function SettingsPage({ initialTab }) {
   const cashMethods = allMethods.filter((m) => m.category === 'cash');
 
   return (
-    <div className="space-y-5 pb-12 sm:space-y-6">
+    <div className="space-y-6 pb-12">
+      {/* Page Header */}
       <div>
         <p className="label">{isUrdu ? 'آپ کی دکان' : 'Your shop'}</p>
         <h1 className={`display mt-2 text-[length:var(--fs-xl)] text-ink sm:text-[length:var(--fs-2xl)] ${isUrdu ? 'font-urdu text-3xl sm:text-4xl' : ''}`}>
-          {profile?.businessName || (isUrdu ? 'دکان کی سیٹنگز' : 'Shop settings')}
+          {formatBusinessName(profile?.businessName, profile?.location) || profile?.businessName || (isUrdu ? 'دکان کی سیٹنگز' : 'Shop settings')}
         </h1>
       </div>
 
-      {/* 3/9 — a vertical section rail beside the form */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-8">
+      {/* Top Navigation Menu Bar */}
+      <div>
         <nav
           aria-label="Settings sections"
-          className="custom-scrollbar flex gap-1 overflow-x-auto lg:sticky lg:top-24 lg:col-span-3 lg:flex-col lg:self-start lg:overflow-visible"
+          className="custom-scrollbar inline-flex items-center gap-1.5 overflow-x-auto rounded-card border border-rule bg-surface p-1.5 shadow-xs max-w-full"
         >
           {[
-            { id: 'profile', label: isUrdu ? 'دکان کا پروفائل' : 'Shop profile', hint: isUrdu ? 'نام، پتہ، سامان' : 'Name, area, what you sell', icon: Store },
-            { id: 'team', label: isUrdu ? 'ٹیم اور ملازمین' : 'Team & Staff', hint: isUrdu ? `${staffData?.activeCount ?? profile?.staffMembers?.length ?? 0} منسلک (سب کے لیے دستیاب)` : `${staffData?.activeCount ?? profile?.staffMembers?.length ?? 0} connected (All Access)`, icon: Users },
-            { id: 'payments', label: isUrdu ? 'ادائیگی کے ذرائع' : 'Payments', hint: isUrdu ? `${activePaymentIds.length} فعال` : `${activePaymentIds.length} accepted`, icon: CreditCard },
-            { id: 'voice', label: isUrdu ? 'آواز اور زبان' : 'Voice & language', hint: isUrdu ? 'بوٹ کس طرح بولے' : 'How the bot talks', icon: Mic },
+            { id: 'profile', label: isUrdu ? 'دکان کا پروفائل' : 'Shop profile', icon: Store },
+            { id: 'team', label: isUrdu ? 'ٹیم اور ملازمین' : 'Team & Staff', icon: Users, badge: staffData?.activeCount ?? profile?.staffMembers?.length ?? 0 },
+            { id: 'payments', label: isUrdu ? 'ادائیگی کے ذرائع' : 'Payments', icon: CreditCard, badge: activePaymentIds.length },
+            { id: 'voice', label: isUrdu ? 'آواز اور زبان' : 'Voice & language', icon: Mic },
           ].map((t) => {
             const on = activeTab === t.id;
             const Icon = t.icon;
@@ -423,26 +434,31 @@ export function SettingsPage({ initialTab }) {
               <button
                 key={t.id}
                 type="button"
-                onClick={() => {
-                  setActiveTab(t.id);
-                  setSearchParams({ tab: t.id }, { replace: true });
-                }}
+                onClick={() => handleTabClick(t.id)}
                 aria-current={on ? 'page' : undefined}
-                className={`flex shrink-0 items-center gap-3 rounded-card px-4 py-3 text-left transition-colors duration-150 lg:w-full ${
-                  on ? 'bg-ink text-paper' : 'text-ink-2 hover:bg-paper-2 hover:text-ink'
+                className={`flex shrink-0 items-center gap-2 rounded-[9px] px-4 py-2.5 text-xs font-semibold transition-all duration-150 ${
+                  on ? 'bg-ink text-paper shadow-xs' : 'text-ink-2 hover:bg-paper-2 hover:text-ink'
                 }`}
               >
                 <Icon className="size-4 shrink-0" />
-                <span className="min-w-0">
-                  <span className={`block whitespace-nowrap text-sm font-semibold ${isUrdu ? 'font-urdu text-base' : ''}`}>{t.label}</span>
-                  <span className={`hidden truncate text-xs lg:block ${on ? 'opacity-70' : 'text-muted'}`}>{t.hint}</span>
-                </span>
+                <span className={isUrdu ? 'font-urdu text-sm' : ''}>{t.label}</span>
+                {t.badge != null && (
+                  <span
+                    className={`rounded-pill px-1.5 py-0.2 font-mono text-[10.5px] font-bold ${
+                      on ? 'bg-paper text-ink' : 'bg-paper-3 text-muted'
+                    }`}
+                  >
+                    {t.badge}
+                  </span>
+                )}
               </button>
             );
           })}
         </nav>
+      </div>
 
-        <div className="min-w-0 lg:col-span-9">
+      {/* Respected UI Block Filled to Content Width */}
+      <div className="w-full">
       {/* Tab 1: Store Profile */}
       {activeTab === 'profile' && (
         <form onSubmit={handleSaveProfile} className="space-y-6">
@@ -786,12 +802,12 @@ export function SettingsPage({ initialTab }) {
 
                 return (
                   <div className="rounded-xl border border-hairline bg-paper-2/50 p-5 sm:p-6 mb-6">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="space-y-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="space-y-1.5">
                         <span className="text-xs font-semibold uppercase tracking-wider text-muted">
                           {isUrdu ? 'آپ کی دکان کا ریفرنس کوڈ' : 'Your Shop Reference Code'}
                         </span>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
                           <span className="font-mono text-3xl font-bold tracking-wider text-primary-deep dark:text-primary">
                             {effectiveShopCode}
                           </span>
@@ -818,16 +834,26 @@ export function SettingsPage({ initialTab }) {
                         </div>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row gap-2.5">
+                      <div className="flex shrink-0 items-center">
                         <Button
                           type="button"
-                          variant="primary"
-                          onClick={() => handleShareInvite(effectiveShopCode)}
-                          leftIcon={<WhatsAppIcon className="w-4 h-4 fill-current" />}
+                          variant="outline"
+                          onClick={() => handleCopyInviteMessage(effectiveShopCode)}
+                          leftIcon={<Copy className="w-4 h-4" />}
+                          className="whitespace-nowrap"
                         >
-                          {isUrdu ? 'واٹس ایپ پر ملازم کو دعوت دیں' : 'Invite Assistant via WhatsApp'}
+                          {isUrdu ? 'دعوتی پیغام کاپی کریں' : 'Copy Invite Message'}
                         </Button>
                       </div>
+                    </div>
+
+                    <div className="mt-4 flex items-center gap-2 rounded-lg bg-surface/80 border border-hairline/80 px-3.5 py-2.5 text-xs text-muted">
+                      <span className="shrink-0 text-base">💡</span>
+                      <span>
+                        {isUrdu
+                          ? 'یا نیچے ملازم کا نمبر براہ راست درج کریں — وربا ٹاسک بوٹ خودکار طور پر انہیں واٹس ایپ پر دعوتی پیغام بھیج دے گا۔'
+                          : 'Or enter their phone number below — VerbaTask bot automatically sends them the invite on WhatsApp.'}
+                      </span>
                     </div>
 
                     {/* Instructions banner */}
@@ -842,9 +868,9 @@ export function SettingsPage({ initialTab }) {
                           </div>
                           <p className="text-muted leading-relaxed">
                             {isUrdu ? (
-                              <>نیچے براہ راست ان کا واٹس ایپ نمبر درج کریں (وہ فوری شامل ہو جائیں گے)، یا ملازم واٹس ایپ پر <code className="inline-block font-mono bg-paper px-1.5 py-0.5 rounded border border-hairline text-ink font-semibold text-[11px]">join {effectiveShopCode} Ali</code> بھیجے۔</>
+                              <>نیچے براہ راست ان کا واٹس ایپ نمبر درج کریں (وربا ٹاسک خودکار واٹس ایپ بھیج دے گا)، یا دعوتی میسج کاپی کر کے انہیں بھیجیں تاکہ وہ <code className="inline-block font-mono bg-paper px-1.5 py-0.5 rounded border border-hairline text-ink font-semibold text-[11px]">join {effectiveShopCode} Ali</code> بھیجیں۔</>
                             ) : (
-                              <>Add their number directly below (instant access), or assistant texts <code className="inline-block font-mono bg-paper px-1.5 py-0.5 rounded border border-hairline text-ink font-semibold text-[11px]">join {effectiveShopCode} Ali</code> to the bot.</>
+                              <>Add their number below (VerbaTask sends the WhatsApp invite automatically), or copy the invite message so they can text <code className="inline-block font-mono bg-paper px-1.5 py-0.5 rounded border border-hairline text-ink font-semibold text-[11px]">join {effectiveShopCode} Ali</code> to the bot.</>
                             )}
                           </p>
                         </div>
@@ -916,7 +942,7 @@ export function SettingsPage({ initialTab }) {
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
                     <UserCheck className="w-4 h-4 text-muted" />
-                    {isUrdu ? `فعال ٹیم ممبران (${staffList.length})` : `Active Team Members (${staffList.length})`}
+                    {isUrdu ? `ٹیم ممبران (${staffList.length})` : `Team Members (${staffList.length})`}
                   </h3>
                   <span className="text-xs text-muted">
                     {isUrdu ? `زیادہ سے زیادہ ${staffLimit} ملازمین کی اجازت ہے` : `Max ${staffLimit} staff members allowed`}
@@ -942,42 +968,97 @@ export function SettingsPage({ initialTab }) {
                   </div>
                 ) : (
                   <div className="divide-y divide-hairline rounded-xl border border-hairline bg-paper overflow-hidden">
-                    {staffList.map((member) => (
-                      <div key={member._id} className="flex items-center justify-between p-3.5 sm:px-4 hover:bg-paper-2/40 transition-colors">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="grid size-9 shrink-0 place-items-center rounded-pill bg-paper-2 text-ink font-semibold text-xs border border-hairline">
-                            {(member.name || 'ST').slice(0, 2).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-sm text-ink truncate">{member.name}</span>
-                              <Badge variant={member.active ? 'success' : 'muted'} className="text-[10px] px-1.5 py-0">
-                                {member.active ? (isUrdu ? 'فعال' : 'Active') : (isUrdu ? 'غیر فعال' : 'Inactive')}
-                              </Badge>
-                              {member.addedBy === 'whatsapp_code' && (
-                                <span className="text-[10px] text-muted hidden sm:inline">{isUrdu ? 'بذریعہ واٹس ایپ کوڈ' : 'via WhatsApp Code'}</span>
-                              )}
-                            </div>
-                            <span className="text-xs font-mono text-muted block truncate">
-                              {formatPhone(member.whatsappNumber)}
-                            </span>
-                          </div>
-                        </div>
+                    {staffList.map((member) => {
+                      const isPending = member.status === 'pending_switch';
+                      const isRejected = member.status === 'rejected';
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveStaff(member._id, member.name)}
-                            className="text-danger hover:bg-danger-tint hover:text-danger-deep p-2"
-                            title={isUrdu ? 'ملازم کو ہٹائیں' : 'Remove staff member'}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                      let badgeVariant = 'muted';
+                      let badgeText = isUrdu ? 'غیر فعال' : 'Inactive';
+
+                      if (isPending) {
+                        badgeVariant = 'warning';
+                        badgeText = isUrdu ? 'منتقلی کا انتظار' : 'Pending Transfer';
+                      } else if (isRejected) {
+                        badgeVariant = 'danger';
+                        badgeText = isUrdu ? 'منتقلی مسترد' : 'Transfer Rejected';
+                      } else if (member.active) {
+                        badgeVariant = 'success';
+                        badgeText = isUrdu ? 'فعال' : 'Active';
+                      }
+
+                      return (
+                        <div key={member._id} className="flex items-center justify-between p-3.5 sm:px-4 hover:bg-paper-2/40 transition-colors">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`grid size-9 shrink-0 place-items-center rounded-pill font-semibold text-xs border ${
+                              isRejected
+                                ? 'bg-coral-tint text-danger-ink border-red-200 dark:border-red-900/50'
+                                : isPending
+                                ? 'bg-pear-tint text-warn-ink border-amber-200 dark:border-amber-900/50'
+                                : 'bg-paper-2 text-ink border-hairline'
+                            }`}>
+                              {(member.name || 'ST').slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-sm text-ink truncate">{member.name}</span>
+                                <Badge variant={badgeVariant} className="text-[10px] px-1.5 py-0">
+                                  {badgeText}
+                                </Badge>
+                                {member.addedBy === 'whatsapp_code' && (
+                                  <span className="text-[10px] text-muted hidden sm:inline">{isUrdu ? 'بذریعہ واٹس ایپ کوڈ' : 'via WhatsApp Code'}</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                <span className="text-xs font-mono text-muted block truncate">
+                                  {formatPhone(member.whatsappNumber)}
+                                </span>
+                                {isPending && (
+                                  <span className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1 font-medium">
+                                    <Clock className="w-3 h-3 shrink-0" />
+                                    {isUrdu ? 'واٹس ایپ پر شمولیت کی تصدیق کا انتظار ہے' : 'Awaiting confirmation on WhatsApp'}
+                                  </span>
+                                )}
+                                {isRejected && (
+                                  <span className="text-[11px] text-coral flex items-center gap-1 font-medium">
+                                    <XCircle className="w-3 h-3 shrink-0" />
+                                    {isUrdu ? 'ملازم نے شمولیت مسترد کر دی ہے اور اپنی سابقہ دکان پر ہیں' : 'Assistant declined transfer and stayed at previous store'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {isRejected && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setStaffNameInput(member.name);
+                                  setStaffPhoneInput(member.whatsappNumber);
+                                }}
+                                className="text-xs py-1 px-2.5 h-8"
+                                title={isUrdu ? 'دوبارہ دعوت دیں' : 'Re-invite assistant'}
+                              >
+                                <RefreshCw className="w-3 h-3 mr-1" />
+                                {isUrdu ? 'دوبارہ بھیجیں' : 'Re-invite'}
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveStaff(member._id, member.name)}
+                              className="text-danger hover:bg-danger-tint hover:text-danger-deep p-2"
+                              title={isUrdu ? 'ملازم کو ہٹائیں' : 'Remove staff member'}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1222,128 +1303,142 @@ export function SettingsPage({ initialTab }) {
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-medium text-ink-secondary flex items-center gap-1 mb-1.5">
-                  {isUrdu ? 'بنیادی زبان' : 'Default Language'}
-                </label>
-                <div className="grid grid-cols-2 gap-3 max-w-sm">
-                  <button
-                    type="button"
-                    onClick={() => setLanguage('ur')}
-                    className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
-                      language === 'ur'
-                        ? 'border-primary bg-primary/5 text-primary font-medium'
-                        : 'border-hairline text-ink hover:bg-surface/50'
-                    }`}
-                  >
-                    <p className="text-xs font-medium">اردو (Urdu)</p>
-                    <p className="text-[10px] text-ink-mute mt-0.5">Uzma Urdu Neural Voice</p>
-                  </button>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+              {/* Left Column: Default Language & Voice Avatar Selection */}
+              <div className="lg:col-span-6 space-y-5">
+                <div>
+                  <label className="text-xs font-medium text-ink-secondary flex items-center gap-1 mb-1.5">
+                    {isUrdu ? 'بنیادی زبان' : 'Default Language'}
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setLanguage('ur')}
+                      className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
+                        language === 'ur'
+                          ? 'border-primary bg-primary/5 text-primary font-medium'
+                          : 'border-hairline text-ink hover:bg-surface/50'
+                      }`}
+                    >
+                      <p className="text-xs font-medium">اردو (Urdu)</p>
+                      <p className="text-[10px] text-ink-mute mt-0.5">Uzma Urdu Neural Voice</p>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setLanguage('en')}
-                    className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
-                      language === 'en'
-                        ? 'border-primary bg-primary/5 text-primary font-medium'
-                        : 'border-hairline text-ink hover:bg-surface/50'
-                    }`}
-                  >
-                    <p className="text-xs font-medium">English</p>
-                    <p className="text-[10px] text-ink-mute mt-0.5">Jenny English Neural Voice</p>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setLanguage('en')}
+                      className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
+                        language === 'en'
+                          ? 'border-primary bg-primary/5 text-primary font-medium'
+                          : 'border-hairline text-ink hover:bg-surface/50'
+                      }`}
+                    >
+                      <p className="text-xs font-medium">English</p>
+                      <p className="text-[10px] text-ink-mute mt-0.5">Jenny English Neural Voice</p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Voice Avatar Selection: Exactly 1 Female and 1 Male Voice */}
+                <div className="pt-4 border-t border-hairline">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-medium text-ink-secondary flex items-center gap-1.5">
+                      <Volume2 className="w-3.5 h-3.5 text-primary" />
+                      {isUrdu ? 'اے آئی وائس اوتار (صوتی آواز)' : 'AI Voice Avatar (Single Voice Policy)'}
+                    </label>
+                    <span className="text-[10px] text-ink-mute bg-surface px-2 py-0.5 rounded-pill border border-hairline">
+                      {isUrdu ? 'شائستہ اور بااخلاق لب و لہجہ' : 'Polite & Courteous Tone'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-ink-mute mb-3">
+                    {isUrdu
+                      ? 'واٹس ایپ پر بول کر جواب دینے کے لیے 1 خاتون یا 1 مردانہ آواز کا انتخاب کریں۔ آپ واٹس ایپ پر "عورت کی آواز" یا "مرد کی آواز" بول کر بھی آواز تبدیل کر سکتے ہیں۔'
+                      : 'Select exactly 1 Female or 1 Male voice avatar for your WhatsApp audio replies. You can also switch anytime by speaking "male voice" or "female voice" in a voice note.'}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setVoiceGender('female')}
+                      className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer relative ${
+                        voiceGender === 'female'
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary/30 shadow-xs'
+                          : 'border-hairline text-ink hover:bg-surface/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">👩</span>
+                          <div>
+                            <p className="text-xs font-semibold text-ink">
+                              {isUrdu ? 'خاتون کی آواز (Female)' : 'Female Voice Avatar'}
+                            </p>
+                            <p className="text-[10px] text-ink-mute">
+                              {language === 'ur' ? 'Uzma Urdu Neural (پاکستان)' : 'Jenny English Neural (US)'}
+                            </p>
+                          </div>
+                        </div>
+                        {voiceGender === 'female' && (
+                          <span className="size-5 rounded-full bg-primary text-white grid place-items-center shrink-0">
+                            <Check className="w-3 h-3" />
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-ink-secondary bg-surface/60 rounded px-2 py-1 mt-1">
+                        {isUrdu ? 'بہت شائستہ، نرم اور احترام پر مبنی گفتگو' : 'Polite, calm & courteous tone'}
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setVoiceGender('male')}
+                      className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer relative ${
+                        voiceGender === 'male'
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary/30 shadow-xs'
+                          : 'border-hairline text-ink hover:bg-surface/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">👨</span>
+                          <div>
+                            <p className="text-xs font-semibold text-ink">
+                              {isUrdu ? 'مردانہ آواز (Male)' : 'Male Voice Avatar'}
+                            </p>
+                            <p className="text-[10px] text-ink-mute">
+                              {language === 'ur' ? 'Asad Urdu Neural (پاکستان)' : 'Guy English Neural (US)'}
+                            </p>
+                          </div>
+                        </div>
+                        {voiceGender === 'male' && (
+                          <span className="size-5 rounded-full bg-primary text-white grid place-items-center shrink-0">
+                            <Check className="w-3 h-3" />
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-ink-secondary bg-surface/60 rounded px-2 py-1 mt-1">
+                        {isUrdu ? 'سنجیدہ، شائستہ اور احترام پر مبنی گفتگو' : 'Polite, clear & courteous tone'}
+                      </p>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Voice Avatar Selection: Exactly 1 Female and 1 Male Voice */}
-              <div className="pt-4 border-t border-hairline">
+              {/* Right Column: Voice Note Responses (TTS) */}
+              <div className="lg:col-span-6 lg:border-l lg:border-hairline lg:pl-8">
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-medium text-ink-secondary flex items-center gap-1.5">
-                    <Volume2 className="w-3.5 h-3.5 text-primary" />
-                    {isUrdu ? 'اے آئی وائس اوتار (صوتی آواز)' : 'AI Voice Avatar (Single Voice Policy)'}
+                  <label className="text-xs font-medium text-ink-secondary block">
+                    {isUrdu ? 'وائس نوٹ کے جوابات (TTS)' : 'Voice Note Responses (TTS)'}
                   </label>
                   <span className="text-[10px] text-ink-mute bg-surface px-2 py-0.5 rounded-pill border border-hairline">
-                    {isUrdu ? 'شائستہ اور بااخلاق لب و لہجہ' : 'Polite & Courteous Tone'}
+                    {isUrdu ? 'آڈیو جواب کی پالیسی' : 'Audio Reply Behavior'}
                   </span>
                 </div>
                 <p className="text-[11px] text-ink-mute mb-3">
                   {isUrdu
-                    ? 'واٹس ایپ پر بول کر جواب دینے کے لیے 1 خاتون یا 1 مردانہ آواز کا انتخاب کریں۔ آپ واٹس ایپ پر "عورت کی آواز" یا "مرد کی آواز" بول کر بھی آواز تبدیل کر سکتے ہیں۔'
-                    : 'Select exactly 1 Female or 1 Male voice avatar for your WhatsApp audio replies. You can also switch anytime by speaking "male voice" or "female voice" in a voice note.'}
+                    ? 'طے کریں کہ واٹس ایپ پر کسٹمرز یا اسٹاف کو بوٹ کب بول کر آڈیو بھیجے گا۔'
+                    : 'Choose when the WhatsApp bot should send spoken voice notes back to users.'}
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
-                  <button
-                    type="button"
-                    onClick={() => setVoiceGender('female')}
-                    className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer relative ${
-                      voiceGender === 'female'
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary/30 shadow-xs'
-                        : 'border-hairline text-ink hover:bg-surface/50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">👩</span>
-                        <div>
-                          <p className="text-xs font-semibold text-ink">
-                            {isUrdu ? 'خاتون کی آواز (Female)' : 'Female Voice Avatar'}
-                          </p>
-                          <p className="text-[10px] text-ink-mute">
-                            {language === 'ur' ? 'Uzma Urdu Neural (پاکستان)' : 'Jenny English Neural (US)'}
-                          </p>
-                        </div>
-                      </div>
-                      {voiceGender === 'female' && (
-                        <span className="size-5 rounded-full bg-primary text-white grid place-items-center shrink-0">
-                          <Check className="w-3 h-3" />
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-ink-secondary bg-surface/60 rounded px-2 py-1 mt-1">
-                      {isUrdu ? 'بہت شائستہ، نرم اور احترام پر مبنی گفتگو' : 'Polite, calm & courteous tone'}
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setVoiceGender('male')}
-                    className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer relative ${
-                      voiceGender === 'male'
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary/30 shadow-xs'
-                        : 'border-hairline text-ink hover:bg-surface/50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">👨</span>
-                        <div>
-                          <p className="text-xs font-semibold text-ink">
-                            {isUrdu ? 'مردانہ آواز (Male)' : 'Male Voice Avatar'}
-                          </p>
-                          <p className="text-[10px] text-ink-mute">
-                            {language === 'ur' ? 'Asad Urdu Neural (پاکستان)' : 'Guy English Neural (US)'}
-                          </p>
-                        </div>
-                      </div>
-                      {voiceGender === 'male' && (
-                        <span className="size-5 rounded-full bg-primary text-white grid place-items-center shrink-0">
-                          <Check className="w-3 h-3" />
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-ink-secondary bg-surface/60 rounded px-2 py-1 mt-1">
-                      {isUrdu ? 'سنجیدہ، شائستہ اور احترام پر مبنی گفتگو' : 'Polite, clear & courteous tone'}
-                    </p>
-                  </button>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-hairline">
-                <label className="text-xs font-medium text-ink-secondary block mb-2">
-                  {isUrdu ? 'وائس نوٹ کے جوابات (TTS)' : 'Voice Note Responses (TTS)'}
-                </label>
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {[
                     {
                       id: 'voice_on_voice',
@@ -1394,111 +1489,118 @@ export function SettingsPage({ initialTab }) {
             </div>
           </Card>
 
-          <Card>
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-hairline">
-              <div className="grid size-10 shrink-0 place-items-center rounded-pill bg-sky-tint text-sky-ink">
-                <Zap className="w-5 h-5" />
-              </div>
+          {/* Row 2: WhatsApp Automations & Order Approvals side by side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+            <Card className="flex flex-col justify-between">
               <div>
-                <h2 className={`font-display text-lg font-semibold tracking-tight text-ink ${isUrdu ? 'font-urdu text-xl' : ''}`}>
-                  {isUrdu ? 'واٹس ایپ آٹومیشنز' : 'WhatsApp Automations'}
-                </h2>
-                <p className="text-xs text-ink-mute">
-                  {isUrdu
-                    ? 'جب آپ بوٹ کو کوئی اصول بنانے کو کہیں (مثلاً: جب چاول 5 سے کم ہوں تو الرٹ کرو)۔'
-                    : 'What happens when you ask the bot to create an automation, e.g. "alert me when rice is below 5".'}
-                </p>
-              </div>
-            </div>
-
-            <label
-              className={`p-3 rounded-lg border flex items-start gap-3 cursor-pointer transition-colors ${
-                confirmAutomations
-                  ? 'border-primary bg-primary/5'
-                  : 'border-hairline bg-surface/20 hover:bg-surface/40'
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={confirmAutomations}
-                onChange={(e) => setConfirmAutomations(e.target.checked)}
-                className="mt-0.5 text-primary focus:ring-primary"
-              />
-              <div>
-                <p className="text-xs font-medium text-ink">
-                  {isUrdu ? 'آٹومیشن محفوظ کرنے سے پہلے مجھ سے تصدیق کریں' : 'Ask me before saving automations'}
-                </p>
-                <p className="text-[11px] text-ink-mute mt-0.5 leading-relaxed">
-                  {isUrdu
-                    ? 'فعال ہونے پر، بوٹ ہر نئے اصول پر Save / Cancel بٹن دے گا۔ بند ہونے پر، وہ فوراً محفوظ کر لے گا۔'
-                    : 'When on, the bot reads each new automation back with Save / Cancel buttons. When off, it saves straight away and tells you what was saved. You can also type "confirm on" or "confirm off" on WhatsApp.'}
-                </p>
-              </div>
-            </label>
-          </Card>
-
-          {/* Order Approvals Configuration */}
-          <Card>
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-hairline">
-              <div className="grid size-10 shrink-0 place-items-center rounded-pill bg-pear-tint text-warn-ink">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className={`font-display text-lg font-semibold tracking-tight text-ink ${isUrdu ? 'font-urdu text-xl' : ''}`}>
-                  {isUrdu ? 'بڑی سیلز کی منظوری (Order Approvals)' : 'Order Approvals (High-Value Limit)'}
-                </h2>
-                <p className="text-xs text-ink-mute">
-                  {isUrdu
-                    ? 'بڑی مالیت کے آرڈرز پر دکان کے مالک کی منظوری درکار ہو یا نہیں۔'
-                    : 'Control whether high-value sales require store owner approval before being recorded.'}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <label
-                className={`p-3 rounded-lg border flex items-start gap-3 cursor-pointer transition-colors ${
-                  requireApprovalForHighValue
-                    ? 'border-primary bg-primary/5'
-                    : 'border-hairline bg-surface/20 hover:bg-surface/40'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={requireApprovalForHighValue}
-                  onChange={(e) => setRequireApprovalForHighValue(e.target.checked)}
-                  className="mt-0.5 text-primary focus:ring-primary"
-                />
-                <div>
-                  <p className="text-xs font-medium text-ink">
-                    {isUrdu ? 'مقررہ حد سے بڑی سیلز پر منظوری لازمی کریں' : 'Require owner approval for high-value sales'}
-                  </p>
-                  <p className="text-[11px] text-ink-mute mt-0.5 leading-relaxed">
-                    {isUrdu
-                      ? 'پہلے سے بند (Off) ہے۔ بند رکھنے کی صورت میں دکان کا عملہ بغیر رکاوٹ کے کسی بھی رقم کی سیلز درج کر سکتا ہے۔ اگر فعال کریں گے تو مقررہ حد سے اوپر کے آرڈرز ڈیش بورڈ پر آپ کی منظوری کے منتظر رہیں گے۔'
-                      : 'Disabled by default. When turned off, store assistants can log sales freely without waiting for approval. When turned on, sales exceeding your threshold require owner confirmation.'}
-                  </p>
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-hairline">
+                  <div className="grid size-10 shrink-0 place-items-center rounded-pill bg-sky-tint text-sky-ink">
+                    <Zap className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className={`font-display text-lg font-semibold tracking-tight text-ink ${isUrdu ? 'font-urdu text-xl' : ''}`}>
+                      {isUrdu ? 'واٹس ایپ آٹومیشنز' : 'WhatsApp Automations'}
+                    </h2>
+                    <p className="text-xs text-ink-mute">
+                      {isUrdu
+                        ? 'جب آپ بوٹ کو کوئی اصول بنانے کو کہیں (مثلاً: جب چاول 5 سے کم ہوں تو الرٹ کرو)۔'
+                        : 'What happens when you ask the bot to create an automation, e.g. "alert me when rice is below 5".'}
+                    </p>
+                  </div>
                 </div>
-              </label>
 
-              {requireApprovalForHighValue && (
-                <div className="pt-2">
-                  <Input
-                    label={isUrdu ? 'منظوری کی کم از کم حد (روپے)' : 'Approval Threshold Amount (PKR)'}
-                    type="number"
-                    min="1000"
-                    step="500"
-                    value={highValueThreshold}
-                    onChange={(e) => setHighValueThreshold(Number(e.target.value))}
-                    helperText={isUrdu ? 'اس رقم یا اس سے بڑے آرڈرز منظوری کے لیے روکے جائیں گے۔' : 'Orders equal to or above this amount will be held for approval.'}
-                    className="max-w-xs"
+                <label
+                  className={`p-3 rounded-lg border flex items-start gap-3 cursor-pointer transition-colors ${
+                    confirmAutomations
+                      ? 'border-primary bg-primary/5'
+                      : 'border-hairline bg-surface/20 hover:bg-surface/40'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={confirmAutomations}
+                    onChange={(e) => setConfirmAutomations(e.target.checked)}
+                    className="mt-0.5 text-primary focus:ring-primary"
                   />
-                </div>
-              )}
-            </div>
-          </Card>
+                  <div>
+                    <p className="text-xs font-medium text-ink">
+                      {isUrdu ? 'آٹومیشن محفوظ کرنے سے پہلے مجھ سے تصدیق کریں' : 'Ask me before saving automations'}
+                    </p>
+                    <p className="text-[11px] text-ink-mute mt-0.5 leading-relaxed">
+                      {isUrdu
+                        ? 'فعال ہونے پر، بوٹ ہر نئے اصول پر Save / Cancel بٹن دے گا۔ بند ہونے پر، وہ فوراً محفوظ کر لے گا۔'
+                        : 'When on, the bot reads each new automation back with Save / Cancel buttons. When off, it saves straight away and tells you what was saved. You can also type "confirm on" or "confirm off" on WhatsApp.'}
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </Card>
 
-          <div className="flex justify-end">
+            {/* Order Approvals Configuration */}
+            <Card className="flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-hairline">
+                  <div className="grid size-10 shrink-0 place-items-center rounded-pill bg-pear-tint text-warn-ink">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className={`font-display text-lg font-semibold tracking-tight text-ink ${isUrdu ? 'font-urdu text-xl' : ''}`}>
+                      {isUrdu ? 'بڑی سیلز کی منظوری (Order Approvals)' : 'Order Approvals (High-Value Limit)'}
+                    </h2>
+                    <p className="text-xs text-ink-mute">
+                      {isUrdu
+                        ? 'بڑی مالیت کے آرڈرز پر دکان کے مالک کی منظوری درکار ہو یا نہیں۔'
+                        : 'Control whether high-value sales require store owner approval before being recorded.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <label
+                    className={`p-3 rounded-lg border flex items-start gap-3 cursor-pointer transition-colors ${
+                      requireApprovalForHighValue
+                        ? 'border-primary bg-primary/5'
+                        : 'border-hairline bg-surface/20 hover:bg-surface/40'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={requireApprovalForHighValue}
+                      onChange={(e) => setRequireApprovalForHighValue(e.target.checked)}
+                      className="mt-0.5 text-primary focus:ring-primary"
+                    />
+                    <div>
+                      <p className="text-xs font-medium text-ink">
+                        {isUrdu ? 'مقررہ حد سے بڑی سیلز پر منظوری لازمی کریں' : 'Require owner approval for high-value sales'}
+                      </p>
+                      <p className="text-[11px] text-ink-mute mt-0.5 leading-relaxed">
+                        {isUrdu
+                          ? 'پہلے سے بند (Off) ہے۔ بند رکھنے کی صورت میں دکان کا عملہ بغیر رکاوٹ کے کسی بھی رقم کی سیلز درج کر سکتا ہے۔ اگر فعال کریں گے تو مقررہ حد سے اوپر کے آرڈرز ڈیش بورڈ پر آپ کی منظوری کے منتظر رہیں گے۔'
+                          : 'Disabled by default. When turned off, store assistants can log sales freely without waiting for approval. When turned on, sales exceeding your threshold require owner confirmation.'}
+                      </p>
+                    </div>
+                  </label>
+
+                  {requireApprovalForHighValue && (
+                    <div className="pt-2">
+                      <Input
+                        label={isUrdu ? 'منظوری کی کم از کم حد (روپے)' : 'Approval Threshold Amount (PKR)'}
+                        type="number"
+                        min="1000"
+                        step="500"
+                        value={highValueThreshold}
+                        onChange={(e) => setHighValueThreshold(Number(e.target.value))}
+                        helperText={isUrdu ? 'اس رقم یا اس سے بڑے آرڈرز منظوری کے لیے روکے جائیں گے۔' : 'Orders equal to or above this amount will be held for approval.'}
+                        className="max-w-xs"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          <div className="flex justify-end pt-2">
             <Button
               type="submit"
               loading={updateProfileMutation.isPending}
@@ -1576,7 +1678,6 @@ export function SettingsPage({ initialTab }) {
           </div>
         </div>
       </Modal>
-        </div>
       </div>
     </div>
   );

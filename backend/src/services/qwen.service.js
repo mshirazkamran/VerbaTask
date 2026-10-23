@@ -30,6 +30,8 @@ English, Urdu script, or Roman Urdu) for ANY retail trade (general store, grocer
 - If quantity is not explicitly stated, default quantity to 1.
 - Supported payment methods: cash, easypaisa, jazzcash, sadapay, nayapay, raast, meezan, hbl, ubl, alfalah, mcb, faysal, allied, askari, bank, or udhaar (khata/credit). Default to "cash".
 - If paymentMethod is "udhaar", extract the customer's name into customerName (e.g. "udhaar ali", "khata osama", "credit for john"). Otherwise null.
+- Adding goods to a customer's khata/udhaar is a log_sale with paymentMethod "udhaar": "soban bhai ke khate me lipton yellow label daal do" -> {"type":"log_sale","items":[{"name":"lipton yellow label","quantity":1}],"paymentMethod":"udhaar","customerName":"soban bhai","amount":null,"isIncomplete":false}; "soban bhai ko lipton yellow label udhaar pe de diya" -> the same.
+- A customer paying money back toward their udhaar ("ne ... de diye", "udhaar me se", "jama karwaye") is NEVER a log_sale: see settle_khata below. Creating a khata ("khata bnao") is NEVER a log_sale: see create_khata below.
 
 2. Updating inventory / Adding incoming stock (restock/delivery):
 {"type":"update_stock","items":[{"name":"<item name>","quantity":<number>,"price":<number or null>,"unit":"<unit or null>"}],"action":"add"|"set"}
@@ -89,13 +91,24 @@ If the merchant asks for an automation whose action is NOT one of the two action
 9. Settling or paying Khata / Customer debt:
 {"type":"settle_khata","customerName":"<customer name>","amount":<number>}
 - Used when a customer pays cash to clear their debt/credit/ledger/khata balance (e.g. "ali ne 500 diye", "ali se 500 wasool hue", "ali ne 1000 jama karwaye", "settle 500 ali", "ali paid 500", "500 jama rashid", "علی نے 500 روپے دیے", "علی سے 500 وصول ہوئے", "علی کا 500 جمع کرو").
+- Also: "soban bhai ne 3 rupay udhaar me se de diye", "soban bhai ne apne udhaar me se 500 diye", "سوبان بھائی نے ادھار میں سے 500 دیے" -> {"type":"settle_khata","customerName":"soban bhai","amount":3} (amount = the money paid, customerName = the person who paid).
 - CRITICAL: Never classify debt payment / khata settlement as log_sale! Logging a sale is selling store inventory/goods to a customer. Settling khata is a customer paying off money they already owed from earlier purchases.
 
 10. Inquiring customer Khata balance:
 {"type":"check_khata","customerName":"<customer name>"}
 - Used when asking how much a customer owes (e.g. "ali ka khata", "check khata ali", "ali ka kitna baqi hai", "علی کا کھاتہ", "علی کے کتنے باقی ہیں").
 
-11. Anything else where NO product, report, greeting, stock update, khata settlement, or automation can be identified:
+11. Creating a new customer khata (ledger account) — only when the merchant explicitly asks to make/open one:
+{"type":"create_khata","customerName":"<customer name>","phone":"<phone number digits exactly as said, or null>"}
+- Examples: "Soban bhai ka udhaar ka khata bnao jin ka phone number 03001234567" -> {"type":"create_khata","customerName":"soban bhai","phone":"03001234567"}; "create khata for ali 03211234567" -> {"type":"create_khata","customerName":"ali","phone":"03211234567"}; "ali ka khata banao" -> {"type":"create_khata","customerName":"ali","phone":null}.
+- Never create a khata just because a customer name appears in a sale.
+
+12. Sending a customer's khata/udhaar statement as a PDF report (what they bought, dates, payments):
+{"type":"khata_report","customerName":"<customer name>"}
+- Examples: "soban bhai ke udhaar ya khata ki report bhej do", "ali ka khata report", "send ledger report of usman", "سوبان بھائی کے کھاتے کی رپورٹ بھیجو".
+- Asking only for the balance ("ali ka khata", "ali ka kitna baqi hai") is check_khata, not khata_report.
+
+13. Anything else where NO product, report, greeting, stock update, khata action, or automation can be identified:
 {"type":"unknown","rawText":"<original text>"}`;
 
 const BUSINESS_DETAILS_PROMPT = `You extract business details from a merchant's
@@ -764,20 +777,51 @@ export function normalizeNumberWords(text) {
   return str.replace(/\s+/g, ' ').trim();
 }
 
+// Words that mean "a customer's udhaar / khata / credit" in English, Roman Urdu and Urdu script.
+// Longer spellings first so the alternation never stops on a shorter prefix.
+const KHATA_DEBT_WORDS = 'udhaari|udhari|udhaar|udhar|khaata|khaate|khata|khate|karz|qarz|ادھار|کھاتہ|کھاتے|کھاتا|قرض';
+const KHATA_DEBT_WORD_REGEX = new RegExp(`(?:^|[\\s,])(?:${KHATA_DEBT_WORDS})(?=$|[\\s,.!?۔])`, 'i');
+
+/** True when the text mentions a khata/udhaar/credit account. */
+export function hasKhataDebtWord(text) {
+  return typeof text === 'string' && KHATA_DEBT_WORD_REGEX.test(text);
+}
+
+// "udhaar me se", "apne khate se", "ادھار میں سے" — the debt a customer is paying down.
+const DEBT_PHRASE = `(?:(?:apne|apna|apni|اپنے|اپنا|اپنی)\\s+)?(?:${KHATA_DEBT_WORDS})\\s*(?:(?:ke|ka|ki|me|mein|main|men|کے|کا|کی|میں)\\s*)?(?:(?:se|سے)\\s+)?`;
+const PAID_VERB = '(?:diye(?:\\s*hain|\\s*hen)?|de\\s*diye|dey\\s*diye|de\\s*diya|diya|jama(?:\\s*karwaye|\\s*karaye|\\s*karwa\\s*diye|\\s*kiye|\\s*kar\\s*diye)?|wapis\\s*(?:kiye|diye|kar\\s*diye|kar\\s*diya)|wapas\\s*(?:kiye|diye|kar\\s*diye|kar\\s*diya)|ada\\s*(?:kiye|kar\\s*diye)|bhar\\s*diye|bhare|paid|دیے|دے\\s*دیے|دیا|دے\\s*دیا|جمع\\s*(?:کروائے|کرائے|کیے|کروا\\s*دیے)?|واپس\\s*(?:کیے|کر\\s*دیے)|ادا\\s*(?:کیے|کر\\s*دیے))';
+const KHATA_PAYMENT_WITH_DEBT_REGEX = new RegExp(
+  `^([a-zA-Z\\s\\u0600-\\u06FF-]+?)\\s+(?:ne|نے)\\s+(?:${DEBT_PHRASE})?(\\d+)\\s*(?:rupay|rupee|rupees|rs|roopay|روپے)?\\s*(?:${DEBT_PHRASE})?${PAID_VERB}(?:\\s+(?:${DEBT_PHRASE}))?\\s*$`,
+  'i'
+);
+
 /**
  * Fast-path heuristic parser for Khata (debt / ledger) cash settlements.
- * Detects phrases like "Ali ne 500 diye", "Ali se 500 wasool hue", "settle 1000 usman", "علی نے 500 دیے".
+ * Detects phrases like "Ali ne 500 diye", "Ali se 500 wasool hue", "settle 1000 usman", "علی نے 500 دیے",
+ * and the udhaar-worded forms "Soban bhai ne 3 rupay udhaar me se de diye".
  */
 export function parseKhataSettleHeuristic(text) {
   if (!text || typeof text !== 'string') return null;
 
-  // Exclude restock, returns, stock checks
-  if (/(?:maal\s*a[y|i]a|restock|report|wapis|wapas|return|exchange|badal|stock\s*check|check\s*stock)/i.test(text)) {
+  // Exclude restock, reports, stock checks
+  if (/(?:maal\s*a[y|i]a|restock|report|stock\s*check|check\s*stock)/i.test(text)) {
+    return null;
+  }
+  // Returns/exchanges share words with "udhaar wapis kiye" (debt paid back), so only
+  // treat them as returns when no khata/udhaar word is present.
+  if (!hasKhataDebtWord(text) && /(?:wapis|wapas|return|exchange|badal)/i.test(text)) {
     return null;
   }
 
   const normalized = normalizeNumberWords(text);
-  const lower = normalized.toLowerCase().trim();
+  // Voice transcripts end with a full stop ("Ali ne 500 diye.") which would defeat every `$` anchor below.
+  const lower = normalized.toLowerCase().trim().replace(/[.!?،۔]+$/, '').trim();
+
+  // Pattern 0: <Name> ne [udhaar me se] <Amount> [rupay] [udhaar me se] (diye|de diye|jama karwaye ...)
+  const p0 = lower.match(KHATA_PAYMENT_WITH_DEBT_REGEX);
+  if (p0 && hasKhataDebtWord(lower)) {
+    return { type: 'settle_khata', customerName: p0[1].trim(), amount: parseInt(p0[2], 10), rawText: text };
+  }
 
   // Pattern 1: <Name> ne <Amount> [rupay] (diye|de diye|diye hain|jama|jama karwaye|jama karaye|wapis kiye|ada kiye|paid)
   const p1 = lower.match(/^([a-zA-Z\s\u0600-\u06FF-]+?)\s+ne\s+(\d+)\s*(?:rupay|rs|roopay|روپے)?\s*(?:diye(?:\s*hain|\s*hen)?|de\s*diye|jama(?:\s*karwaye|\s*karaye|\s*karwa\s*diye|\s*kiye)?|wapis\s*(?:kiye|diye)|ada\s*kiye|paid|pay\s*kiye|bhare|دیے|دے\s*دیے|جمع\s*(?:کروائے|کرائے|کیے)?|واپس\s*کیے|ادا\s*کیے)$/i);
@@ -853,12 +897,228 @@ export function parseKhataSettleHeuristic(text) {
   return null;
 }
 
+// Every way "khata" shows up in typed text and Whisper transcripts ("khatha", "khatta", "account"...).
+const KHATA_NOUNS = 'khaatha|khaata|khaate|khatha|khatta|khata|khate|khaa|kahta|khta|account|ledger|کھاتہ|کھاتے|کھاتا';
+const KHATA_PARTICLE = '(?:ka|ke|ki|کا|کے|کی)';
+const KHATA_NAME = "[a-zA-Z\\u0600-\\u06FF][a-zA-Z\\s\\u0600-\\u06FF.'-]*?";
+const WORD_START = '(?<=^|[\\s,،.])';
+const WORD_END = '(?=$|[\\s,،.!?۔])';
+const KHATA_NOUN_REGEX = new RegExp(`${WORD_START}(?:${KHATA_NOUNS})${WORD_END}`, 'i');
+// "make / open" in Roman Urdu, Urdu script and English, matched as the start of a word ("bana do", "banado", "kholo").
+const KHATA_CREATE_VERB_REGEX = new RegExp(`${WORD_START}(?:bana|bna|banao|bnao|banado|bnado|banana|bnana|banaen|banayein|banalo|bnalo|khol|kholo|create|open|make|start|بنا|بناؤ|بنائیں|بنادو|کھول|کھولو)`, 'i');
+const PHONE_NUMBER_REGEX = /\+?\d[\d\s-]{4,16}\d/;
+// Words that can sit next to a customer's name but are never part of it.
+const NAME_FILLER = new Set([
+  'please', 'plz', 'zara', 'ab', 'ek', 'aik', 'mera', 'meri', 'mere', 'hamara', 'naya', 'nayi', 'new', 'customer',
+  'gahak', 'grahak', 'hai', 'he', 'ha', 'hain', 'ye', 'yeh', 'is', 'iss', 'jo', 'and', 'aur', 'a', 'an', 'the',
+  'for', 'of', 'ka', 'ke', 'ki', 'uska', 'iska', 'unka', 'inka', 'udhaar', 'udhar', 'bhi', 'ji',
+  'نیا', 'نئی', 'میرا', 'ایک', 'گاہک', 'ہے', 'یہ', 'کا', 'کے', 'کی', 'ادھار',
+]);
+
+/**
+ * Normalizes a Pakistani mobile number ("0300 1234567", "+92 300 1234567", "3001234567")
+ * to the local 11-digit form "03001234567". Returns null when it isn't a valid mobile number.
+ */
+export function normalizePkMobile(input) {
+  let digits = String(input ?? '')
+    .replace(/[۰-۹]/g, (d) => URDU_DIGITS_MAP[d] || d)
+    .replace(/\D/g, '');
+  if (digits.startsWith('0092')) digits = digits.slice(4);
+  else if (digits.startsWith('92')) digits = digits.slice(2);
+  else if (digits.startsWith('0')) digits = digits.slice(1);
+  return /^3\d{9}$/.test(digits) ? `0${digits}` : null;
+}
+
+/** True when the text asks to make/open a khata ("talal ka khatha bana do", "create account for ali"). */
+export function looksLikeKhataCreation(text) {
+  if (!text || typeof text !== 'string') return false;
+  return KHATA_NOUN_REGEX.test(text) && KHATA_CREATE_VERB_REGEX.test(text);
+}
+
+/** Drops filler words from both ends of a captured name ("mera naya customer talal" -> "talal"). */
+function cleanKhataName(raw) {
+  const words = String(raw || '').replace(/[,،.]/g, ' ').split(/\s+/).filter(Boolean);
+  while (words.length && NAME_FILLER.has(words[0])) words.shift();
+  while (words.length && NAME_FILLER.has(words[words.length - 1])) words.pop();
+  const name = words.slice(-4).join(' ');
+  if (name.length < 2 || name.length > 40 || /\d/.test(name) || !/[a-zA-Z؀-ۿ]/.test(name)) return null;
+  return name;
+}
+
+/**
+ * Fast-path heuristic for explicitly creating a customer khata (ledger account). Keyword based
+ * rather than one fixed sentence, because voice transcripts vary a lot:
+ * "Talal ka khatha bana do, uska number hai 0300 123 4567.", "طلال کا کھاتہ بنا دو، اس کا نمبر ہے 03001234567",
+ * "mera naya customer hai Talal, uska khata bana do", "create account for usman +92 300 1234567".
+ * customerName is null when no name could be found; phone is null when absent or invalid
+ * (invalidPhone tells the two apart). The handler decides what to ask for.
+ */
+export function parseKhataCreateHeuristic(text) {
+  if (!looksLikeKhataCreation(text)) return null;
+  const lower = text.replace(/[۰-۹]/g, (d) => URDU_DIGITS_MAP[d] || d).toLowerCase().trim().replace(/[.!?،۔]+$/, '').trim();
+
+  const phoneMatch = lower.match(PHONE_NUMBER_REGEX);
+  const phone = phoneMatch ? normalizePkMobile(phoneMatch[0]) : null;
+  // Remove the number and its label so neither can end up inside the name.
+  const body = (phoneMatch ? lower.replace(phoneMatch[0], ' ') : lower)
+    .replace(/(?:^|\s)(?:phone|number|nmbr|no|mobile|contact|ph|نمبر|فون|موبائل)(?=\s|$)/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const word = "[a-zA-Z\\u0600-\\u06FF.'-]+";
+  const upTo4Words = `((?:${word}\\s+){0,3}${word})`;
+  const noun = `(?:${KHATA_NOUNS})${WORD_END}`;
+  const adjectives = '(?:(?:naya|nayi|new|نیا|نئی|udhaar|udhar|ادھار)\\s+(?:ka\\s+|کا\\s+)?)*';
+
+  let name = null;
+
+  // 1. "<name> ka [naya] [udhaar ka] khata ..."
+  const p1 = body.match(new RegExp(`${upTo4Words}\\s+${KHATA_PARTICLE}\\s+${adjectives}${noun}`, 'i'));
+  if (p1) name = cleanKhataName(p1[1]);
+
+  // 2. "<name>, uska / iska / jis ka khata ..."
+  if (!name) {
+    const p2 = body.match(new RegExp(`${upTo4Words}[,،]?\\s+(?:uska|iska|unka|inka|us\\s+ka|is\\s+ka|jis\\s*ka|jin\\s*ka|اس\\s+کا|ان\\s+کا|جس\\s+کا|جن\\s+کا)\\s+${adjectives}${noun}`, 'i'));
+    if (p2) name = cleanKhataName(p2[1]);
+  }
+
+  // 3. "[create|open|...] khata / account for|of <name>" and "khata bana do <name>"
+  if (!name) {
+    const p3 = body.match(new RegExp(`${noun}\\s+(?:(?:for|of)\\s+|\\S+\\s+(?:do\\s+|dein\\s+|den\\s+|lo\\s+)?)(${word}(?:\\s+${word}){0,3})`, 'i'));
+    if (p3) {
+      const after = p3[1].split(/\s+(?:ka|ke|ki|jis|jin|uska|iska|اس|جس)(?:\s|$)/i)[0];
+      name = cleanKhataName(after);
+    }
+  }
+
+  return {
+    type: 'create_khata',
+    customerName: name,
+    phone,
+    invalidPhone: !!phoneMatch && !phone,
+    rawText: text,
+  };
+}
+
+const KHATA_REPORT_WORDS = 'report|statement|history|hisab|hisaab|detail|details|tafseel|tafsil|رپورٹ|تفصیل|حساب|اسٹیٹمنٹ';
+const KHATA_LEDGER_WORDS = `${KHATA_DEBT_WORDS}|ledger`;
+
+/**
+ * Fast-path heuristic for "send <customer>'s khata/udhaar report":
+ * "soban bhai ke udhaar ya khata ki report bhej do", "ali ka khata report",
+ * "send ledger report of usman", "khata statement for rashid".
+ */
+export function parseKhataReportHeuristic(text) {
+  if (!text || typeof text !== 'string') return null;
+  const lower = text.toLowerCase().trim().replace(/[.!?،۔]+$/, '').trim();
+  const ender = '(?=$|[\\s,.!?۔])';
+  const filler = /^(?:mujhe|mjhe|please|plz|zara|ek|send|bhejo|bhej\s*do)\s+/i;
+
+  let name = null;
+
+  // 1. "<name> ke udhaar [ya khata] ki report ..."
+  const p1 = lower.match(new RegExp(`^(${KHATA_NAME})\\s+${KHATA_PARTICLE}\\s+(?:${KHATA_LEDGER_WORDS})(?:\\s+(?:ya|or|aur|and|یا|اور)\\s+(?:${KHATA_LEDGER_WORDS}))?\\s+(?:${KHATA_PARTICLE}\\s+)?(?:${KHATA_REPORT_WORDS})${ender}.*$`, 'i'));
+  if (p1) name = p1[1];
+
+  // 2. "[send] khata report [of|for] <name> [bhej do]"
+  if (!name) {
+    const p2 = lower.match(new RegExp(`^(?:send\\s+|bhej\\s*do\\s+|bhejo\\s+|mujhe\\s+)?(?:${KHATA_LEDGER_WORDS})\\s+(?:${KHATA_REPORT_WORDS})\\s+(?:of\\s+|for\\s+|${KHATA_PARTICLE}\\s+)?(${KHATA_NAME})(?:\\s+(?:bhej\\s*do|bhejo|bhej\\s*dein|send|do|dein))?$`, 'i'));
+    if (p2) name = p2[1];
+  }
+
+  // 3. "<name> khata report [bhejo]"
+  if (!name) {
+    const p3 = lower.match(new RegExp(`^(${KHATA_NAME})\\s+(?:${KHATA_LEDGER_WORDS})\\s+(?:${KHATA_REPORT_WORDS})${ender}.*$`, 'i'));
+    if (p3) name = p3[1];
+  }
+
+  if (!name) return null;
+  const cleanName = name.replace(filler, '').replace(/\s+/g, ' ').trim();
+  if (cleanName.length < 2 || cleanName.length > 40) return null;
+
+  return { type: 'khata_report', customerName: cleanName, rawText: text };
+}
+
+/**
+ * Fast-path heuristic for adding goods to an existing customer's khata:
+ * "soban bhai ke khate me lipton yellow label daal do",
+ * "soban bhai ko lipton yellow label udhaar pe de diya",
+ * "add 2 chawal to ali's khata".
+ */
+export function parseKhataSaleHeuristic(text) {
+  if (!text || typeof text !== 'string') return null;
+  const lower = text.replace(/[۰-۹]/g, (d) => URDU_DIGITS_MAP[d] || d).toLowerCase().trim().replace(/[.!?،۔]+$/, '').trim();
+  const khataNoun = '(?:khaata|khaate|khata|khate|udhaar|udhar|کھاتہ|کھاتے|ادھار)';
+  const inWord = '(?:me|mein|main|men|may|میں)';
+  const putVerbStem = '(?:daal|dal|dalo|add|likh|likho|chadha|chadhao|ڈال|ڈالو|لکھ)';
+  const nameSrc = "[a-zA-Z\\u0600-\\u06FF][a-zA-Z\\s\\u0600-\\u06FF.'-]*?";
+
+  let customerName = null;
+  let itemsText = null;
+
+  // Voice transcripts spell the closing words many ways ("de diya", "de dia", "de di", "daal do",
+  // "dal de"), so everything after the udhaar/khata marker is free text. Only a payment word in
+  // that tail ("udhaar wapis kar diya") rules it out — that is a settlement, not a sale.
+  const paymentTail = /(?:wapis|wapas|jama|wasool|\bada\b|return|واپس|جمع|وصول|ادا)/i;
+
+  // "<name> ke khate me <items> [daal do / likh do ...]"
+  const a = lower.match(new RegExp(`^(${nameSrc})\\s+${KHATA_PARTICLE}\\s+${khataNoun}\\s*${inWord}\\s+(.+?)(?:\\s+${putVerbStem}\\S*(?:\\s+\\S+){0,3})?$`, 'i'));
+  if (a) { customerName = a[1]; itemsText = a[2]; }
+
+  // "<name> ko <items> udhaar [pe/par/me] [de diya ...]"
+  if (!customerName) {
+    const b = lower.match(new RegExp(`^(${nameSrc})\\s+(?:ko|کو)\\s+(.+?)\\s+${khataNoun}(?:\\s+(.*))?$`, 'i'));
+    if (b && !paymentTail.test(b[3] || '')) { customerName = b[1]; itemsText = b[2]; }
+  }
+
+  if (!customerName) {
+    const c = lower.match(/^(?:add|put|log)\s+(.+?)\s+(?:to|in|into|on)\s+([a-z؀-ۿ][a-z\s؀-ۿ.-]*?)(?:'s|s')?\s+(?:khata|khaata|ledger|account|udhaar)$/i);
+    if (c) { itemsText = c[1]; customerName = c[2]; }
+  }
+
+  if (!customerName || !itemsText || !/[a-zA-Z؀-ۿ]/.test(itemsText)) return null;
+  // "<name> ke khate me 500 daal do" is about money, not goods — leave it to the other paths.
+  if (/^\s*\d+\s*(?:rupay|rs|روپے|rupees?)?\s*$/i.test(itemsText)) return null;
+
+  const items = [];
+  let amount = null;
+  for (const chunk of itemsText.split(/(?:,\s*|\s+aur\s+|\s+and\s+|\s+اور\s+)/i).filter(Boolean)) {
+    const parsed = parseStandardSaleHeuristic(chunk) || parseStandardSaleHeuristic(`1 ${chunk}`);
+    if (!parsed?.items?.length) return null;
+    items.push(...parsed.items);
+    if (!amount && parsed.amount) amount = parsed.amount;
+  }
+  if (!items.length) return null;
+
+  return {
+    type: 'log_sale',
+    items,
+    paymentMethod: 'udhaar',
+    customerName: customerName.replace(/\s+/g, ' ').trim(),
+    amount,
+    isIncomplete: false,
+  };
+}
+
+/**
+ * True for any explicit khata command (create, report, udhaar payment, adding goods to a khata).
+ * Lets these override a half-finished conversation flow instead of being read as its answer.
+ */
+export function isKhataCommand(text) {
+  return !!(
+    parseKhataCreateHeuristic(text) ||
+    parseKhataReportHeuristic(text) ||
+    (hasKhataDebtWord(text) && parseKhataSettleHeuristic(text)) ||
+    parseKhataSaleHeuristic(text)
+  );
+}
+
 /**
  * Fast-path heuristic parser for Khata customer inquiry requests.
  */
 export function parseKhataInquiryHeuristic(text) {
   if (!text || typeof text !== 'string') return null;
-  const lower = text.toLowerCase().trim();
+  const lower = text.toLowerCase().trim().replace(/[.!?،۔]+$/, '').trim();
 
   // "check khata ali", "khata ali", "udhar ali", "کھاتہ علی", "باقی علی"
   const m1 = lower.match(/^(?:check\s*khata|khata|udhar|udhaar|باقی|کھاتہ)\s+([a-zA-Z\s\u0600-\u06FF-]+)$/i);
@@ -897,7 +1157,13 @@ export function parseStandardSaleHeuristic(text) {
     /^add\s+(?:stock\s+(?:of\s+)?)?\d+/i.test(lower) ||
     /^add\s+[a-zA-Z\u0600-\u06FF\s]+\s+\d+/i.test(lower) ||
     /(?:kitna|kitni|kitne|check\s*stock|stock\s*check|how\s*much|how\s*many|report|summary|hisab|رپورٹ|کھاتہ|wapis|wapas|return|واپس|تبادلہ|exchange|badal)/i.test(lower) ||
-    /^(?:stock\s*list|inventory|saman)\b/i.test(lower)
+    /^(?:stock\s*list|inventory|saman)\b/i.test(lower) ||
+    // "udhaar me se" / "khate se" is money coming off a debt, never a sale.
+    new RegExp(`(?:${KHATA_DEBT_WORDS})\\s*(?:(?:me|mein|main|men|میں)\\s*)?(?:se|سے)(?=$|\\s)`, 'i').test(lower) ||
+    // "<name> ka khata bana do" — opening a khata, never a sale.
+    looksLikeKhataCreation(lower) ||
+    // A mobile number in the message ("uska number 0300 1234567") is never a quantity.
+    /(?:\+?92|0)\s*3\d{2}[\s-]*\d{3}[\s-]*\d{4}/.test(lower)
   ) {
     return null;
   }
@@ -1006,6 +1272,23 @@ export async function parseIntent(text, merchant = null) {
     return { type: 'unknown', rawText: '' };
   }
 
+  // Khata commands go first: they use words ("khata", "udhaar", "report", "wapis") that the
+  // inquiry, return and report heuristics below would otherwise hijack.
+  const khataCreateHeuristic = parseKhataCreateHeuristic(text);
+  if (khataCreateHeuristic) {
+    return khataCreateHeuristic;
+  }
+
+  const khataReportHeuristic = parseKhataReportHeuristic(text);
+  if (khataReportHeuristic) {
+    return khataReportHeuristic;
+  }
+
+  if (hasKhataDebtWord(text)) {
+    const debtPayment = parseKhataSettleHeuristic(text);
+    if (debtPayment) return debtPayment;
+  }
+
   // Check return/exchange and money-first heuristics first
   const returnOrExchangeHeuristic = parseReturnOrExchangeHeuristic(text);
   if (returnOrExchangeHeuristic) {
@@ -1021,6 +1304,11 @@ export async function parseIntent(text, merchant = null) {
   const khataInquiryHeuristic = parseKhataInquiryHeuristic(text);
   if (khataInquiryHeuristic) {
     return khataInquiryHeuristic;
+  }
+
+  const khataSaleHeuristic = parseKhataSaleHeuristic(text);
+  if (khataSaleHeuristic) {
+    return khataSaleHeuristic;
   }
 
   const moneyFirstHeuristic = parseMoneyFirstSaleHeuristic(text);
@@ -1061,7 +1349,7 @@ export async function parseIntent(text, merchant = null) {
     const raw = await chatCompletion(prompt, text);
     const parsed = extractJson(raw);
 
-    if (parsed && ['log_sale', 'update_stock', 'check_stock', 'settle_khata', 'check_khata', 'create_workflow', 'unsupported_workflow', 'greeting', 'generate_report', 'return_order', 'exchange_order', 'unknown'].includes(parsed.type)) {
+    if (parsed && ['log_sale', 'update_stock', 'check_stock', 'settle_khata', 'check_khata', 'create_khata', 'khata_report', 'create_workflow', 'unsupported_workflow', 'greeting', 'generate_report', 'return_order', 'exchange_order', 'unknown'].includes(parsed.type)) {
       // Guard: If model misclassified settlement as a sale, override it
       if (parsed.type === 'log_sale' && khataSettleHeuristic?.type === 'settle_khata') {
         return khataSettleHeuristic;
@@ -1082,6 +1370,12 @@ export async function parseIntent(text, merchant = null) {
           parsed.paymentMethod = normalizePaymentMethod(parsed.paymentMethod) || parsed.paymentMethod.toLowerCase();
         } else {
           parsed.paymentMethod = 'cash';
+        }
+
+        // A sentence that says udhaar/khata is a khata sale. Never let the model's "cash" default
+        // quietly turn it into a cash sale; with no customer name the bot asks whose khata it is.
+        if (hasKhataDebtWord(text) && parsed.paymentMethod !== 'udhaar') {
+          parsed.paymentMethod = 'udhaar';
         }
 
         // Migrate single item to items array if LLM hallucinated the old schema

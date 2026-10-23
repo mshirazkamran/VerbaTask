@@ -1,6 +1,97 @@
 import mongoose from 'mongoose';
 import Customer from '../models/Customer.js';
 import { emitDashboardUpdate } from '../socket.js';
+import Merchant from '../models/Merchant.js';
+import { recordKhataPayment, getKhataStatement } from '../services/khata.service.js';
+import { generateKhataReport } from '../services/report.service.js';
+import { deliverKhataReport } from '../services/reportDelivery.service.js';
+import { normalizePkMobile } from '../services/qwen.service.js';
+
+/** Loads one customer of the signed-in merchant, or answers 400/404 and returns null. */
+async function loadOwnCustomer(req, res) {
+  if (!req.params?.id || !mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ success: false, error: { message: 'Invalid customer ID' } });
+    return null;
+  }
+  const customer = await Customer.findOne({ _id: req.params.id, merchantId: req.merchantId });
+  if (!customer) {
+    res.status(404).json({ success: false, error: { message: 'Customer not found' } });
+    return null;
+  }
+  return customer;
+}
+
+/**
+ * GET /api/customers/:id/statement
+ * The customer's khata: each udhaar purchase with date and items, each payment,
+ * running balance, and totals.
+ */
+export async function getCustomerStatement(req, res) {
+  try {
+    const customer = await loadOwnCustomer(req, res);
+    if (!customer) return;
+    const { rows, totals } = await getKhataStatement(req.merchantId, customer);
+    res.json({
+      success: true,
+      data: {
+        customer: { _id: customer._id, name: customer.name, phone: customer.phone, balance: customer.balance },
+        rows,
+        totals,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: { message: err.message } });
+  }
+}
+
+/** GET /api/customers/:id/statement/pdf — the same khata PDF the WhatsApp bot sends. */
+export async function downloadCustomerStatement(req, res) {
+  try {
+    const customer = await loadOwnCustomer(req, res);
+    if (!customer) return;
+    const merchant = await Merchant.findById(req.merchantId);
+    if (!merchant) {
+      return res.status(404).json({ success: false, error: { message: 'Merchant not found' } });
+    }
+    const report = await generateKhataReport(merchant, customer);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${report.filename}"`);
+    res.setHeader('Content-Length', report.buffer.length);
+    return res.end(report.buffer);
+  } catch (err) {
+    console.error('downloadCustomerStatement failed:', err);
+    res.status(500).json({ success: false, error: { message: err.message } });
+  }
+}
+
+/** POST /api/customers/:id/statement/whatsapp — sends the khata PDF to the merchant's WhatsApp. */
+export async function sendCustomerStatementToWhatsapp(req, res) {
+  try {
+    const customer = await loadOwnCustomer(req, res);
+    if (!customer) return;
+    const merchant = await Merchant.findById(req.merchantId);
+    if (!merchant) {
+      return res.status(404).json({ success: false, error: { message: 'Merchant not found' } });
+    }
+    if (!merchant.whatsappNumber || merchant.whatsappNumber.startsWith('unlinked_')) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'No WhatsApp number is linked to this account. Link it in Settings or download the PDF.' },
+      });
+    }
+
+    const result = await deliverKhataReport(merchant, customer, merchant.language || 'ur', { announce: false });
+    if (!result?.success) {
+      return res.status(500).json({
+        success: false,
+        error: { message: `Could not send the khata report to WhatsApp${result?.error ? ` (${result.error})` : ''}. Try downloading the PDF.` },
+      });
+    }
+    res.json({ success: true, data: { recipient: merchant.whatsappNumber } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: { message: err.message } });
+  }
+}
 
 export async function getCustomers(req, res) {
   try {
@@ -18,15 +109,31 @@ export async function createCustomer(req, res) {
       return res.status(400).json({ success: false, error: { message: 'Customer name is required' } });
     }
 
+    // A khata is never opened without a reachable phone number (same rule as on WhatsApp).
+    const normalizedPhone = normalizePkMobile(phone);
+    if (!normalizedPhone) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'A valid Pakistani mobile number (e.g. 03001234567) is required to open a khata' },
+      });
+    }
+
     const normalizedName = name.trim().toLowerCase();
     const existing = await Customer.findOne({ merchantId: req.merchantId, name: normalizedName });
+
+    const phoneOwner = await Customer.findOne({ merchantId: req.merchantId, phone: normalizedPhone });
+    if (phoneOwner && (!existing || String(phoneOwner._id) !== String(existing._id))) {
+      return res.status(400).json({
+        success: false,
+        error: { message: `This phone number already belongs to ${phoneOwner.name}'s khata` },
+      });
+    }
+
     if (existing) {
       // Consolidate: Add the new balance to their existing balance
       const additionalBalance = Math.max(0, Number(balance) || 0);
       existing.balance = (Number(existing.balance) || 0) + additionalBalance;
-      if (phone && phone.trim()) {
-        existing.phone = String(phone).trim();
-      }
+      existing.phone = normalizedPhone;
       await existing.save();
 
       emitDashboardUpdate(req.merchantId, {
@@ -43,7 +150,7 @@ export async function createCustomer(req, res) {
     const customer = await Customer.create({
       merchantId: req.merchantId,
       name: normalizedName,
-      phone: phone ? String(phone).trim() : undefined,
+      phone: normalizedPhone,
       balance: Math.max(0, Number(balance) || 0),
     });
 
@@ -93,8 +200,15 @@ export async function updateCustomer(req, res) {
       customer.name = trimmedName;
     }
 
-    if (phone !== undefined) {
-      customer.phone = phone ? String(phone).trim() : undefined;
+    if (phone !== undefined && phone !== null && String(phone).trim() !== '') {
+      const normalizedPhone = normalizePkMobile(phone);
+      if (!normalizedPhone) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Enter a valid Pakistani mobile number (e.g. 03001234567)' },
+        });
+      }
+      customer.phone = normalizedPhone;
     }
 
     if (balance !== undefined) {
@@ -168,8 +282,20 @@ export async function settleBalance(req, res) {
       return res.status(404).json({ success: false, error: { message: 'Customer not found' } });
     }
 
-    customer.balance = Math.max(0, customer.balance - amountNum);
+    const previousBalance = Number(customer.balance) || 0;
+    const appliedAmount = Math.min(amountNum, Math.max(0, previousBalance));
+    customer.balance = Math.max(0, previousBalance - amountNum);
     await customer.save();
+
+    if (appliedAmount > 0) {
+      await recordKhataPayment({
+        merchantId: req.merchantId,
+        customerId: customer._id,
+        amount: appliedAmount,
+        balanceAfter: customer.balance,
+        source: 'dashboard',
+      });
+    }
 
     emitDashboardUpdate(req.merchantId, {
       type: 'customer',

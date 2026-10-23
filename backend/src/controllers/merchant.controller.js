@@ -781,6 +781,17 @@ export async function removeStaffMember(req, res) {
     merchant.staffMembers.pull(staff._id);
     await merchant.save();
 
+    if (mongoose.connection?.readyState !== 0) {
+      try {
+        const normStaffPhone = normalizePhone(staff.whatsappNumber);
+        const possiblePhones = [staff.whatsappNumber, normStaffPhone, normStaffPhone?.replace(/^92/, '0')].filter(Boolean);
+        await ConversationState.deleteMany({
+          whatsappNumber: { $in: possiblePhones },
+          flow: 'pending_staff_transfer',
+        });
+      } catch (e) {}
+    }
+
     emitDashboardUpdate(merchant._id, { type: 'staff', action: 'removed', staffId });
 
     return res.status(200).json({

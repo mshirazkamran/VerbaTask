@@ -113,3 +113,38 @@ export function formatPhone(phone) {
   return String(phone).startsWith('+') ? phone : `+${phone}`;
 }
 
+/**
+ * Cleans store name by stripping location, business category/type, and punctuation.
+ * e.g. "Al sheikh general store, Rawalpindi, Kiryana General store." -> "Al sheikh general store"
+ * @param {string} name
+ * @param {string} [location]
+ * @returns {string}
+ */
+export function formatBusinessName(name, location) {
+  if (!name || typeof name !== 'string') return '';
+  let clean = name.trim();
+
+  // If there are commas, take only the primary store name (first segment)
+  if (clean.includes(',')) {
+    clean = clean.split(',')[0].trim();
+  }
+
+  // If there are dashes or pipes separating city/type (e.g. "Store - City")
+  if (clean.includes(' - ')) {
+    clean = clean.split(' - ')[0].trim();
+  } else if (clean.includes(' | ')) {
+    clean = clean.split(' | ')[0].trim();
+  }
+
+  // Strip trailing punctuation like periods or commas
+  clean = clean.replace(/[.,\s]+$/, '');
+
+  // If location was explicitly passed and is attached to the name, strip it
+  if (location && typeof location === 'string' && location.trim()) {
+    const locRegex = new RegExp(`\\s*[-–,|]?\\s*${location.trim()}\\b.*$`, 'i');
+    clean = clean.replace(locRegex, '').trim();
+  }
+
+  return clean.replace(/[.,\s]+$/, '') || name;
+}
+

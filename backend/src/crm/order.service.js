@@ -16,6 +16,39 @@ import { recordMerchantAlias } from '../services/catalogCache.service.js';
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
+ * Finds an EXISTING khata for a customer name as the merchant spoke it. Never creates one:
+ * a khata is opened explicitly (with a phone number) and sales may only be added to it.
+ * Honorifics are tolerated ("soban bhai" finds "soban" and vice versa).
+ */
+export const findKhataCustomer = async (merchantId, rawName) => {
+  const spoken = String(rawName || '').trim().toLowerCase();
+  if (!spoken) return null;
+
+  const normalizedBase = spoken
+    .replace(/\b(bhai|sahab|sahib|sb|khan|ji|janab)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // 1. Exact match on the spoken name
+  let customer = await Customer.findOne({ merchantId, name: spoken });
+
+  // 2. Honorific-stripped name ("soban bhai" -> "soban")
+  if (!customer && normalizedBase && normalizedBase !== spoken) {
+    customer = await Customer.findOne({ merchantId, name: normalizedBase });
+  }
+
+  // 3. Stored name carries an honorific the merchant dropped ("soban" -> "soban bhai")
+  if (!customer && normalizedBase) {
+    customer = await Customer.findOne({
+      merchantId,
+      name: new RegExp(`^${escapeRegex(normalizedBase)}(\\s+(bhai|sahab|sahib|sb|khan|ji|janab))*$`, 'i'),
+    });
+  }
+
+  return customer;
+};
+
+/**
  * Resolve a single order line item to an inventory document.
  * Supports lookup by inventoryItemId (dashboard) or by name (WhatsApp NLP),
  * with exact, learned-alias, fuzzy, and self-learning LLM resolution.
@@ -111,6 +144,22 @@ export const createOrder = async (command) => {
 
   if (!requestedItems.length) {
     throw new Error('INVALID_ORDER: No items provided.');
+  }
+
+  const effectivePaymentMethod = normalizePaymentMethod(paymentMethod) || (paymentMethod ? String(paymentMethod).toLowerCase().trim() : 'cash');
+
+  // Udhaar sales are only added to a khata that already exists. Checked before any stock
+  // is touched, so a missing khata can never leave stock deducted without an order.
+  let khataCustomer = null;
+  if (effectivePaymentMethod === 'udhaar') {
+    const spokenName = (command.customerName || '').trim();
+    if (!spokenName) {
+      throw new Error('KHATA_NAME_REQUIRED: An udhaar sale needs the customer\'s name.');
+    }
+    khataCustomer = await findKhataCustomer(merchantId, spokenName);
+    if (!khataCustomer) {
+      throw new Error(`KHATA_NOT_FOUND: No khata found for '${spokenName}'. Create the khata first.`);
+    }
   }
 
   const orderItems = [];
@@ -226,55 +275,22 @@ export const createOrder = async (command) => {
     console.warn('Failed to check merchant approval setting:', err.message);
   }
 
-  const effectivePaymentMethod = normalizePaymentMethod(paymentMethod) || (paymentMethod ? String(paymentMethod).toLowerCase().trim() : 'cash');
-
   let customerId = null;
   let finalCustomerName = null;
 
-  if (effectivePaymentMethod === 'udhaar' && command.customerName) {
-    const rawName = command.customerName.trim();
-    if (rawName) {
-      // Normalize name and strip honorifics (bhai, sahab, sb, khan, ji, janab)
-      const normalizedBase = rawName.toLowerCase()
-        .replace(/\b(bhai|sahab|sahib|sb|khan|ji|janab)\b/gi, '')
-        .replace(/\s+/g, ' ')
-        .trim();
+  if (khataCustomer) {
+    khataCustomer.balance = (Number(khataCustomer.balance) || 0) + total;
+    await khataCustomer.save();
+    customerId = khataCustomer._id;
+    finalCustomerName = khataCustomer.name; // Keep canonical customer name
 
-      finalCustomerName = rawName.toLowerCase();
-
-      // 1. Exact match with finalCustomerName (ensures unit test mocks expecting { name } work)
-      let customer = await Customer.findOne({ merchantId, name: finalCustomerName });
-
-      // 2. If name had honorifics (e.g. "soban bhai" -> base "soban"), check normalized base name
-      if (!customer && normalizedBase && normalizedBase !== finalCustomerName) {
-        customer = await Customer.findOne({ merchantId, name: normalizedBase });
-      }
-
-      // 3. Case-insensitive or suffix-honorific lookup (e.g. DB has "soban bhai" and user says "soban")
-      if (!customer && normalizedBase) {
-        customer = await Customer.findOne({
-          merchantId,
-          name: new RegExp(`^${escapeRegex(normalizedBase)}(\\s+(bhai|sahab|sahib|sb|khan|ji|janab))*$`, 'i'),
-        });
-      }
-
-      if (!customer) {
-        customer = await Customer.create({ merchantId, name: finalCustomerName, balance: 0 });
-      }
-
-      customer.balance = (Number(customer.balance) || 0) + total;
-      await customer.save();
-      customerId = customer._id;
-      finalCustomerName = customer.name; // Keep canonical customer name
-
-      emitDashboardUpdate(merchantId, {
-        type: 'customer',
-        action: 'update',
-        customerId: customer._id,
-        customerName: customer.name,
-        balance: customer.balance,
-      });
-    }
+    emitDashboardUpdate(merchantId, {
+      type: 'customer',
+      action: 'update',
+      customerId: khataCustomer._id,
+      customerName: khataCustomer.name,
+      balance: khataCustomer.balance,
+    });
   }
 
   const orderNumber = `VT-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;

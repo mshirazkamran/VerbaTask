@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   Receipt,
   Check,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -27,6 +28,7 @@ import { Modal } from '../components/ui/Modal';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ReportDropdown } from '../components/ReportDropdown';
+import { KhataStatementModal } from '../components/KhataStatementModal';
 import {
   useCustomers,
   useSettleBalance,
@@ -36,6 +38,15 @@ import {
 } from '../hooks/useCustomers';
 import { useUiStore } from '../lib/store';
 import { formatPKR } from '../lib/format';
+
+/** Pakistani mobile number in any common form: 03001234567, 0300-1234567, +92 300 1234567. */
+function isValidPkMobile(value) {
+  let digits = String(value || '').replace(/\D/g, '');
+  if (digits.startsWith('0092')) digits = digits.slice(4);
+  else if (digits.startsWith('92')) digits = digits.slice(2);
+  else if (digits.startsWith('0')) digits = digits.slice(1);
+  return /^3\d{9}$/.test(digits);
+}
 
 export function CustomersPage() {
   const language = useUiStore((s) => s.language);
@@ -60,6 +71,9 @@ export function CustomersPage() {
   // Delete Customer modal state
   const [deletingCustomer, setDeletingCustomer] = useState(null);
 
+  // Khata report (statement) modal state
+  const [statementCustomer, setStatementCustomer] = useState(null);
+
   // Settle Payment modal state
   const [settlingCustomer, setSettlingCustomer] = useState(null);
   const [settleAmount, setSettleAmount] = useState('');
@@ -77,11 +91,20 @@ export function CustomersPage() {
       toast.error(isUrdu ? 'گاہک کا نام درج کریں' : 'Please enter customer name');
       return;
     }
+    // Same rule as WhatsApp: no khata without a valid Pakistani mobile number.
+    if (!isValidPkMobile(addForm.phone)) {
+      toast.error(
+        isUrdu
+          ? 'کھاتہ بنانے کے لیے درست موبائل نمبر ضروری ہے (مثلاً 03001234567)'
+          : 'A valid mobile number is required to open a khata (e.g. 03001234567)'
+      );
+      return;
+    }
 
     try {
       await createMutation.mutateAsync({
         name: trimmedName,
-        phone: addForm.phone.trim() || undefined,
+        phone: addForm.phone.trim(),
         balance: addForm.balance ? Math.max(0, Number(addForm.balance)) : 0,
       });
       toast.success(
@@ -239,6 +262,18 @@ export function CustomersPage() {
             <Button
               size="sm"
               variant="outline"
+              leftIcon={<FileText className="w-3.5 h-3.5" />}
+              onClick={(e) => {
+                e.stopPropagation();
+                setStatementCustomer(row.original);
+              }}
+              title={isUrdu ? 'کھاتہ رپورٹ دیکھیں / ڈاؤن لوڈ کریں' : 'View or download khata report'}
+            >
+              {isUrdu ? 'رپورٹ' : 'Report'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
               leftIcon={<Receipt className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
               disabled={!row.original.balance || row.original.balance <= 0}
               onClick={(e) => {
@@ -390,8 +425,8 @@ export function CustomersPage() {
             title={isUrdu ? 'کوئی ادھار کھاتہ موجود نہیں' : 'No ledger entries yet'}
             description={
               isUrdu
-                ? 'نیا گاہک شامل کرنے کے لیے اوپر دیے گئے بٹن پر کلک کریں، یا واٹس ایپ پر "3 چاول حمزہ کو ادھار" بولیں۔'
-                : 'Add a customer directly above, or send a voice message on WhatsApp like "3 chawal hamza ko udhaar".'
+                ? 'اوپر بٹن سے نیا کھاتہ بنائیں، یا واٹس ایپ پر بولیں: "hamza ka khata bnao phone 03001234567"۔ پھر "hamza ke khate me 3 chawal daal do"۔'
+                : 'Open a khata with the button above, or say on WhatsApp: "hamza ka khata bnao phone 03001234567". Then: "hamza ke khate me 3 chawal daal do".'
             }
             action={
               <Button onClick={handleOpenAdd} variant="primary" size="sm" leftIcon={<Plus className="w-4 h-4" />}>
@@ -411,8 +446,8 @@ export function CustomersPage() {
         title={isUrdu ? 'نیا گاہک شامل کریں' : 'Add New Customer'}
         description={
           isUrdu
-            ? 'کھاتہ کے لیے گاہک کا نام اور ابتدائی بقایا ادھار درج کریں'
-            : 'Enter customer name and optional starting udhaar balance'
+            ? 'کھاتہ کے لیے گاہک کا نام اور موبائل نمبر درج کریں'
+            : 'Enter the customer name and mobile number to open their khata'
         }
       >
         <form onSubmit={handleCreateCustomer} className="space-y-4">
@@ -426,12 +461,13 @@ export function CustomersPage() {
           />
 
           <Input
-            label={isUrdu ? 'فون نمبر (اختیاری)' : 'Phone Number (Optional)'}
+            label={isUrdu ? 'موبائل نمبر' : 'Mobile Number'}
             placeholder="03001234567"
             type="tel"
             value={addForm.phone}
             onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
-            helperText={isUrdu ? 'گاہک کو ایس ایم ایس یا واٹس ایپ کے لیے' : 'For customer communication and alerts'}
+            helperText={isUrdu ? 'کھاتہ بنانے کے لیے ضروری ہے' : 'Required to open a khata'}
+            required
           />
 
           <Input
@@ -553,6 +589,15 @@ export function CustomersPage() {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* KHATA REPORT MODAL */}
+      {statementCustomer && (
+        <KhataStatementModal
+          customer={statementCustomer}
+          onClose={() => setStatementCustomer(null)}
+          isUrdu={isUrdu}
+        />
       )}
 
       {/* 4. SETTLE PAYMENT MODAL */}

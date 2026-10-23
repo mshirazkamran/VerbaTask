@@ -160,7 +160,10 @@ export const createOrder = async (req, res) => {
         res.status(201).json({ success: true, data: order });
     } catch (error) {
         // Distinguish between bad user input (400) and server errors (500)
-        const status = error.message.includes('ITEM_NOT_FOUND') || error.message.includes('INSUFFICIENT_STOCK') ? 400 : 500;
+        const status = error.message.includes('ITEM_NOT_FOUND') ||
+                       error.message.includes('INSUFFICIENT_STOCK') ||
+                       error.message.includes('KHATA_NOT_FOUND') ||
+                       error.message.includes('KHATA_NAME_REQUIRED') ? 400 : 500;
         res.status(status).json({ success: false, error: { message: error.message } });
     }
 };

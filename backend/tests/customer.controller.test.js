@@ -8,6 +8,7 @@ import {
   settleBalance,
 } from '../src/controllers/customer.controller.js';
 import Customer from '../src/models/Customer.js';
+import KhataPayment from '../src/models/KhataPayment.js';
 
 describe('Customer Controller Tests', () => {
   test('getCustomers returns list of customers sorted by balance', async () => {
@@ -55,7 +56,9 @@ describe('Customer Controller Tests', () => {
     };
 
     let savedCustomer = null;
+    let recordedPayment = null;
     const origFindOne = Customer.findOne;
+    const origPaymentCreate = KhataPayment.create;
     Customer.findOne = async (query) => {
       assert.equal(query._id, 'cust_abc');
       assert.equal(query.merchantId, 'merchant_123');
@@ -65,14 +68,20 @@ describe('Customer Controller Tests', () => {
         save: async function() { savedCustomer = this; }
       };
     };
+    KhataPayment.create = async (data) => { recordedPayment = data; return data; };
 
     try {
       await settleBalance(req, res);
       assert.equal(mockResponse.success, true);
       assert.equal(mockResponse.data.balance, 200);
       assert.equal(savedCustomer.balance, 200);
+      // The payment is kept as history so the khata report can show when it came in
+      assert.equal(recordedPayment.amount, 300);
+      assert.equal(recordedPayment.balanceAfter, 200);
+      assert.equal(recordedPayment.source, 'dashboard');
     } finally {
       Customer.findOne = origFindOne;
+      KhataPayment.create = origPaymentCreate;
     }
   });
 
